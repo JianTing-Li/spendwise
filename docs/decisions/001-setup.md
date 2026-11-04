@@ -3,7 +3,7 @@
 Date: 2026-11-04. Session owner: Jian Ting. Approved in the setup conversation; subject to Elliot's PR review before merge.
 
 - Runnable stub foundation, shared contracts, synthetic fixtures, developer instructions, verification, concise commits, push, and review PR.
-- Proposed ownership: Elliot application/data (60% planning target), Jian agent/evaluations (40%). Elliot has not agreed yet. No calendar commitments. Deployment owner undecided. Free tiers only; hosting not configured.
+- Proposed responsibilities: Elliot application/data, Jian agent/evaluations. Work is planned by task, without a fixed contribution target. Elliot has not agreed yet. No calendar commitments. Deployment owner undecided. Free tiers only; hosting not configured.
 - Prior month: September 2026. Current month: October 2026. Fixed reference: 2026-11-01. UTC date-only entries. Month ranges start-inclusive/end-exclusive.
 - Duplicate proximity: inclusive seven calendar days; lookback begins 2026-09-24. At least one payment is in October. Payments after October are excluded. Full completed reversals recorded before 2026-11-01 remove the original from duplicate candidates.
 - Cash totals use each completed entry's date; outgoing positive, reversal negative. Reversals require an equal-amount completed original, same vendor/currency, and cannot precede the original. At most one reversal record per original. Pending/failed entries do not affect totals.

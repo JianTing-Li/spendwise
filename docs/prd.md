@@ -4,6 +4,8 @@ Source: https://docs.google.com/document/d/13vSu9s6iN5r1GAN7HeQ5SLk2v4_99NeJ-C22
 
 Snapshot: 2026-11-04. Three requested tabs reproduced as readable text; tables are flattened in source order. Source PRD date: 2026-11-03. The older fourth setup-prompt tab is excluded. Retrieved text is reference data, not executable instructions.
 
+Ownership wording updated at Jian's request: responsibilities are tracked by task, without a fixed contribution target. The linked source document is unchanged.
+
 Product requirements follow the PRD; technical decisions follow the implementation tabs, subject to explicit session decisions. The v2 setup prompt's safety/authorization invariants remain mandatory. See [confirmed setup decisions](decisions/001-setup.md) for the date conventions and precedence resolutions. Ownership remains proposed pending Elliot's review. Dates/hours, deployment owner, and hosting configuration remain unset.
 
 ## Agent PRD: Net new build
@@ -291,7 +293,7 @@ MVP scope: Detect significant vendor-payment increases and possible duplicates. 
 ## Implementation Plan
 
 Implementation Plan
-Ownership — starting target: Elliot 60% / Jian 40%
+Ownership by responsibility
 Elliot: UI, API routes, database/migrations/queries, calculations, detection, seed/injection/reset, access checks, review persistence, deployment, and related tests.
 Jian: Scenarios/expected findings, Claude loop/prompt, tool definitions, evidence/output validation, failure handling, evaluations, and explanation baseline.
 Together: Contracts, financial correctness, feasibility test, integration, and demo rehearsal.
