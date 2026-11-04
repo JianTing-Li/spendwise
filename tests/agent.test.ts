@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import {
-  createRealInvestigator,
-  realInvestigatorFromEnv,
-  type ModelClient,
-} from "../src/agent/real";
+import { createRealInvestigator, type ModelClient } from "../src/agent/loop";
+import { realInvestigatorFromEnv } from "../src/agent/client";
 import { modelTools, SUBMIT_TOOL } from "../src/agent/tools";
 import { SYSTEM_PROMPT } from "../src/agent/prompt";
 import { detect } from "../src/domain/finance";
