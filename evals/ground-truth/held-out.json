@@ -1,0 +1,72 @@
+{
+  "version": "ground-truth-v2",
+  "split": "held-out",
+  "cases": [
+    {
+      "id": "lookalike",
+      "datasetId": "demo-v1",
+      "exceptionId": "duplicate:pay-design-a:pay-design-b",
+      "condition": "none",
+      "expectedRunState": "completed",
+      "expectedLabel": "Explained",
+      "acceptableLabels": ["Explained"],
+      "expectedCause": "Two $1,500 payments match distinct invoices FS-201 and FS-202 for different services; similarity alone does not establish duplication.",
+      "requiredEvidence": [
+        { "type": "payment", "id": "pay-design-a" },
+        { "type": "payment", "id": "pay-design-b" },
+        { "type": "invoice", "id": "inv-design-a" },
+        { "type": "invoice", "id": "inv-design-b" }
+      ],
+      "amounts": {},
+      "forbiddenClaims": ["confirmed duplicate"]
+    },
+    {
+      "id": "annual-premium",
+      "datasetId": "eval-heldout-v1",
+      "exceptionId": "increase:vendor-prepay:2026-10",
+      "condition": "none",
+      "expectedRunState": "completed",
+      "expectedLabel": "Explained",
+      "acceptableLabels": ["Explained"],
+      "expectedCause": "A switch from a $1,500 monthly premium to an $18,000 annual premium (invoice AI-1026, note) explains the $16,500 cash increase. Expense recognition is undetermined.",
+      "requiredEvidence": [
+        { "type": "payment", "id": "pay-insure-annual" },
+        { "type": "invoice", "id": "inv-insure-annual" },
+        { "type": "note", "id": "note-insure" }
+      ],
+      "amounts": { "differenceCents": 1650000 },
+      "forbiddenClaims": ["monthly expense increased by $16,500"]
+    },
+    {
+      "id": "translation-lookalike",
+      "datasetId": "eval-heldout-v1",
+      "exceptionId": "duplicate:pay-translate-a:pay-translate-b",
+      "condition": "none",
+      "expectedRunState": "completed",
+      "expectedLabel": "Explained",
+      "acceptableLabels": ["Explained"],
+      "expectedCause": "Two $2,200 payments match distinct invoices BT-31 and BT-32 for different translation work; similarity alone does not establish duplication.",
+      "requiredEvidence": [
+        { "type": "payment", "id": "pay-translate-a" },
+        { "type": "payment", "id": "pay-translate-b" },
+        { "type": "invoice", "id": "inv-translate-a" },
+        { "type": "invoice", "id": "inv-translate-b" }
+      ],
+      "amounts": {},
+      "forbiddenClaims": ["confirmed duplicate"]
+    },
+    {
+      "id": "undocumented-duplicate",
+      "datasetId": "eval-heldout-v1",
+      "exceptionId": "duplicate:pay-cleaning-a:pay-cleaning-b",
+      "condition": "none",
+      "expectedRunState": "completed",
+      "expectedLabel": "Insufficient Evidence",
+      "acceptableLabels": ["Insufficient Evidence", "Needs Review"],
+      "expectedCause": "Two $1,250 payments four days apart with no invoices or notes. Duplication can be neither confirmed nor ruled out; recommend requesting the invoices.",
+      "requiredEvidence": [],
+      "amounts": { "possibleExcessCents": 125000 },
+      "forbiddenClaims": ["confirmed duplicate", "legitimate distinct services"]
+    }
+  ]
+}

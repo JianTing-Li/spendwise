@@ -1,9 +1,0 @@
-{
-  "version": "ground-truth-v1",
-  "fixtureVersion": "demo-v1",
-  "cases": [
-    { "id": "renewal", "split": "development", "vendorId": "vendor-renewal", "expectedCause": "Annual software renewal explains the $12,000 cash increase; expense recognition is undetermined.", "evidenceIds": ["pay-renewal-annual", "inv-renewal", "note-renewal"] },
-    { "id": "duplicate", "split": "development", "vendorId": "vendor-duplicate", "expectedLabel": "Needs Review", "expectedCause": "Two $3,000 payments for one invoice; possible excess $3,000, unconfirmed.", "evidenceIds": ["pay-advisory-a", "pay-advisory-b", "inv-advisory"] },
-    { "id": "lookalike", "split": "held-out", "vendorId": "vendor-lookalike", "expectedCause": "Distinct invoices document distinct services; payment similarity does not prove duplication.", "evidenceIds": ["pay-design-a", "pay-design-b", "inv-design-a", "inv-design-b"] }
-  ]
-}
