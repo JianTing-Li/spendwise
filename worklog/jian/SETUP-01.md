@@ -5,6 +5,8 @@ Owner: Jian Ting. Date: 2026-11-04. Branch: `codex/repo-setup`.
 ## Changes
 Runnable local synthetic demo, shared schemas and investigator interface, fixture retrieval, budget scaffolding, PGlite persistence, reset-generation protection, stub findings, human review acknowledgment, tests, CI, and documentation.
 
+Follow-up: added `worklog/elliot/APP-01.md`, the missing starter log referenced by the handoff. It records no implementation or verification claims and leaves Elliot's ownership pending agreement. Documentation-only change; checked with `git diff --check`.
+
 ## Decisions
 See `docs/decisions/001-setup.md`. Elliot's ownership is proposed, not agreed. No deadlines or deployment owner. Free tiers only. GitHub Issues are future implementation status/specification source; drafts await creation approval.
 
