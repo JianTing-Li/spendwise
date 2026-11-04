@@ -1,6 +1,6 @@
 # Initial implementation tasks — drafts for review
 
-Session owner: Jian Ting. Elliot's assignments are proposals, pending PR review. Schedule flexible; no deadlines. GitHub handles/coding tools for Elliot are unconfirmed. Free tiers only; deployment owner and hosting projects undecided.
+Session owner: Jian Ting. Elliot's GitHub account is [0x1Elliot](https://github.com/0x1Elliot); application issues #4, #5, #6, and #11 are assigned to him for planning. The ownership split remains proposed pending his agreement. Shared tasks remain unassigned for coordination. No deadlines. Free tiers only; deployment owner and hosting projects undecided.
 
 Issue creation is not authorized yet. On approval, move these specifications into GitHub Issues and replace the drafts with issue links. Use Ready → In Progress → Review → Done, with one active implementation task per person. No remote issues/settings were changed by setup.
 

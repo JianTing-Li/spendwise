@@ -11,6 +11,8 @@
 - GitHub Issues are the implementation task specification/status source: Ready → In Progress → Review → Done. Until issue creation is approved, initial issue drafts are in `docs/handoff.md`; move them into issues, then replace drafts with links. The setup checklist tracks SETUP-01 only.
 
 ## Architecture and proposed ownership
+Known GitHub accounts: Jian Ting is `JianTing-Li`; Elliot Watson is `0x1Elliot`. These map explicitly identified humans to issue assignees; they do not establish the current session's human owner. Elliot's application tasks are assigned for planning, with ownership acceptance still pending.
+
 One Next.js application, Node Route Handlers, TypeScript, Tailwind. USD synthetic data only. Local file-backed PGlite; planned Neon via parameterized `pg` queries and pooled connections. No separate service, background infrastructure, vector database, or agent framework.
 
 | Owner | Paths / responsibility |
