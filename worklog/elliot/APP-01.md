@@ -1,23 +1,118 @@
-# APP-01 — Neon data adapter
+# APP-01 — local WIP preparation
 
-Owner: Elliot Watson. Starter log prepared by Jian Ting's setup session.
-Task specification: [APP-01 — GitHub Issue #4](https://github.com/JianTing-Li/spendwise/issues/4).
+Owner: Elliot Watson (0x1Elliot). Task specification: [APP-01 — GitHub Issue #4](https://github.com/JianTing-Li/spendwise/issues/4).
+
+Rebase note (November 5): preserved APP-01 verification history while adopting the current main issue/workflow guidance. Historical status notes below are not the task-status source; GitHub Issue #4 is authoritative.
+
+## Current status — Draft PR preparation, November 4, 2026
+
+This section supersedes historical blocker/status notes below. SETUP-01 (#2) is complete; this branch was synchronized by Elliot to merged main at `abcdd92` and the APP-01 work restored. Owner: Elliot Watson (0x1Elliot). APP-01 remains incomplete and this is adapter-only WIP for Jian's review.
+
+Current candidate: nine files covering the internal database interface, pooled pg adapter, Store type adaptation, adapter/money/real PostgreSQL tests and helpers, and this worklog. Reviewed the complete candidate; no unrelated application, shared contract, SQL migration, manifest/configuration or generated-file changes. Credential-pattern scan across all nine files found no matches for provider tokens, private keys, credential-bearing URLs or literal secrets. The explicit local test database/user names are test configuration, not credentials. Pattern scanning is not a proof that every possible secret format is absent.
+
+Reverified on the current abcdd92 checkout during Draft PR preparation:
+- `npm run check`: passed typecheck, lint, 45 tests across five files and production build, exit 0.
+- `node --import tsx --test tests/pg-local.integration.ts`: 7 passed, 0 failed/skipped, exit 0, using only the authorized local PostgreSQL database and disposable test schemas.
+- Browser regression was not rerun during this preparation; its earlier passing run is recorded below.
+
+Proposed commit: `Add APP-01 PostgreSQL adapter and local integration coverage`. Proposed Draft PR: `APP-01 WIP: PostgreSQL adapter and concurrency tests`; base `main`, head `codex/elliot-app-01-wip`, `Refs #4`. No commit, push, remote PR, merge or deployment performed at this preparation stage.
+
+Pending architecture, not implemented: preserve immutable 001; atomic v1-to-v2 maintenance upgrade under a database migration lock; validate legacy records and adopt the v1 ledger explicitly; bundle a generated SQL/checksum registry for runtime use without cwd/raw source-file dependencies; column-authoritative retryable runs; relational fields and safe bigint decoding for APP-03; explicit database modes, verified TLS and separate migration/runtime credentials. PostgreSQL runtime startup would verify schema version; an explicit migration command would perform upgrades. PGlite would retain local initialization. Jian's agreement is needed on shared SQL/configuration, retry semantics/latest-attempt selection, relational fields, migration packaging/upgrade strategy and credential/TLS boundaries before implementation.
+
+Remaining APP-01 work: versioned migrations and non-destructive legacy upgrades; concurrent bootstrap; authoritative retry/run schema; relational query fields; application configuration/mode/TLS integration; separately authorized Neon compatibility checks. No APP-03 retrieval implementation started. Whole-server restart remains untested; idle-backend termination/fresh-pool recovery is covered. No APP-01 completion or merge readiness claim.
+
+Session owner: Elliot Watson (0x1Elliot), ownership formally accepted in this Codex chat on November 4, 2026. No remote issue or assignment update performed.
+Task: https://github.com/JianTing-Li/spendwise/issues/4
+Dependency: #2 remains open and PR #1 unmerged.
+Branch: codex/elliot-app-01-wip, based on setup commit 5ffc73cd51bb7ef18ca07f71d3b185d34c9cab4d.
 
 ## Changes
-None yet. Record completed changes here during implementation.
+Isolated checkout prepared. Added `database.ts` internal transaction boundary and `pg.ts` pooled adapter with configurable initial local test defaults. Store now accepts the structural database interface; PGlite conforms directly. Added adapter control-flow and unsafe JSONB money tests. No SQL, contract, manifest, configuration, or remote changes.
+Read issue #4 and #2/comments, approved November 3 PRD, working agreement, setup decision, development guidance, contracts, database code and persistence tests.
 
 ## Verification
-No APP-01 checks have been run. Record exact commands, results, and unverified behavior; do not copy setup test results as evidence for this task.
+Node 24.21.0 and npm 11.19.0 meet engine ranges; differ from exact setup recommendations.
+Offline install failed because zod was not cached. Locked dependency installation succeeded with scripts disabled (`npm ci --ignore-scripts --no-audit --no-fund --cache /private/tmp/spendwise-app01-npm-cache`).
+`npm run check` passed after implementation: typecheck, lint, 44 tests across five files, production build. Targeted adapter/store run passed 22 tests before adding two money tests. `git diff --check` passed.
+Browser test first failed on sandbox loopback binding, then missing Chromium. Downloaded Chromium to `/private/tmp/spendwise-app01-browsers`; `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/spendwise-app01-browsers npm run test:e2e` passed (one test). Test-generated next-env.d.ts changes restored to the setup version.
+No PostgreSQL server/client or Docker found in PATH. Genuine cross-process database tests need a local PostgreSQL test server. PGlite and fake pool tests cannot prove that behavior.
 
-## Interface decisions
-None yet. Coordinate schema, migration, retrieval, and shared-contract changes with Jian before editing shared boundaries.
+## Approved adapter design / blocked migration design
+Preserve Store public methods, contracts, JSONB schema, calculations, PGlite and hosted fail-closed access.
+Add an internal database interface and PGlite/pooled-pg adapters. Every transaction pins BEGIN, queries and COMMIT/ROLLBACK to one client, releases it on every path, and discards broken connections. No automatic transaction retries or fallback.
+Preserve demo_state row locks across injection, claims, review, reset and finish. Serialize startup/seeding too.
+Proposed pg limits: pool 4; connection 5s; statement 5s; lock 3s; idle-in-transaction 5s. Connection-string options must not override these bounds or weaken TLS validation.
+Keep JSONB cents validated through existing safe-integer contracts/domain checks. Never globally coerce bigint into Number.
+Migration proposal: leave 001 immutable; database-lock startup; validate ordered versions; apply each migration and version marker transactionally. Support fresh and existing version-1 databases. Shared migration/configuration/interface work waits for Jian's coordination.
 
-## Blockers and unfinished work
-- Neon project, access, and deployment owner not configured or decided.
-- No credentials belong in this log.
+## Planned checks
+Adapter: parameter forwarding, one-client transaction affinity, rollback/release/disposal, acquisition/query/commit/rollback errors, bounded timeouts, no fallback.
+Store: fixture totals, three cycles, concurrent duplicate injection/claims/reviews, reset versus stale finish, restart persistence, unsafe money rejection.
+Migrations after coordination: fresh/v1 startup, repeat/concurrent startup, failure rollback, unknown/missing versions.
+Real local PostgreSQL: independent pools/processes contend on startup/injection/claims/review/reset. Fake pools validate adapter control flow only.
+Run npm run check and local stub E2E when available. No Neon/model requests.
 
-## Next action
-Start a branch from the latest `origin/main` and follow `AGENTS.md`. The PR uses `Closes #4` only when all acceptance criteria are met; partial work uses `Refs #4`.
+## Blockers and next action
+Elliot approved adapter-only implementation and configurable initial test defaults in this chat. Jian has not agreed to shared migrations/configuration/interface integration; those changes remain blocked. No message sent on Elliot's behalf.
+The pg adapter is deliberately not wired into getStore or routes. Existing startup still runs migration 001; do not claim concurrent pg startup safety. TLS/credential policy and application mode wiring remain configuration coordination work. Pool idle errors fail the adapter explicitly; recreate it after a failure rather than silently reconnecting to another store. No production timeout/capacity validation claimed.
+Keep SETUP-01 unresolved and all work WIP. Local PostgreSQL test infrastructure unavailable.
+No merge, push, PR, provisioning, paid execution or deployment authorized.
 
-## Requests for Jian
-Confirm the retrieval contracts and any agent integration dependencies before implementation begins.
+## Follow-up — PostgreSQL concurrency and recovery (November 4, 2026)
+
+Requested scope: real isolated PostgreSQL concurrency, idle-pool failure/recovery, regression checks. Preserved the user's independently verified `tests/database-money.test.ts` without edits.
+
+Availability check: Python `shutil.which` found no postgres, initdb, pg_ctl, psql, docker or podman. No server binaries found under `/opt/homebrew/opt/postgresql*`, `/opt/homebrew/Cellar/postgresql*`, `/usr/local/opt/postgresql*`, `/Applications/Postgres.app/Contents/Versions/*`, or `/Library/PostgreSQL/*`. No `/private/tmp/.s.PGSQL.*` sockets found. Homebrew exists, but no package/service installed or provisioned. Real PostgreSQL testing is blocked by the absent local test server. No live database or credential connection attempted.
+
+Changed only `tests/pg-adapter.test.ts` and this worklog in this follow-up. Added a deterministic fake-pool test establishing successful use, emitting an idle-pool error, verifying repeated rejection before checkout/callback, closing the failed adapter, and explicitly creating/using a fresh adapter. It also verifies the old instance stays unavailable and cleanup removes its error listener. No runtime implementation changes needed. This proves control flow, not real driver/server disconnect recovery.
+
+Checks actually executed:
+- `npm test -- tests/pg-adapter.test.ts tests/store.test.ts tests/financial.test.ts tests/safety.test.ts`: passed, 43 tests across four files.
+- `npm run check`: 45 tests across five files passed; typecheck/lint passed. Production build passed (exit 0). The two unchanged money tests were included by this standard full check.
+- No new browser test run; no PGlite demo or route changes. Prior browser result above remains historical.
+
+Prepared real-database test protocol for when an isolated local server is available:
+- Initialize a dedicated temporary cluster/database containing synthetic fixtures only, bind only loopback/private socket, use a unique data directory/port, and stop/remove only that test-owned cluster in cleanup. Do not discover or reuse unrelated local databases.
+- Bootstrap Store once sequentially using unchanged 001; create independent pools and child-process workers against that database. Verify distinct backend PIDs/process IDs. Keep concurrent migration/startup testing separate and blocked pending Jian's approval.
+- Coordinate workers with IPC ready/start barriers, not timing sleeps. Bound all waits; capture child failures, close pools, and terminate test-owned workers on failure.
+- Injection: release multiple workers together; exactly one reports changed=true, others false; assert seven payments, four distinct exceptions/runs, and expected fixture summaries from independent readers.
+- Claim: race workers for the same pending run; exactly one receives input and others null; persisted state is running, with no duplicate run rows.
+- Reset invalidation: worker A claims and pauses, worker B commits reset and reinjection, then A tries finish; finish must return false, baseline/reset state and subsequent generation must remain intact. Also exercise finish holding the generation lock while reset waits, using explicit lock barriers.
+- Review: finish a valid stub run, race review calls across workers; exactly one changed=true, timestamp remains stable on retries; close all adapters, create fresh independent readers and verify timestamp persists.
+- Recovery: capture the backend PID after a successful transaction; from a test-owned control connection terminate that idle backend; wait for the actual pool error event, assert the old adapter repeatedly fails closed, explicitly construct a fresh adapter/pool, verify a query and persisted state succeed, and confirm the old instance remains unavailable.
+- All real-server expectations above remain UNEXECUTED. No claim of PostgreSQL locking, server timeout, concurrency, or live recovery verification.
+
+Next prerequisite: provide/agree an isolated local PostgreSQL installation or test server. No consequential architecture or runtime behavior changed in this follow-up; no additional implementation approval required for the added test. Installing test infrastructure or changing shared migrations/configuration remains a separate decision. SETUP-01 remains unresolved; no remote writes, Neon, paid calls, deployment or issue switch.
+
+## Real PostgreSQL follow-up — November 4, 2026
+
+The user supplied PostgreSQL 17 and authorized only `/tmp:5432`, database `spendwise_app01_test`, user `elliotwatson`. Identity readback confirmed PostgreSQL 17.11 (Homebrew), server version 170011. Initial sandbox connection failed with socket permission denial; the authorized elevated run connected successfully. No other database, Neon, model service, or credentials used.
+
+### Changes and execution boundaries
+
+Added `tests/pg-local.integration.ts`, `tests/helpers/pg-local.ts`, and `tests/helpers/pg-local-worker.ts`. Integration tests are explicitly opt-in via `node --import tsx --test tests/pg-local.integration.ts`; their filenames are excluded from the routine Vitest test glob. No package scripts or shared configuration changed. Test connections hard-code the authorized socket/database/user and verify database identity/version. Each run creates a uniquely named disposable schema inside that database. A test-only wrapper sets the transaction-local search path on the pinned pg connection. Store initializes once sequentially with unchanged 001, then independent pools/processes use the initialized schema. This does not claim concurrent initialization/migration safety.
+
+No runtime implementation, shared migration, configuration, contract, fixture, or money-test changes made. Restored Next-generated next-env.d.ts changes after E2E. All prior uncommitted work preserved on `codex/elliot-app-01-wip`.
+
+### Actual results
+
+- First integration run: 7 tests, 6 passed, 1 failed. Injection summary assertion compared different vendor array orders; values matched. Corrected the test to compare sorted vendor IDs, without changing financial expectations or application code.
+- Final `node --import tsx --test tests/pg-local.integration.ts`: **7 passed, 0 failed, 0 skipped**.
+  1. Same backend PID throughout a transaction; SQL failure and application failure both roll back writes, verified from an independent pool.
+  2. Two independent worker processes/backend PIDs contend on the real generation row lock; exactly one injection changes state in each of three cycles. Seven payments, four exceptions/runs and fixture totals confirmed.
+  3. Two independent processes contend on one pending run; exactly one claim succeeds.
+  4. One process claims work, another resets/reinjects, then old finish returns false. Reset baseline and new-generation pending runs remain intact.
+  5. Concurrent cross-process reviews produce one changed=true; timestamp persists through independent pools and a newly spawned reader process.
+  6. A failed SQL operation rejects with DatabaseUnavailable; subsequent successful identity read still reports the authorized PostgreSQL database, with no local fallback.
+  7. A control connection terminates only a test-owned idle backend, selected by PID/database/user/unique application name. The real pool error event is observed. The old adapter repeatedly rejects before invoking work; a fresh pool gets a different backend PID and reads persisted injected state. The old adapter stays unavailable.
+- `npm run check`: **45 passed across 5 files**, typecheck/lint/production build passed, exit 0. This routine suite stays local PGlite/fake-pool; the 7 real PostgreSQL tests run separately.
+- `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/spendwise-app01-browsers npm run test:e2e`: **1 passed**, exit 0. Preserved PGlite/stub injection, source inspection, review/reload persistence, reset and denied unauthorized mutation.
+- Post-run database cleanup verification: **0 leftover app01_test_* schemas, 0 test connections**. No installed service stopped/restarted. `git diff --check` passed.
+
+### Remaining boundaries / APP-01 acceptance
+
+Real PostgreSQL runtime transaction, process concurrency, review persistence and explicit fresh-pool recovery now have passing evidence. Backend termination is NOT a PostgreSQL service restart. Whole-server restart remains unexecuted because the installed instance may serve databases outside the authorized isolated database; stopping it would exceed the database-only scope. No service configuration or data-directory changes made.
+
+APP-01 is **not fully satisfied**. Versioned transactional migration runner, concurrent migration/bootstrap safety, application mode/configuration/TLS integration and any associated shared interface changes still await Jian's agreement. Neon compatibility/live checks remain separately authorized work and were not attempted. Hosted fail-closed behavior is unchanged and covered by existing safety regressions. SETUP-01 remains an unresolved dependency in this WIP; no merge readiness claimed.
+
+No new consequential architecture change or implementation approval is required for these test-only additions. Next action: coordinate the blocked migration/configuration boundaries with Jian; only then implement the remaining APP-01 scope. No push, PR, merge, deployment, service provisioning or other issue work performed.

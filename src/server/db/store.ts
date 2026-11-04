@@ -1,4 +1,4 @@
-import { PGlite, type Transaction } from "@electric-sql/pglite";
+import type { Database, DatabaseTransaction } from "./database";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
@@ -13,7 +13,7 @@ import { baseline, injectedDataset } from "../../fixtures/scenarios";
 import { detect, summarize, validateDataset } from "../../domain/finance";
 
 export class Store {
-  constructor(readonly db: PGlite) {}
+  constructor(readonly db: Database) {}
   async initialize() {
     const sql = await readFile(
       resolve("src/server/db/migrations/001_initial.sql"),
@@ -25,7 +25,7 @@ export class Store {
       if (!existing.rows.length) await this.writeDataset(tx, baseline);
     });
   }
-  private async writeDataset(tx: Transaction, input: Dataset) {
+  private async writeDataset(tx: DatabaseTransaction, input: Dataset) {
     const data = validateDataset(input);
     for (const row of data.vendors)
       await tx.query(
