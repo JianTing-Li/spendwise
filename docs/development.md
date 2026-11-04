@@ -37,7 +37,7 @@ Enter future credentials locally or through hosting secret settings, never chat 
 ## Integration boundaries
 `Investigator` receives an exception, generation, acceptance time, deadline and cancellation signal. Retrieval is scoped by application-owned records. UI and agent consume the same contracts. The real adapter currently returns `unavailable`; the `Budget` helper is tested scaffolding for Jian to integrate into every real model/tool call. Set Anthropic `maxRetries: 0` when constructing the real SDK client.
 
-Evidence validation checks existence and scope, then strips self-asserted support. Free-text claim support is not implemented; `Explained` is downgraded to `Needs Review`. A future validator must justify any supported status. Ground truth stays in `evals/ground-truth/`, outside all runtime imports.
+Evidence validation (`src/agent/validation.ts`) checks existence and scope, strips self-asserted support, flags human-only conclusions and unknown amounts, and keeps `Explained` only when the exception's claim category is objectively supported by the records. A completed run means the investigation finished with valid references, not that it was verified; see [decision 002](decisions/002-evidence-validation.md). Ground truth stays in `evals/ground-truth/`, outside all runtime imports.
 
 ## Deployment prerequisites — not exercised
 Free tiers only; the deployment lead and projects are tracked in DEPLOY-01 (#14). Before deployment: configure authentication, Neon pooled `pg` connection, separate read-only retrieval role, SQL compatibility tests and connection/statement timeouts. No production database credentials or live connections are used during setup.
