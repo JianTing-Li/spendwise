@@ -1,0 +1,361 @@
+@import "tailwindcss";
+:root {
+  --ink: #172d2a;
+  --muted: #63726e;
+  --line: #dce3dc;
+  --paper: #f6f7f2;
+  --green: #245e4b;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+main {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 40px;
+}
+header {
+  height: 90px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--green);
+  font-size: 26px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.brand span {
+  color: var(--ink);
+  font-size: 21px;
+  letter-spacing: -0.8px;
+}
+.environment,
+.eyebrow,
+.rule {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+.environment {
+  border: 1px solid #b7cbbf;
+  border-radius: 5px;
+  padding: 7px 12px;
+  color: var(--green);
+}
+.intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 48px 0 36px;
+}
+.eyebrow {
+  color: var(--green);
+  margin: 0 0 18px;
+}
+h1 {
+  font-size: clamp(34px, 4.4vw, 54px);
+  line-height: 1.08;
+  letter-spacing: -2px;
+  font-weight: 600;
+  margin: 0 0 20px;
+}
+h1 span {
+  color: #668577;
+}
+.lede {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.7;
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 215px;
+}
+button {
+  border: 1px solid var(--green);
+  border-radius: 6px;
+  background: var(--green);
+  padding: 12px 18px;
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: #173f32;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: #c7d2c9;
+}
+.secondary:hover:not(:disabled) {
+  background: #e4ebe3;
+}
+button:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 3px solid #bd8725;
+  outline-offset: 3px;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  margin-bottom: 36px;
+}
+.metrics > div {
+  padding: 24px 28px;
+}
+.metrics > div + div {
+  border-left: 1px solid var(--line);
+}
+.metrics p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+.metrics strong {
+  display: block;
+  font-size: 32px;
+  letter-spacing: -1px;
+  font-weight: 500;
+}
+.metrics strong span {
+  color: #8a9690;
+  font-size: 22px;
+}
+small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  gap: 12px;
+}
+.section-title h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+.section-title span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.panel {
+  margin-bottom: 36px;
+}
+.table-scroll {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  white-space: nowrap;
+}
+th {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-weight: 500;
+  background: #edf1e9;
+  color: var(--muted);
+  padding: 14px 22px;
+}
+td {
+  padding: 18px 22px;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+td strong {
+  font-weight: 600;
+}
+.empty {
+  padding: 35px;
+  text-align: center;
+  border: 1px dashed #bdcfc0;
+  border-radius: 8px;
+  background: #edf2e9;
+  color: var(--muted);
+}
+.empty > span {
+  font-size: 25px;
+  color: var(--green);
+}
+h3 {
+  font-weight: 600;
+  color: var(--ink);
+  margin: 12px 0 7px;
+}
+.empty p {
+  margin: 0;
+}
+.queue {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.finding {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 9px;
+  padding: 25px;
+}
+.finding-heading {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+.rule {
+  color: #896126;
+  font-size: 10px;
+}
+.finding h2 {
+  font-size: 22px;
+  margin: 7px 0 0;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+.finding p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 11px;
+  background: #f4ead8;
+  color: #795b27;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.reviewed {
+  background: #e4f0e7;
+  color: var(--green);
+}
+.fine {
+  font-size: 12px !important;
+}
+details {
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.record {
+  font-size: 12px;
+  background: #f5f7f3;
+  padding: 12px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.record p {
+  margin: 5px 0;
+  font-size: 12px;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+  margin-top: 50px;
+  padding: 22px 0 32px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.error {
+  background: #f9e7e2;
+  padding: 20px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+.error button {
+  margin-left: 12px;
+}
+@media (max-width: 760px) {
+  main {
+    padding: 0 20px;
+  }
+  header {
+    height: 75px;
+  }
+  .intro {
+    display: block;
+    padding-top: 32px;
+  }
+  .controls {
+    margin-top: 25px;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+  .metrics > div {
+    padding: 18px 22px;
+  }
+  .metrics > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .metrics strong {
+    font-size: 28px;
+  }
+  .queue {
+    grid-template-columns: 1fr;
+  }
+  .section-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  footer {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .environment {
+    font-size: 9px;
+  }
+  td,
+  th {
+    padding: 14px;
+  }
+}
