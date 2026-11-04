@@ -1,0 +1,36 @@
+name: Status labels
+on:
+  pull_request:
+    types: [opened, reopened, edited, ready_for_review, converted_to_draft]
+  issues:
+    types: [closed]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move issues closed by this PR to review (or in-progress for drafts)
+        env:
+          # PR text is inert data passed through the environment, never interpolated into the script.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .github/scripts/status_labels.py pr
+  issue-closed:
+    if: github.event_name == 'issues' && github.event.issue.state_reason == 'completed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark the completed issue done
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .github/scripts/status_labels.py issue

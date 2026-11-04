@@ -1,27 +1,44 @@
 # SpendWise working agreement
 
-## Authority and session workflow
-- Product requirements: `docs/prd.md`. Confirmed decisions: `docs/decisions/`.
-- Session owner must be explicitly supplied; never infer from Git identity.
-- This setup session: **Jian Ting**, task **SETUP-01**. Elliot's ownership below is proposed, pending his PR review. No schedule or deployment owner has been agreed.
-- Before implementation, read the assigned issue, this file, relevant contracts/decisions, and latest task log. One active implementation task per person.
-- Each concurrent session uses its own branch/worktree. Inspect status and remote changes before syncing. Preserve existing work; no blind pull, reset, force-push, or merge.
-- Coordinate changes to contracts, fixture IDs, dependencies, CI, configuration, migrations, and this file. Breaking contracts/fixture IDs require a separate PR approved by both humans. New optional fields/enums still need consumer review.
-- Keep work logs at `worklog/<person>/<TASK-ID>.md`: changes, actual checks, decisions, blockers, next action, requests. Agree before ownership transfer.
-- GitHub Issues are the implementation task specification/status source: Ready → In Progress → Review → Done. Until issue creation is approved, initial issue drafts are in `docs/handoff.md`; move them into issues, then replace drafts with links. The setup checklist tracks SETUP-01 only.
+## Start here — including "let's work on the project"
+Treat a general request to work on SpendWise as a request to follow this routine.
 
-## Architecture and proposed ownership
-Known GitHub accounts: Jian Ting is `JianTing-Li`; Elliot Watson is `0x1Elliot`. These map explicitly identified humans to issue assignees; they do not establish the current session's human owner. Elliot's application tasks are assigned for planning, with ownership acceptance still pending.
+1. **Owner.** Use the human owner stated in the conversation. If unknown, ask only whether the session belongs to Jian or Elliot. Never infer it from Git identity, credentials or file paths.
+2. **Checkout.** Check root, branch, `git status`, and remote/PR state. Preserve uncommitted work. Follow the branch rules below before editing.
+3. **Context.** Read `README.md`, `docs/development.md`, `docs/prd.md`, `docs/decisions/`, and the issue index in `docs/handoff.md`. Live GitHub Issues hold task specifications and status.
+4. **Task.** Use an explicitly requested issue. Otherwise resume the owner's `status:in-progress` issue, or pick their earliest-milestone `status:ready` issue whose dependencies are closed, lowest number first. If none is eligible, report the blocker; never take another person's issue or bypass a dependency.
+5. **Evidence.** Read the full issue and its discussion, the latest worklog (create it if missing), referenced contracts/fixtures, relevant code/tests, and the framework guide for the change. Keep evaluator-only answers out of the investigation agent's context.
+6. **Scope, then work.** State owner, issue, intended change, owned paths, dependencies and verification, then proceed. Ask only about missing consequential requirements, ownership conflicts, or actions that need separate authorization. Never silently change contracts, financial conventions or invariants.
+7. **Handoff.** Update the worklog, run the relevant checks, report actual results and gaps.
+
+## Branch hygiene
+- Every editing session starts a new branch from the latest `origin/main`, for exactly one issue. Name it after the issue (for example `app-01-neon-adapter`).
+- Never commit to a branch whose PR is merged or under review. Open a new branch and issue instead.
+- Concurrent sessions use separate branches/worktrees. No blind pull, reset, force-push or merge.
+- Before asking for a merge: `git status` is clean, `git log @{u}..HEAD` is empty (everything pushed), the PR head SHA matches local `HEAD`, and CI is green on that SHA. If a push fails, say so and stop; do not report the work as in the PR.
+
+## Authority and workflow
+- Product requirements: `docs/prd.md`. Confirmed decisions: `docs/decisions/`.
+- **Status lives only in GitHub.** Ownership is the issue assignee; acceptance and approvals are PR reviews and issue comments. Docs and worklogs link to them and never restate status, approval or "pending" state.
+- Status labels: `status:ready` → `status:in-progress` → `status:review` → `status:done`, exactly one per issue. The Status labels workflow moves them when a PR opens (draft → in-progress, ready → review) and when an issue closes as completed. Set `status:in-progress` by hand when starting without a PR. Ready means queued, not unblocked.
+- Every PR fully completes at least one issue: `Closes #<number>` in the description for each completed issue, `Refs #<number>` for partial work. The Issue link check enforces a real closing reference. Merging into `main` closes the issue.
+- `main` is protected: changes land by PR with one approval. Never merge without explicit human authorization.
+- One active implementation task per person. Coordinate changes to contracts, fixture IDs, dependencies, CI, configuration, migrations and this file. Breaking contract or fixture-ID changes need a separate PR approved by both humans; new optional fields/enums still need consumer review.
+- Worklogs: `worklog/<person>/<TASK-ID>.md` with changes, actual checks, decisions, blockers, next action, requests, and links to the issue and PR. Agree before transferring ownership.
+- New issues use the Task issue template.
+
+## Architecture and ownership
+Known GitHub accounts: Jian Ting is `JianTing-Li`; Elliot Watson is `0x1Elliot`. They map named humans to issue assignees; they do not identify the current session's owner.
 
 One Next.js application, Node Route Handlers, TypeScript, Tailwind. USD synthetic data only. Local file-backed PGlite; planned Neon via parameterized `pg` queries and pooled connections. No separate service, background infrastructure, vector database, or agent framework.
 
 | Owner | Paths / responsibility |
 | --- | --- |
-| Elliot (proposed) | `src/app/`, `src/domain/`, `src/server/`, `tests/financial.test.ts`, `tests/store.test.ts`, UI E2E; app, data, retrieval implementations, stub, access, deployment |
+| Elliot | `src/app/`, `src/domain/`, `src/server/`, `tests/financial.test.ts`, `tests/store.test.ts`, UI E2E; app, data, retrieval implementations, stub, access |
 | Jian | `src/agent/`, `evals/`; tool definitions, real investigator, evidence validation, evaluation |
 | Shared | `src/contracts/`, `src/investigation/`, `src/fixtures/`, safety tests, manifests, CI and docs |
 
-Real and stub implementations use `Investigator`. Tool schemas belong to Jian; retrieval/query implementations belong to Elliot. All money/detection stays in `src/domain/`; do not duplicate it in agent or UI code.
+Deployment has no lead yet; see DEPLOY-01 (#14). Real and stub implementations use `Investigator`. Tool schemas belong to Jian; retrieval/query implementations belong to Elliot. All money/detection stays in `src/domain/`; do not duplicate it in agent or UI code.
 
 ## Permanent invariants
 - **INV-01 Synthetic:** All financial records remain synthetic in every mode. Credentials never connect this app to real financial transactions.

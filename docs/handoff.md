@@ -1,26 +1,26 @@
-# Initial implementation tasks — drafts for review
+# Task index
 
-Session owner: Jian Ting. Elliot's GitHub account is [0x1Elliot](https://github.com/0x1Elliot); application issues #4, #5, #6, and #11 are assigned to him for planning. Responsibilities remain proposed pending his agreement. Coordination leads: Jian for #9 and #15, Elliot for #10 and #13; the other person supports/reviews. Deployment issue #14 is unassigned until its lead is agreed. Assignment does not authorize deployment. No deadlines. Free tiers only; deployment operator and hosting projects undecided.
+GitHub Issues hold every task's specification, owner (the assignee), milestone and status. This page only links to them; it never records status or approvals. New tasks use the Task issue template, and the workflow rules are in [AGENTS.md](../AGENTS.md).
 
-Issue creation is not authorized yet. On approval, move these specifications into GitHub Issues and replace the drafts with issue links. Use Ready → In Progress → Review → Done, with one active implementation task per person. No remote issues/settings were changed by setup.
+| Task | Issue |
+| --- | --- |
+| SETUP-01 | [Review and merge the repository foundation](https://github.com/JianTing-Li/spendwise/issues/2) |
+| DATA-01 | [Expand synthetic scenarios and isolated evaluation fixtures](https://github.com/JianTing-Li/spendwise/issues/3) |
+| APP-01 | [Implement Neon persistence and versioned migrations](https://github.com/JianTing-Li/spendwise/issues/4) |
+| APP-02 | [Protect hosted access and mutation endpoints](https://github.com/JianTing-Li/spendwise/issues/5) |
+| APP-03 | [Implement scoped read-only database retrieval tools](https://github.com/JianTing-Li/spendwise/issues/6) |
+| AI-01 | [Implement the bounded Claude investigation loop](https://github.com/JianTing-Li/spendwise/issues/7) |
+| AI-02 | [Validate claim support and preserve uncertainty](https://github.com/JianTing-Li/spendwise/issues/8) |
+| FEAS-01 | [Run the joint early Claude feasibility check](https://github.com/JianTing-Li/spendwise/issues/9) |
+| INT-01 | [Wire real investigations into durable application runs](https://github.com/JianTing-Li/spendwise/issues/10) |
+| UI-01 | [Finish evidence review, progress, and retry recovery](https://github.com/JianTing-Li/spendwise/issues/11) |
+| EVAL-01 | [Build fair baseline comparisons and held-out evaluations](https://github.com/JianTing-Li/spendwise/issues/12) |
+| OPS-01 | [Upgrade lint tooling and resolve dependency advisories](https://github.com/JianTing-Li/spendwise/issues/13) |
+| DEPLOY-01 | [Prepare and verify free-tier deployment](https://github.com/JianTing-Li/spendwise/issues/14) |
+| DEMO-01 | [Validate three demo cycles and publish an honest handoff](https://github.com/JianTing-Li/spendwise/issues/15) |
+| DOCS-01 | [Port task assignment notes onto main](https://github.com/JianTing-Li/spendwise/issues/16) |
+| OPS-02 | [Restore and harden the issue workflow](https://github.com/JianTing-Li/spendwise/issues/18) |
 
-## APP-01 — Implement the Neon data adapter (Elliot, proposed)
-- Milestone: finish M1 persistence. Depends on reviewed setup contracts and Elliot accepting ownership.
-- Files: `src/server/db/`, `src/server/retrieval/`, related tests. Coordinate migrations/shared contracts.
-- Implement the Neon/pg adapter with pooled application access, a separate read-only retrieval role, and a versioned migration runner. Preserve the local stub flow and approved financial rules. Hosted UI/API stays disabled until the later authentication task is complete.
-- Acceptance: same fixture totals on the local adapter and Neon when separately authorized; parameterized scoped queries; no credentials returned; concurrent injection/reset/review behavior remains safe; database failure cannot silently switch to local data.
-- Invariants: INV-01, 03, 04, 05, 10, 12.
-- Checks: `npm run check`, `npm run test:e2e`; separate explicitly configured integration checks, never routine Neon access.
-- Handoff: document schema/adapter/auth decisions and test evidence in `worklog/elliot/APP-01.md`; link issue/PR after creation.
+Views: [open issues by milestone](https://github.com/JianTing-Li/spendwise/milestones) · [all open issues](https://github.com/JianTing-Li/spendwise/issues)
 
-## AI-01 — Implement the bounded investigator (Jian)
-- Milestone: M2. Depends on reviewed `Investigator`, retrieval contracts, stable fixture IDs, and both owners agreeing to material contract changes.
-- Files: `src/agent/`, `evals/`, agent tests. Coordinate shared budget/interface changes.
-- Implement an explicit Claude loop and system prompt; tools derive from `src/contracts`. Use fixture retrieval initially. Configure SDK automatic retries to zero; enforce 8 tool executions, 10 model requests, cancellation, and the total 60-second budget including validation/persistence.
-- Acceptance: fake-response tests cover successful structured output, invalid output, unsupported/missing/contradictory evidence, hostile text, request/tool limits, errors, deadline, and cancellation. No arbitrary SQL or evaluator answers in model context. No unverified explanation labeled Explained. Failed real runs never return stub findings.
-- Invariants: INV-02, 06, 07, 08, 09, 11, 12.
-- Checks: `npm run check`, `npm run eval:baseline`. Real evaluation only through a separate opted-in command after authorization.
-- Handoff: document supported-claim validation design and model-call accounting in `worklog/jian/AI-01.md`; link issue/PR after creation.
-
-## Joint next checkpoint
-Before substantial feature expansion, jointly run one explicitly authorized real-Claude scenario against its prewritten expectation and the baseline. Record evidence quality, latency, token/cost usage, failure behavior, and actual hosting feasibility. One success is not evidence of reliability. Integrate at each milestone, then rebalance work.
+Issue creation and assignment never authorize paid model calls, provisioning, deployment or merge; those need separate explicit approval.

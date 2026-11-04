@@ -1,0 +1,19 @@
+name: Issue link
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+permissions:
+  contents: read
+jobs:
+  issue-link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the closing-reference check
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Require a closing issue reference
+        env:
+          # PR text is inert data passed through the environment, never interpolated into the script.
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 .github/scripts/check_pr_issues.py

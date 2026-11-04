@@ -6,7 +6,7 @@ Snapshot: 2026-11-04. Three requested tabs reproduced as readable text; tables a
 
 Ownership wording updated at Jian's request: responsibilities are tracked by task, without a fixed contribution target. The linked source document is unchanged.
 
-Product requirements follow the PRD; technical decisions follow the implementation tabs, subject to explicit session decisions. The v2 setup prompt's safety/authorization invariants remain mandatory. See [confirmed setup decisions](decisions/001-setup.md) for the date conventions and precedence resolutions. Ownership remains proposed pending Elliot's review. Dates/hours, deployment owner, and hosting configuration remain unset.
+Product requirements follow the PRD; technical decisions follow the implementation tabs, subject to explicit session decisions. The v2 setup prompt's safety/authorization invariants remain mandatory. See [confirmed setup decisions](decisions/001-setup.md) for the date conventions and precedence resolutions. Current owners are the GitHub issue assignees; dates/hours and hosting configuration are unset. The snapshot below is unchanged source text, so its setup-stage notes are historical.
 
 ## Agent PRD: Net new build
 
