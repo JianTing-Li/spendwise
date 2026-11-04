@@ -13,6 +13,6 @@ Owner: Jian Ting. Proposed assignments await Elliot's review. This checklist rec
 - [x] Prepare initial task drafts and evaluation boundary.
 - [x] Complete typecheck, lint, tests, build, and browser verification.
 - [x] Review tracked content and verify secret exclusions.
-- [ ] Commit, push, open review PR, and report CI separately.
+- [x] Commit, push, and open [review PR #1](https://github.com/JianTing-Li/spendwise/pull/1). CI results are tracked separately on the PR.
 
 Future implementation: real Claude loop and support validation, deployed identity/access, Neon/pg adapter and read-only role, richer recovery/review experience, held-out evaluations, authorized hosting, and demo rehearsal. These are not marked complete by setup.

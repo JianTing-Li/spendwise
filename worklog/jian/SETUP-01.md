@@ -20,4 +20,7 @@ See `docs/decisions/001-setup.md`. Elliot's ownership is proposed, not agreed. N
 - No live model calls, Neon connections, deployed authentication checks, deployment, or paid evaluation. Hosted persistence/read-only-role compatibility remains unverified. CI is reported separately after PR creation.
 
 ## Remaining work / next action
-Open the setup PR for Elliot's review, then agree ownership and initial issue drafts in `docs/handoff.md`. Real agent behavior, semantic support validation, hosted auth, and Neon integration remain explicit implementation tasks. No GitHub issues, repository settings, deployment projects, or model budgets were changed.
+Review [setup PR #1](https://github.com/JianTing-Li/spendwise/pull/1), then agree ownership and initial issue drafts in `docs/handoff.md`. Real agent behavior, semantic support validation, hosted auth, and Neon integration remain explicit implementation tasks. No GitHub issues, repository settings, deployment projects, or model budgets were changed.
+
+## Remote state
+Branch pushed; PR #1 opened against main for review, not merged. Implementation commit: `2b6b93a` (Set up local demo). Handoff commit: `09a61d9` (Finalize setup handoff). CI runs are visible on the PR and are distinct from the verified local checks above.
