@@ -8,7 +8,7 @@ Runnable local synthetic demo, shared schemas and investigator interface, fixtur
 Follow-up: added `worklog/elliot/APP-01.md`, the missing starter log referenced by the handoff. It records no implementation or verification claims and leaves Elliot's ownership pending agreement. Documentation-only change; checked with `git diff --check`.
 
 ## Decisions
-See `docs/decisions/001-setup.md`. Elliot's ownership is proposed, not agreed. No deadlines or deployment owner. Free tiers only. GitHub Issues are future implementation status/specification source; drafts await creation approval.
+See `docs/decisions/001-setup.md`. Elliot accepted the application tasks in his PR #1 review. GitHub Issues hold task specifications and status.
 
 ## Verification
 - `npm run typecheck`: passed.
@@ -22,7 +22,9 @@ See `docs/decisions/001-setup.md`. Elliot's ownership is proposed, not agreed. N
 - No live model calls, Neon connections, deployed authentication checks, deployment, or paid evaluation. Hosted persistence/read-only-role compatibility remains unverified. CI is reported separately after PR creation.
 
 ## Remaining work / next action
-Review [setup PR #1](https://github.com/JianTing-Li/spendwise/pull/1), then agree ownership and initial issue drafts in `docs/handoff.md`. Real agent behavior, semantic support validation, hosted auth, and Neon integration remain explicit implementation tasks. No GitHub issues, repository settings, deployment projects, or model budgets were changed.
+None for SETUP-01. Real agent behavior, semantic support validation, hosted auth, and Neon integration are tracked in the [issue index](../../docs/handoff.md).
 
 ## Remote state
-Branch pushed; PR #1 opened against main for review, not merged. Implementation commit: `2b6b93a` (Set up local demo). Handoff commit: `09a61d9` (Finalize setup handoff). CI runs are visible on the PR and are distinct from the verified local checks above.
+[PR #1](https://github.com/JianTing-Li/spendwise/pull/1) merged after Elliot's approval. Implementation commit: `2b6b93a` (Set up local demo). Handoff commit: `09a61d9` (Finalize setup handoff).
+
+Two later local commits (`50958de` issue-link check and PR template, `f2f35ba` startup routine) failed to push and were not in the merged PR. They are restored, revised, by [OPS-02 #18](https://github.com/JianTing-Li/spendwise/issues/18).
