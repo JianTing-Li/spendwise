@@ -1,6 +1,6 @@
 # Initial implementation tasks — drafts for review
 
-Session owner: Jian Ting. Elliot's GitHub account is [0x1Elliot](https://github.com/0x1Elliot); application issues #4, #5, #6, and #11 are assigned to him for planning. The ownership split remains proposed pending his agreement. Shared tasks remain unassigned for coordination. No deadlines. Free tiers only; deployment owner and hosting projects undecided.
+Session owner: Jian Ting. Elliot's GitHub account is [0x1Elliot](https://github.com/0x1Elliot); application issues #4, #5, #6, and #11 are assigned to him for planning. The ownership split remains proposed pending his agreement. Shared coordination issues #9, #10, #13, #14, and #15 are assigned to both `JianTing-Li` and `0x1Elliot`; agree the lead before implementation. For deployment, assignment covers planning, not selection of the operator or authorization to deploy. No deadlines. Free tiers only; deployment operator and hosting projects undecided.
 
 Issue creation is not authorized yet. On approval, move these specifications into GitHub Issues and replace the drafts with issue links. Use Ready → In Progress → Review → Done, with one active implementation task per person. No remote issues/settings were changed by setup.
 
