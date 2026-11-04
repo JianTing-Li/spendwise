@@ -1,7 +1,7 @@
 # OPS-02 — Restore and harden the issue workflow
 
 Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/18
-Branch: `ops-02-workflow-hardening`, from `origin/main` at `abcdd92`.
+Branch: `ops-02-workflow-hardening`, from `origin/main` at `abcdd92`. PR: https://github.com/JianTing-Li/spendwise/pull/19
 
 ## Why
 PR #1 merged without two commits that failed to push (`50958de` closing-reference check and PR template, `f2f35ba` startup routine and AI-01 worklog). Status and approval text was copied into many docs and issue bodies, so it went stale after Elliot accepted ownership in his PR #1 review. Closed issues kept `status:review` because label moves were manual.
@@ -20,7 +20,10 @@ GitHub changes (authorized in the session):
 - Trimmed all 13 open issue bodies: removed repeated workflow/authorization boilerplate and the stale "pending agreement" / "remains unassigned" lines; ownership is the assignee. AI-01 #7 no longer depends on DATA-01 (it can start on the three existing fixtures). OPS-01 #13 cites the current advisory count.
 
 ## Verification
-See the PR for the commands and results of this change.
+- `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`: 9 passed.
+- All workflow YAML parses; `git diff --check` clean.
+- `npm run check`: passed (24 tests, build). No application code changed.
+- The new workflows first run on PR #19; see its checks.
 
 ## Not done / requests
 - Splitting UI-01 #11 into a stub-backed review issue (UI-02) was not done: the permission check blocked creating a new issue assigned to Elliot. Needs Jian's explicit go-ahead and Elliot's agreement.
