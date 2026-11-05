@@ -72,10 +72,11 @@ describe("INV-06/07/08/12 safety boundaries", () => {
       referenceStatus: "valid",
       supportStatus: "supported",
     };
+    // A valid payment ID alone does not document the increase.
     expect(await validateFinding(candidate, exception, tools)).toMatchObject({
       label: "Needs Review",
       referenceStatus: "valid",
-      supportStatus: "unverified",
+      supportStatus: "missing",
     });
     expect(
       await validateFinding(

@@ -1,0 +1,30 @@
+# 002 — Evidence validation and the INV-06 run rule
+
+Date: 2026-11-04; revised 2026-11-05 after review on [#22](https://github.com/JianTing-Li/spendwise/pull/22). Owner: Jian Ting ([AI-02](https://github.com/JianTing-Li/spendwise/issues/8)). Needs Elliot's review because `src/server/investigation/run.ts` and `tests/safety.test.ts` are shared.
+
+## Run state vs finding support
+- A run's state says whether the investigation finished: `completed` means it ended within its limits and every finding passed reference validation. It does not mean any explanation is verified.
+- Each finding carries its own `supportStatus`. A **verified successful finding** is exactly `label: Explained`, `referenceStatus: valid`, `supportStatus: supported` (`isVerifiedExplanation`). Nothing else counts as explained.
+- So a real run whose findings are valid but `unverified`, `missing` or `contradicted` is `completed`. A run with any invalid reference is `incomplete/invalid_evidence`, as before. This replaces the setup rule that required `supported` on every real finding; no validator produced that status, so every real run with findings ended incomplete.
+- Stub runs are unchanged: their findings stay `unverified`, and stub completion never means an investigation was verified.
+
+## What the validator checks (application code, `src/agent/validation.ts`)
+1. **References.** The finding is for this exception, and every cited ID exists in the application-scoped records. Otherwise: `invalid`, `missing`, `Insufficient Evidence`.
+2. **Citing nothing.** Valid only for `Insufficient Evidence` (records are missing): `valid` + `missing`. Any other label with no citations is invalid.
+3. **Human-only conclusions.** Asserting a confirmed duplicate or overpayment, recoverability, payment approval, payment release or execution, or expense recognition or accounting treatment makes support `contradicted`. A negated mention is allowed only when the negation sits within the last three words of the claim's own clause ("is not a confirmed duplicate", "do not release"). Clauses break at punctuation and at words such as "and", "but" and "so", so "No reversal exists and the payment is approved" is still an approval claim. Pattern matching can only downgrade a finding, never upgrade one, so ambiguous negation resolves to flagged.
+4. **Amounts.** Every dollar amount in the explanation must be an application total, a scoped record amount, a sum of the cited payments or invoices, or the dollar threshold. Otherwise: `contradicted`. Amounts written in notes never count: note text is untrusted (INV-07), so a figure that appears only in a note cannot make a finding look supported.
+5. **Objective support**, only for findings labeled `Explained`, by exception rule:
+   - `payment_increase` → **documented_increase**. Cited current-month cash (completed, outgoing, not reversed). Each such payment references a cited invoice. Each of those invoices is paid exactly once in full by all scoped cash, not just the cited payments. No relevant note contradicts the records (see below). The cited cash covers the increase.
+   - `possible_duplicate` → **distinct_invoices**. Both flagged payments are cited. Each pays a different cited invoice, exactly and alone. The invoice numbers differ and the line items differ. No relevant note contradicts the records.
+   - **Relevant notes** are every cited note plus every scoped note linked to a cited payment or invoice. A relevant note contradicts the records if it states *any* amount that is not a cited payment or invoice amount or an application total (prior, current, difference), or if it uses dispute wording (disputed, unauthorized, error, refund, duplicate and similar). A note that mixes a matching amount with a different one is contradictory.
+   - Pass → `supported`. A failed record relationship → `contradicted`. Absent or uncited records → `missing`.
+6. **Labels.** An `Explained` finding that is not `supported` becomes `Needs Review`. Other labels are kept. The model's own reference and support status is always replaced.
+7. **Verified explanations are written by the application.** Free-text wording cannot be verified: valid renewal citations could carry an unrelated cause such as office furniture. So when a finding is `supported`, the application replaces its explanation with a statement of exactly what it checked (the payments, the invoice numbers and amounts, quoted line items, the covered increase or the distinct invoices), ending with the reminder that the business reason remains a human judgment. The model's wording is kept only on findings that are not supported, where it stays unverified. The finding shape is unchanged; only the content of `explanation` differs.
+
+Whether a business reason is legitimate, whether something was approved, and how to treat it in the accounts remain human judgments. No check marks them supported.
+
+## Known limits
+- The amount check cannot tell a correct figure used in the wrong role (for example, the $6,000 total paid described as the excess). Reviewers and the evaluator still score that.
+- Note consistency compares dollar amounts and looks for dispute wording; it does not otherwise interpret prose. It errs toward flagging: a note that mentions an older price or says "no errors" also sends a finding to Needs Review.
+- The model's `nextStep` is still its own wording. It is checked for human-only conclusions but is otherwise unverified guidance, not part of the verified explanation.
+- The rules are tuned only on demo and development records, never on held-out cases.

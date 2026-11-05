@@ -24,11 +24,10 @@ export async function runPending(store: Store) {
           validateFinding(f, input.exception, retrieval),
         ),
       );
-      if (
-        result.findings.some((f) => f.referenceStatus !== "valid") ||
-        (run.mode === "real" &&
-          result.findings.some((f) => f.supportStatus !== "supported"))
-      ) {
+      // INV-06 (docs/decisions/002): run state reports whether the investigation
+      // finished with valid references; per-finding support is separate, and
+      // only Explained + supported findings count as verified explanations.
+      if (result.findings.some((f) => f.referenceStatus !== "valid")) {
         result.state = "incomplete";
         result.error = "invalid_evidence";
       }
