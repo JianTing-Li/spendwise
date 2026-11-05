@@ -20,7 +20,7 @@ import {
 } from "./tools";
 
 type Code = z.infer<typeof ErrorCode>;
-type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /** The one SDK call the loop makes; tests pass a fake. */
 export interface ModelClient {
@@ -43,6 +43,11 @@ export interface RealInvestigatorOptions {
   client: ModelClient;
   model: string;
   effort?: Effort;
+  /**
+   * Response limit per request, including the model's thinking. FEAS-01
+   * measures whether the default cuts responses off before it is changed.
+   */
+  maxTokens?: number;
   /** Application-scoped, read-only retrieval for the claimed exception. */
   retrievalFor(input: InvestigationInput): Retrieval | Promise<Retrieval>;
   now?: () => number;
@@ -54,7 +59,7 @@ export interface RealInvestigatorOptions {
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
 export const VALIDATION_RESERVE_MS = 10_000;
-const MAX_TOKENS = 8_000;
+export const DEFAULT_MAX_TOKENS = 8_000;
 // Contract limits already bound records; this also bounds the text sent back.
 const MAX_TOOL_RESULT_CHARS = 60_000;
 
@@ -160,7 +165,7 @@ export function createRealInvestigator(
             response = await options.client.create(
               {
                 model: options.model,
-                max_tokens: MAX_TOKENS,
+                max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
                 system: SYSTEM_PROMPT,
                 tools: modelTools,
                 messages,

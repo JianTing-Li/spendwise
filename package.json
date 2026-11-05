@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "eval:baseline": "node --import tsx evals/baseline.ts",
-    "eval:real": "node --import tsx evals/real.ts"
+    "eval:real": "node --import tsx evals/real.ts",
+    "eval:feasibility": "node --import tsx evals/feasibility.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.4.0",
