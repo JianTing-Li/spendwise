@@ -24,3 +24,15 @@ export async function assertApplication(tx: DatabaseTransaction) {
   if (!row?.safe)
     throw new Error("Application database permissions required");
 }
+
+/** Read-only catalog preflight; does not exercise runtime writes or grant anything. */
+export async function assertApplicationGrants(tx: DatabaseTransaction) {
+  const rows = (await tx.query<{ safe: boolean }>(`SELECT bool_and(
+        has_table_privilege(current_user, table_name, 'SELECT')
+        AND has_table_privilege(current_user, table_name, 'INSERT')
+        AND has_table_privilege(current_user, table_name, 'UPDATE')
+        AND has_table_privilege(current_user, table_name, 'DELETE')) AS safe
+        FROM unnest(ARRAY['demo_state','vendors','invoices','payments','vendor_notes',
+          'note_payments','note_invoices','exceptions','investigation_runs']) AS table_name`)).rows;
+  if (!rows[0]?.safe) throw new Error("Application record grants required");
+}

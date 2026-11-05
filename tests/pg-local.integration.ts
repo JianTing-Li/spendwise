@@ -361,3 +361,23 @@ test("real pg: populated 001 upgrades without changing records, results or revie
     await control.query(`DROP SCHEMA "${legacySchema}" CASCADE`);
   }
 });
+
+// The exact disposable-schema scenario used by the future Neon command.
+test("real pg: shared compatibility procedure upgrades populated 001 and replays three zero-model cycles", options, async () => {
+  const { verifyIsolatedCompatibility } = await import('../src/server/db/compatibility');
+  const name = 'app01_test_' + randomUUID().replaceAll('-', '');
+  const isolated = scopedDatabase(name);
+  await control.query(`CREATE SCHEMA "${name}"`);
+  try {
+    assert.deepEqual(await verifyIsolatedCompatibility(isolated.db), { cycles: 3, exceptionsPerCycle: 4, modelRequests: 0 });
+    const { assertApplicationGrants } = await import('../src/server/db/permissions');
+    await isolated.db.transaction(assertApplicationGrants);
+    await assert.rejects(isolated.db.transaction(async tx => {
+      await tx.exec('SET LOCAL ROLE pg_read_all_data');
+      await assertApplicationGrants(tx);
+    }), /Application record grants required/);
+  } finally {
+    await isolated.db.close();
+    await control.query(`DROP SCHEMA "${name}" CASCADE`);
+  }
+});
