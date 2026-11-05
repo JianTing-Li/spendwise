@@ -48,3 +48,21 @@ Sources checked 2026-11-04: [Next.js](https://nextjs.org/docs/app/getting-starte
 
 ## Dependency limitations
 `npm audit --omit=dev --audit-level=moderate` reported zero production vulnerabilities during setup. Full `npm audit` reports moderate development-tooling advisories (16 at setup, 8 on 2026-11-04), including transitive minimatch denial-of-service exposure; OPS-01 (#13) tracks them. ESLint 9.39.5 is deprecated upstream but passes with this Next.js lint integration; review a supported lint-stack upgrade before expanding CI to untrusted inputs. No force downgrade or cross-major transitive override was applied just to hide audit findings. These findings are not claimed resolved.
+
+## APP-01A adapter checks (PR #23 / Issue #24)
+
+Routine `npm run check` still uses PGlite/fake pools, without a server or credentials.
+Real PostgreSQL 17 checks are separate and local-only:
+
+```sh
+PG_TEST_ALLOW_LOCAL=1 PG_TEST_HOST=/tmp PG_TEST_PORT=5432 \
+PG_TEST_DATABASE=spendwise_app01_test PG_TEST_USER=elliotwatson npm run test:pg
+```
+
+Use `127.0.0.1` (or `localhost`/`::1`) for local TCP, or `/var/run/postgresql` for a Linux socket. Set `PG_TEST_PASSWORD` in your local environment when required; never paste a real password into tracked files or chat. Explicit database/user values are required; the database name must end in `_test`. The harness ignores application `DATABASE_URL` and ambient pg host/user/database settings. It verifies target identity and PostgreSQL 17 before creating a disposable schema. It drops only its unique test schema and terminates only its own test idle backend. It never restarts a PostgreSQL service. Start the local server yourself before running; an unavailable server is a test failure, not a skip or a PGlite fallback.
+
+GitHub's separate `postgres` job provisions an ephemeral PostgreSQL 17 container on its runner and executes the same npm command. Its fixed test-only password is disposable container configuration, not an application credential. No Neon/model services are used.
+
+Adapter error classes are internal: `DatabaseTimeout` for lock/statement timeouts, `DatabaseConflict` for serialization/deadlock conflicts, `DatabaseQueryError` for other SQL errors, and `DatabaseUnavailable` for connection failures. Error messages omit driver SQL, data and credentials. Healthy connections are reused after rollback; broken clients and failed rollbacks are discarded. Connection loss during commit reports `outcomeUnknown=true`; callers must not automatically replay work. A failed idle client is removed by pg-pool, and the next explicit transaction can acquire another client without restarting the application. No transaction is automatically retried. `PGOPTIONS` and startup URL timeout overrides are rejected; explicit inert startup options also prevent later environment changes from overriding limits.
+
+Production database modes/TLS/role configuration, versioned migrations and retryable run persistence remain part of Issue #4. This adapter slice does not change public contracts or hosted access checks.
