@@ -37,11 +37,11 @@ export default function Dashboard() {
       });
     return () => controller.abort();
   }, []);
-  async function act(action: object) {
+  async function act(action: object, path = "/api/demo") {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/demo", {
+      const response = await fetch(path, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,9 +60,12 @@ export default function Dashboard() {
       setBusy(false);
     }
   }
-  const reviewed = data?.runs.filter((r) => r.reviewedAt).length ?? 0;
+  const latestRuns = data?.exceptions.flatMap((exception) =>
+    data.runs.filter((run) => run.exceptionId === exception.id).slice(-1),
+  ) ?? [];
+  const reviewed = latestRuns.filter((run) => run.reviewedAt).length;
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
-  function runView(run: Run | undefined) {
+  function runView(run: Run | undefined, count = 1, historical = false) {
     if (!run) return <p>Investigation not started.</p>;
     return (
       <>
@@ -75,9 +78,18 @@ export default function Dashboard() {
         </div>
         {run.error && (
           <p role="status">
-            Investigation {run.state}: {run.error}. Recovery: reset the demo and
-            inject again.
+            Investigation {run.state}: {run.error}.
           </p>
+        )}
+        {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (
+          count < 3 ? (
+            <button
+              disabled={busy}
+              onClick={() => act({ predecessorId: run.id }, "/api/demo/retry")}
+            >
+              Retry investigation ({count}/3 attempts used)
+            </button>
+          ) : <p>Three attempts used. Reset the demo to start again.</p>
         )}
         {run.findings.map((finding, i) => (
           <div key={i}>
@@ -92,7 +104,7 @@ export default function Dashboard() {
             </p>
           </div>
         ))}
-        {run.state === "completed" && (
+        {!historical && run.state === "completed" && (
           <button
             className="secondary"
             disabled={busy || Boolean(run.reviewedAt)}
@@ -177,7 +189,7 @@ export default function Dashboard() {
           <p>Human review</p>
           <strong>
             {reviewed}
-            <span> / {data?.runs.length ?? 0}</span>
+            <span> / {latestRuns.length}</span>
           </strong>
           <small>Review does not approve a payment</small>
         </div>
@@ -246,7 +258,9 @@ export default function Dashboard() {
           </div>
         )}
         <div className="queue">
-          {data?.exceptions.map((exception) => (
+          {data?.exceptions.map((exception) => {
+            const attempts = data.runs.filter((run) => run.exceptionId === exception.id);
+            return (
             <article className="finding" key={exception.id}>
               <div className="finding-heading">
                 <span className="rule">
@@ -262,7 +276,18 @@ export default function Dashboard() {
                   }
                 </h2>
               </div>
-              {runView(data.runs.find((r) => r.exceptionId === exception.id))}
+              {runView(attempts.at(-1), attempts.length)}
+              {attempts.length > 1 && (
+                <details>
+                  <summary>Attempt history</summary>
+                  {attempts.map((run, index) => (
+                    <section key={run.id}>
+                      <h3>Attempt {index + 1}</h3>
+                      {runView(run, index + 1, true)}
+                    </section>
+                  ))}
+                </details>
+              )}
               <details>
                 <summary>Inspect source records</summary>
                 <p className="fine">
@@ -304,7 +329,8 @@ export default function Dashboard() {
                   ))}
               </details>
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
       <footer>

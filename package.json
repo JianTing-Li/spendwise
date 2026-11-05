@@ -18,7 +18,11 @@
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "eval:baseline": "node --import tsx evals/baseline.ts",
-    "eval:real": "node --import tsx evals/real.ts"
+    "eval:real": "node --import tsx evals/real.ts",
+    "test:pg": "node --import tsx --test tests/pg-local.integration.ts",
+    "db:migrate": "node --import tsx src/server/db/migrate-cli.ts",
+    "test:e2e:retry": "playwright test --config playwright.retry.config.ts",
+    "test:neon": "node --import tsx src/server/db/neon-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.4.0",
