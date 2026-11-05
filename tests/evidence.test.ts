@@ -290,6 +290,122 @@ describe("AI-02 objective claim support", () => {
   });
 });
 
+describe("AI-02 review regressions (PR #22)", () => {
+  const withRenewalNote = (text: string) => {
+    const data = injectedDataset();
+    data.notes.find((n) => n.id === "note-renewal")!.text = text;
+    return data;
+  };
+
+  it("P1: a verified explanation states only what the application checked", async () => {
+    const f = await check(demo, RENEWAL, {
+      explanation: "The increase is for new office furniture.",
+      evidence: renewalEvidence,
+    });
+    expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    expect(f.explanation).not.toMatch(/furniture/i);
+    expect(f.explanation).toMatch(/^Application check: /);
+    expect(f.explanation).toContain("$12,000");
+    expect(f.explanation).toContain("pay-renewal-annual");
+    // Unsupported findings keep the model's wording, which stays unverified.
+    const g = await check(demo, RENEWAL, {
+      label: "Needs Review",
+      explanation: "The increase is for new office furniture.",
+      evidence: renewalEvidence,
+    });
+    expect(g).toMatchObject({
+      label: "Needs Review",
+      supportStatus: "unverified",
+      explanation: "The increase is for new office furniture.",
+    });
+    const look = await check(lookalike, LOOK, {
+      explanation: "Same work billed twice by mistake.",
+      evidence: lookEvidence,
+    });
+    expect(look.explanation).not.toMatch(/mistake/i);
+    expect(look.explanation).toContain('"T-0"');
+  });
+
+  it("P1: negation applies only to the clause it governs", async () => {
+    expect(
+      await check(demo, RENEWAL, {
+        explanation: "No reversal exists and the payment is approved.",
+        evidence: renewalEvidence,
+      }),
+    ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    for (const text of [
+      "No reversal exists and the payment is approved.",
+      "This is not a duplicate, but the payments were approved.",
+      "Nothing is missing; the refund is due.",
+      "The invoice was never disputed, so release the remaining balance.",
+      "There is no sign of error and these are duplicate payments.",
+      // A distant negation is not trusted to govern the claim.
+      "There is no evidence that the payment is approved.",
+    ])
+      expect(overclaims(text), text).toBe(true);
+    for (const text of [
+      "The payment is not approved and no refund is due.",
+      "This is not a confirmed duplicate.",
+      "Never release the payment without review.",
+      "Do not release the remaining balance; refund is not due.",
+    ])
+      expect(overclaims(text), text).toBe(false);
+  });
+
+  it("P1: amounts that appear only in untrusted notes are never known", async () => {
+    const data = withRenewalNote(
+      "Synthetic note: renewal of $12,000; the vendor also claims a $999,999 increase.",
+    );
+    const evidence = [...renewalEvidence];
+    expect(
+      await check(data, RENEWAL, {
+        label: "Needs Review",
+        explanation: "The note cites a $999,999 increase.",
+        evidence,
+      }),
+    ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    expect(
+      await check(data, RENEWAL, {
+        explanation: "A $999,999 increase was agreed.",
+        evidence,
+      }),
+    ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+  });
+
+  it("P2: a note with any conflicting amount or dispute wording preserves uncertainty", async () => {
+    for (const text of [
+      "Synthetic note: invoiced at $12,000, but the agreement was $9,500.",
+      "Synthetic note: the vendor disputes this renewal.",
+      "Synthetic note: renewal of $12,000; refund requested.",
+    ])
+      expect(
+        await check(withRenewalNote(text), RENEWAL, {
+          evidence: renewalEvidence,
+        }),
+        text,
+      ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    // A cited note counts even when it is not linked to the cited records
+    // (here it is linked only to an uncited, in-scope September payment).
+    const unlinked = injectedDataset();
+    unlinked.notes.push({
+      ...unlinked.notes.find((n) => n.id === "note-renewal")!,
+      id: "note-unlinked",
+      text: "Synthetic note: renewal agreed at $9,500.",
+      paymentIds: ["pay-renewal-sep"],
+      invoiceIds: [],
+    });
+    expect(
+      await check(unlinked, RENEWAL, {
+        evidence: [...renewalEvidence, ref("note", "note-unlinked")],
+      }),
+    ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    // Without citing it, that note does not bear on the cited records.
+    expect(
+      await check(unlinked, RENEWAL, { evidence: renewalEvidence }),
+    ).toMatchObject({ label: "Explained", supportStatus: "supported" });
+  });
+});
+
 describe("AI-02 run outcome is separate from finding support", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

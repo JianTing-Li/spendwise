@@ -31,16 +31,42 @@ const OVERCLAIMS = [
   /\baccounting treatment (?:is|was) (?:correct|approved|appropriate|confirmed)\b/i,
   /\b(?:release|execute|issue|send) (?:the )?(?:remaining )?(?:payment|balance|refund)\b/i,
 ];
-const NEGATION =
-  /\b(?:not|no|never|cannot|can't|don't|doesn't|does not|do not|without|neither|nor)\b[^.;]*$/i;
+/** Words that negate the claim right after them, within the same clause. */
+const NEGATORS = new Set([
+  "not", "no", "never", "cannot", "can't", "don't", "doesn't", "isn't",
+  "aren't", "wasn't", "weren't", "hasn't", "haven't", "without", "nor",
+  "neither",
+]);
+/** Clause boundaries: punctuation and coordinating or contrasting words. */
+const CLAUSE_BREAK =
+  /[.;:,!?\n]|\b(?:and|but|or|while|whereas|although|though|however|because|so|yet|then)\b/gi;
+/** How many words before a claim a negator may sit and still govern it. */
+const NEGATION_WINDOW = 3;
+
+/**
+ * A claim counts as negated only when a negator appears within the last few
+ * words of its own clause ("is not a confirmed duplicate", "do not release").
+ * A negation elsewhere in the sentence does not apply ("No reversal exists
+ * and the payment is approved" is still an approval claim). Over-flagging only
+ * downgrades a finding, so ambiguity resolves to flagged.
+ */
+function negated(text: string, index: number): boolean {
+  const before = text.slice(0, index);
+  let start = 0;
+  for (const m of before.matchAll(CLAUSE_BREAK)) start = m.index + m[0].length;
+  return before
+    .slice(start)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-NEGATION_WINDOW)
+    .some((word) => NEGATORS.has(word.toLowerCase().replace(/[^a-z']/g, "")));
+}
 
 export function overclaims(text: string): boolean {
   return OVERCLAIMS.some((pattern) => {
     const global = new RegExp(pattern.source, "gi");
-    for (const match of text.matchAll(global)) {
-      const before = text.slice(Math.max(0, match.index - 40), match.index);
-      if (!NEGATION.test(before)) return true;
-    }
+    for (const match of text.matchAll(global))
+      if (!negated(text, match.index)) return true;
     return false;
   });
 }
@@ -78,7 +104,11 @@ function paid(scoped: Records) {
     !reversed.has(p.id);
 }
 
-/** Amounts the application calculated or a scoped record states. */
+/**
+ * Amounts the application calculated or a structured payment or invoice record
+ * states. Note text is untrusted: a figure that appears only in a note is never
+ * a known amount, so it can never make a finding look supported (INV-07).
+ */
 function knownAmounts(exception: Exception, scoped: Records, cited: Records) {
   const s = exception.summary;
   const known = new Set<number>([
@@ -91,14 +121,20 @@ function knownAmounts(exception: Exception, scoped: Records, cited: Records) {
   ]);
   for (const r of [...scoped.payments, ...scoped.invoices])
     known.add(r.amountCents);
-  for (const n of scoped.notes)
-    for (const a of dollarAmounts(n.text)) known.add(a);
   return known;
 }
 
+/** Note wording that disputes or questions the records it is attached to. */
+const DISPUTE =
+  /\b(?:disput|contest|unauthori[sz]|overcharg|incorrect|wrong|error|mistake|duplicat|refund|chargeback|reversal|cancel)/i;
+
 /**
- * A linked note that states amounts, none of which matches a linked record or
- * the application totals, contradicts the documents it is attached to.
+ * Notes that bear on the finding: every cited note, plus every scoped note
+ * linked to a cited payment or invoice. One of them contradicts the records
+ * when it states any amount that is not a cited record amount or an
+ * application total, or when it uses dispute wording. A note that mixes a
+ * matching amount with a different one ("$12,000 invoiced; $9,500 agreed") is
+ * contradictory, not consistent.
  */
 function notesContradict(
   exception: Exception,
@@ -107,23 +143,27 @@ function notesContradict(
 ) {
   const paymentIds = new Set(cited.payments.map((p) => p.id));
   const invoiceIds = new Set(cited.invoices.map((i) => i.id));
+  const noteIds = new Set(cited.notes.map((n) => n.id));
   const s = exception.summary;
   const expected = new Set([
     ...cited.payments.map((p) => p.amountCents),
     ...cited.invoices.map((i) => i.amountCents),
-    Math.abs(s.differenceCents),
+    Math.abs(s.priorCents),
     Math.abs(s.currentCents),
+    Math.abs(s.differenceCents),
   ]);
   return scoped.notes
     .filter(
       (n) =>
+        noteIds.has(n.id) ||
         n.paymentIds.some((id) => paymentIds.has(id)) ||
         n.invoiceIds.some((id) => invoiceIds.has(id)),
     )
-    .some((n) => {
-      const amounts = dollarAmounts(n.text);
-      return amounts.length > 0 && !amounts.some((a) => expected.has(a));
-    });
+    .some(
+      (n) =>
+        DISPUTE.test(n.text) ||
+        dollarAmounts(n.text).some((a) => !expected.has(a)),
+    );
 }
 
 /** Every invoice must be paid exactly once in full by the scoped cash. */
@@ -194,6 +234,58 @@ function distinctInvoices(
   return "supported";
 }
 
+/** $12,000 or $12,000.50, from integer cents. */
+function usd(cents: number) {
+  const dollars = Math.trunc(cents / 100).toLocaleString("en-US");
+  const rest = cents % 100;
+  return `$${dollars}${rest ? `.${String(rest).padStart(2, "0")}` : ""}`;
+}
+
+/** Invoice line items, quoted as record content and bounded in length. */
+function quoted(lineItems: string[]) {
+  const text = lineItems.join("; ").replace(/\s+/g, " ").trim();
+  return JSON.stringify(text.length > 160 ? `${text.slice(0, 157)}...` : text);
+}
+
+function describeInvoice(invoice: Records["invoices"][number]) {
+  return `invoice ${JSON.stringify(invoice.number)} for ${usd(invoice.amountCents)}, whose line items read ${quoted(invoice.lineItems)}`;
+}
+
+/**
+ * The explanation of a verified finding, written by the application from the
+ * records it checked. The model's own wording is free text that cannot be
+ * verified (review P1: valid renewal citations could carry an unrelated
+ * cause), so it never stands as a verified explanation.
+ */
+function verifiedExplanation(
+  exception: Exception,
+  scoped: Records,
+  cited: Records,
+) {
+  const counts = paid(scoped);
+  const invoiceOf = (p: Payment) =>
+    cited.invoices.find((i) => i.id === p.invoiceId)!;
+  let text: string;
+  if (exception.rule === "payment_increase") {
+    const current = cited.payments.filter((p) => counts(p) && inCurrent(p));
+    const invoices = [...new Set(current.map(invoiceOf))];
+    text =
+      `Application check: completed October 2026 payments of ${usd(sum(current.map((p) => p.amountCents)))} ` +
+      `(${current.map((p) => p.id).join(", ")}) pay ${invoices.map(describeInvoice).join(" and ")} exactly once and in full, ` +
+      `and cover the ${usd(exception.summary.differenceCents)} increase over September 2026. ` +
+      "Linked notes state no other amount and no dispute.";
+  } else {
+    const [a, b] = exception.paymentIds.map(
+      (id) => cited.payments.find((p) => p.id === id)!,
+    );
+    text =
+      `Application check: payment ${a.id} (${usd(a.amountCents)}) pays ${describeInvoice(invoiceOf(a))}; ` +
+      `payment ${b.id} (${usd(b.amountCents)}) pays ${describeInvoice(invoiceOf(b))}. ` +
+      "Each invoice is paid exactly once and in full, the invoice numbers and line items differ, and linked notes state no other amount and no dispute.";
+  }
+  return `${text} Whether the business reason is legitimate remains a human judgment.`;
+}
+
 /**
  * Application validation of one finding (INV-06). Checks reference existence
  * and scope, then objective support for the claim category the exception rule
@@ -258,15 +350,21 @@ export async function validateFinding(
       exception.rule === "payment_increase"
         ? documentedIncrease(exception, scoped, cited)
         : distinctInvoices(exception, scoped, cited);
+  // A verified finding carries only what the application checked; the model's
+  // unverifiable prose stays only on findings that are not supported.
+  if (support === "supported")
+    return {
+      ...finding,
+      explanation: verifiedExplanation(exception, scoped, cited).slice(0, 4000),
+      referenceStatus: "valid",
+      supportStatus: "supported",
+    };
   return {
     ...finding,
     referenceStatus: "valid",
     supportStatus: support,
     // Anything short of objective support goes to a person, never Explained.
-    label:
-      finding.label === "Explained" && support !== "supported"
-        ? "Needs Review"
-        : finding.label,
+    label: finding.label === "Explained" ? "Needs Review" : finding.label,
   };
 }
 
