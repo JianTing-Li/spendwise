@@ -19,14 +19,43 @@ export const pgTestDefaults: Readonly<PgLimits> = Object.freeze({
 });
 
 export class DatabaseUnavailable extends Error {
-  constructor() {
-    // Driver messages can contain connection details; do not expose them.
+  constructor(readonly outcomeUnknown = false) {
     super("Database unavailable");
     this.name = "DatabaseUnavailable";
   }
 }
+export class DatabaseConflict extends Error {
+  constructor(readonly sqlstate: string) {
+    super("Database operation conflicted");
+    this.name = "DatabaseConflict";
+  }
+}
+export class DatabaseTimeout extends DatabaseConflict {
+  constructor(sqlstate: string) {
+    super(sqlstate);
+    this.name = "DatabaseTimeout";
+    this.message = "Database operation timed out";
+  }
+}
+export class DatabaseQueryError extends Error {
+  constructor(readonly sqlstate: string) {
+    super("Database query failed");
+    this.name = "DatabaseQueryError";
+  }
+}
 
-/** Pure configuration builder; it neither connects nor reads environment values. */
+/** Preserve a safe classification, never driver messages/SQL/credentials. */
+function classify(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String(error.code) : "";
+  if (!/^[0-9A-Z]{5}$/.test(code) || code.startsWith("08") || /^57P0[123]$/.test(code))
+    return new DatabaseUnavailable();
+  if (code === "55P03" || code === "57014") return new DatabaseTimeout(code);
+  if (code.startsWith("40")) return new DatabaseConflict(code);
+  return new DatabaseQueryError(code);
+}
+
+/** Pure configuration builder; no connection or credentials are logged. */
 export function pgPoolOptions(
   connection: PoolConfig,
   limits: Partial<PgLimits> = {},
@@ -35,9 +64,8 @@ export function pgPoolOptions(
   for (const value of Object.values(bounded))
     if (!Number.isSafeInteger(value) || value <= 0)
       throw new Error("Database limits must be positive safe integers");
-  // pg lets connection-string parameters override object configuration.
-  // Startup options could also disable the server-side limits.
-  if (connection.options) throw new Error("Database startup options unavailable");
+  if (connection.options || process.env.PGOPTIONS?.trim())
+    throw new Error("Database startup options unavailable");
   if (connection.connectionString) {
     let url: URL;
     try { url = new URL(connection.connectionString); }
@@ -46,17 +74,18 @@ export function pgPoolOptions(
       if (/^(options|connect_timeout|connectionTimeoutMillis|statement_timeout|lock_timeout|idle_in_transaction_session_timeout)$/i.test(name))
         throw new Error("Database URL timeout overrides unavailable");
   }
-  return { ...connection, ...bounded };
+  // pg's option lookup uses `config.options || process.env.PGOPTIONS`.
+  // Truthy whitespace blocks later environment overrides for newly opened clients.
+  return { ...connection, ...bounded, options: " " };
 }
 
-/** No application mode selection or migration changes in this adapter-only WIP. */
 export class PgDatabase implements Database {
-  private faulted = false;
   private closed = false;
-  private readonly onIdleError = () => { this.faulted = true; };
+  // pg-pool already removes a failed idle client. Handle the event without
+  // poisoning healthy clients or permanently disabling the pool. Never replay work.
+  private readonly onIdleError = () => {};
 
   constructor(private readonly pool: Pool) {
-    // An idle-client failure must not become an unhandled EventEmitter error.
     pool.on("error", this.onIdleError);
   }
 
@@ -65,26 +94,29 @@ export class PgDatabase implements Database {
   }
 
   async transaction<T>(work: (transaction: DatabaseTransaction) => Promise<T>): Promise<T> {
-    if (this.closed || this.faulted) throw new DatabaseUnavailable();
+    if (this.closed) throw new DatabaseUnavailable();
     let client: PoolClient;
-    try {
-      client = await this.pool.connect();
-    } catch {
-      throw new DatabaseUnavailable();
-    }
+    try { client = await this.pool.connect(); }
+    catch { throw new DatabaseUnavailable(); }
     let active = true;
     let discard = false;
     let began = false;
-    let driverFailed = false;
+    let driverFailure: Error | undefined;
+    const onClientError = () => {
+      discard = true;
+      driverFailure = new DatabaseUnavailable();
+    };
+    client.on("error", onClientError);
     const query = async <T>(sql: string, parameters?: unknown[]) => {
       if (!active) throw new Error("Transaction has ended");
       try {
         const result = await client.query<QueryResultRow>(sql, parameters);
         return { rows: result.rows as T[] };
-      } catch {
-        driverFailed = true;
-        discard = true;
-        throw new DatabaseUnavailable();
+      } catch (error) {
+        const mapped = classify(error);
+        driverFailure ??= mapped;
+        if (mapped instanceof DatabaseUnavailable) discard = true;
+        throw mapped;
       }
     };
     const transaction: DatabaseTransaction = {
@@ -95,18 +127,25 @@ export class PgDatabase implements Database {
       await query("BEGIN");
       began = true;
       const result = await work(transaction);
-      // A callback must not swallow a driver failure and commit partial work.
-      if (driverFailed) throw new DatabaseUnavailable();
-      await query("COMMIT");
+      if (driverFailure) throw driverFailure;
+      try { await query("COMMIT"); }
+      catch (error) {
+        if (error instanceof DatabaseUnavailable) throw new DatabaseUnavailable(true);
+        throw error;
+      }
       return result;
     } catch (error) {
       if (began) {
         try { await query("ROLLBACK"); }
-        catch { discard = true; }
+        catch {
+          discard = true;
+          if (!(error instanceof DatabaseUnavailable)) throw new DatabaseUnavailable();
+        }
       }
       throw error;
     } finally {
       active = false;
+      client.off("error", onClientError);
       client.release(discard);
     }
   }

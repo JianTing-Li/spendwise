@@ -2,10 +2,8 @@ import { Pool } from "pg";
 import { PgDatabase, pgPoolOptions } from "../../src/server/db/pg";
 import type { Database } from "../../src/server/db/database";
 
-// Explicitly opt-in integration harness: never use DATABASE_URL or a remote host.
-export const localTestConnection = {
-  host: "/tmp", port: 5432, database: "spendwise_app01_test", user: "elliotwatson",
-};
+import { localConnection } from "./pg-local-config";
+export const localTestConnection = localConnection(process.env);
 export function assertTestSchema(schema: string) {
   if (!/^app01_test_[a-f0-9]{32}$/.test(schema)) throw new Error("Invalid test schema");
 }

@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Pool } from "pg";
 import { Store } from "../src/server/db/store";
-import { DatabaseUnavailable } from "../src/server/db/pg";
+import { DatabaseQueryError, DatabaseTimeout, DatabaseUnavailable, PgDatabase, pgPoolOptions } from "../src/server/db/pg";
 import { stubInvestigator } from "../src/server/investigation/stub";
 import { summarize } from "../src/domain/finance";
 import { injectedDataset } from "../src/fixtures/scenarios";
@@ -15,7 +15,7 @@ import type { DemoState, InvestigationInput } from "../src/contracts";
 import { localTestConnection, scopedDatabase, verifyTarget } from "./helpers/pg-local";
 
 const schema = "app01_test_" + randomUUID().replaceAll("-", "");
-const control = new Pool({ ...localTestConnection, application_name: schema + "_control", connectionTimeoutMillis: 5000, statement_timeout: 5000 });
+const control = new Pool(pgPoolOptions({ ...localTestConnection, application_name: schema + "_control" }));
 const primary = scopedDatabase(schema);
 const store = new Store(primary.db);
 const databases = [primary];
@@ -97,7 +97,7 @@ test("real pg: transaction pins a backend and rolls back SQL and application fai
     const b = (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid;
     assert.equal(a, b);
     await tx.query("SELECT 1 / 0");
-  }), DatabaseUnavailable);
+  }), DatabaseQueryError);
   await assert.rejects(primary.db.transaction(async tx => {
     await tx.query("INSERT INTO vendors VALUES ($1, $2)", ["rollback-application", "{}"]);
     throw new Error("application validation failed");
@@ -170,14 +170,14 @@ test("real pg: review is idempotent and persists through independent pools/proce
 });
 
 test("real pg: failed operations reject instead of returning local data", options, async () => {
-  await assert.rejects(primary.db.transaction(tx => tx.query("SELECT * FROM app01_deliberately_missing_table")), DatabaseUnavailable);
+  await assert.rejects(primary.db.transaction(tx => tx.query("SELECT * FROM app01_deliberately_missing_table")), DatabaseQueryError);
   await primary.db.transaction(async tx => {
     const row = (await tx.query<{ database: string }>("SELECT current_database() AS database")).rows[0];
     assert.equal(row.database, localTestConnection.database);
   });
 });
 
-test("real pg: terminating this test's idle backend fails closed; a fresh pool recovers", options, async () => {
+test("real pg: terminating an idle backend permits the next request and a fresh pool to recover", options, async () => {
   await store.inject();
   const old = fresh();
   const pid = await old.db.transaction(async tx => (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
@@ -188,10 +188,10 @@ test("real pg: terminating this test's idle backend fails closed; a fresh pool r
   const result = await control.query<{ terminated: boolean }>("SELECT pg_terminate_backend(pid) AS terminated FROM pg_stat_activity WHERE pid = $1 AND datname = $2 AND usename = $3 AND application_name = $4", [pid, localTestConnection.database, localTestConnection.user, schema]);
   assert.equal(result.rows.length, 1); assert.equal(result.rows[0].terminated, true);
   await event;
-  let invoked = false;
-  for (let attempt = 0; attempt < 2; attempt++)
-    await assert.rejects(old.db.transaction(async () => { invoked = true; }), DatabaseUnavailable);
-  assert.equal(invoked, false);
+  // pg-pool removes the broken idle client; the next explicit request replaces it.
+  const replacement = await old.db.transaction(async tx => (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+  assert.notEqual(replacement, pid);
+  assert.equal((await new Store(old.db).state()).dataset.payments.length, 7);
   await old.db.close();
   const recovered = fresh();
   const newPid = await recovered.db.transaction(async tx => (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
@@ -199,4 +199,48 @@ test("real pg: terminating this test's idle backend fails closed; a fresh pool r
   const state = await new Store(recovered.db).state();
   assert.equal(state.dataset.payments.length, 7); assert.equal(state.runs.length, 4);
   await assert.rejects(old.db.transaction(async () => {}), DatabaseUnavailable);
+});
+
+
+test("real pg: lock and statement timeouts are distinct from outages and preserve usable clients", options, async () => {
+  const pool = new Pool(pgPoolOptions({ ...localTestConnection, application_name: schema }, { max: 1, lock_timeout: 100, statement_timeout: 500 }));
+  const db = new PgDatabase(pool);
+  const original = await db.transaction(async tx => (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+  let unlock!: () => void;
+  let locked!: () => void;
+  const gate = new Promise<void>(r => { locked = r; });
+  const release = new Promise<void>(r => { unlock = r; });
+  const holder = primary.db.transaction(async tx => {
+    await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
+    locked(); await release;
+  });
+  try {
+    await gate;
+    await assert.rejects(db.transaction(async tx => {
+      await tx.query("SELECT set_config('search_path', $1, true)", [schema + ",pg_catalog"]);
+      await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
+    }), (error: unknown) => error instanceof DatabaseTimeout && error.sqlstate === "55P03");
+    unlock(); await holder;
+    await assert.rejects(db.transaction(tx => tx.query("SELECT pg_sleep(1)")),
+      (error: unknown) => error instanceof DatabaseTimeout && error.sqlstate === "57014");
+    const pid = await db.transaction(async tx => (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+    assert.equal(pid, original, "successful rollbacks must retain a healthy connection");
+  } finally { unlock(); await holder; await db.close(); }
+});
+
+
+test("real pg: an active connection loss rolls back without replay and later work can recover", options, async () => {
+  const target = fresh();
+  let callbacks = 0;
+  await assert.rejects(target.db.transaction(async tx => {
+    callbacks++;
+    await tx.query("INSERT INTO vendors VALUES ($1, $2)", ["interrupted-test-vendor", "{}"]);
+    const pid = (await tx.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const result = await control.query<{ terminated: boolean }>("SELECT pg_terminate_backend(pid) AS terminated FROM pg_stat_activity WHERE pid = $1 AND datname = $2 AND usename = $3 AND application_name = $4", [pid, localTestConnection.database, localTestConnection.user, schema]);
+    assert.equal(result.rows[0]?.terminated, true);
+    await tx.query("SELECT 1");
+  }), DatabaseUnavailable);
+  assert.equal(callbacks, 1);
+  const rows = await target.db.transaction(tx => tx.query("SELECT id FROM vendors WHERE id = $1", ["interrupted-test-vendor"]));
+  assert.equal(rows.rows.length, 0);
 });

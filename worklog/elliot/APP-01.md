@@ -116,3 +116,7 @@ Real PostgreSQL runtime transaction, process concurrency, review persistence and
 APP-01 is **not fully satisfied**. Versioned transactional migration runner, concurrent migration/bootstrap safety, application mode/configuration/TLS integration and any associated shared interface changes still await Jian's agreement. Neon compatibility/live checks remain separately authorized work and were not attempted. Hosted fail-closed behavior is unchanged and covered by existing safety regressions. SETUP-01 remains an unresolved dependency in this WIP; no merge readiness claimed.
 
 No new consequential architecture change or implementation approval is required for these test-only additions. Next action: coordinate the blocked migration/configuration boundaries with Jian; only then implement the remaining APP-01 scope. No push, PR, merge, deployment, service provisioning or other issue work performed.
+
+## Adapter/testing split handoff — November 5
+
+Adapter review fixes and current verification are recorded in [APP-01A](APP-01A.md), [Issue #24](https://github.com/JianTing-Li/spendwise/issues/24) and [PR #23](https://github.com/JianTing-Li/spendwise/pull/23). The parent migration/schema/retry/configuration specification and coordinated policy live in [Issue #4](https://github.com/JianTing-Li/spendwise/issues/4). Earlier descriptions of permanent adapter shutdown and uncoordinated design are historical; the follow-up log records the actual changes and tests. This split does not implement migration 002 or alter public tool contracts.

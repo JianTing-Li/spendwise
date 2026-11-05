@@ -1,24 +1,26 @@
 import { EventEmitter } from "node:events";
-import type { Pool, PoolClient } from "pg";
-import { describe, expect, it, vi } from "vitest";
-import { PgDatabase, pgPoolOptions, pgTestDefaults } from "../src/server/db/pg";
+import { Client, type Pool, type PoolClient } from "pg";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DatabaseConflict, DatabaseQueryError, DatabaseTimeout, PgDatabase, pgPoolOptions, pgTestDefaults } from "../src/server/db/pg";
 import type { DatabaseTransaction } from "../src/server/db/database";
 
-function fixture(failures: string[] = []) {
+afterEach(() => vi.unstubAllEnvs());
+
+function fixture(failures: string[] = [], code?: string) {
   const calls: { sql: string; parameters?: unknown[]; client: number }[] = [];
   const releases: boolean[] = [];
   let serial = 0;
   const pool = Object.assign(new EventEmitter(), {
     connect: vi.fn(async () => {
       const client = ++serial;
-      return {
+      return Object.assign(new EventEmitter(), {
         query: async (sql: string, parameters?: unknown[]) => {
           calls.push({ sql, parameters, client });
-          if (failures.includes(sql)) throw new Error("secret driver details");
+          if (failures.includes(sql)) throw Object.assign(new Error("secret driver details"), { code });
           return { rows: [{ value: 7 }] };
         },
         release: (discard: boolean) => { releases.push(discard); },
-      } as unknown as PoolClient;
+      }) as unknown as PoolClient;
     }),
     end: vi.fn(async () => {}),
   });
@@ -57,10 +59,18 @@ describe("pooled pg adapter control flow (no live database)", () => {
     await expect(db.transaction(async tx => {
       if (failure === "ROLLBACK") throw new Error("application error");
       await tx.query("SELECT $1", [1]);
-    })).rejects.toThrow(failure === "ROLLBACK" ? "application error" : "Database unavailable");
+    })).rejects.toThrow("Database unavailable");
     expect(releases).toEqual([true]);
     expect(calls.filter(c => c.sql === "COMMIT")).toHaveLength(failure === "COMMIT" ? 1 : 0);
     await db.close();
+  });
+
+  it("marks a connection failure during COMMIT as an unknown outcome", async () => {
+    const { db, pool } = fixture(["COMMIT"]);
+    try {
+      await expect(db.transaction(tx => tx.query("SELECT 1"))).rejects.toMatchObject({ name: "DatabaseUnavailable", outcomeUnknown: true });
+      expect(pool.connect).toHaveBeenCalledTimes(1);
+    } finally { await db.close(); }
   });
 
   it("does not commit a swallowed query failure", async () => {
@@ -83,47 +93,48 @@ describe("pooled pg adapter control flow (no live database)", () => {
     await db.close();
   });
 
-  it("handles idle pool errors and rejects use after shutdown", async () => {
+  it("handles idle pool errors without disabling future transactions", async () => {
     const { db, pool } = fixture();
     pool.emit("error", new Error("secret details"));
-    await expect(db.transaction(async () => {})).rejects.toThrow("Database unavailable");
-    expect(pool.connect).not.toHaveBeenCalled();
+    await db.transaction(async tx => { await tx.query("SELECT 1"); });
+    expect(pool.connect).toHaveBeenCalledTimes(1);
     await db.close();
     await db.close();
     expect(pool.end).toHaveBeenCalledTimes(1);
     await expect(db.transaction(async () => {})).rejects.toThrow("Database unavailable");
   });
 
-  it("keeps the failed adapter closed to work and recovers only through a fresh adapter", async () => {
-    const failed = fixture();
+  it("does not replay a failed transaction; a later request and a fresh pool can succeed", async () => {
+    const old = fixture();
     const fresh = fixture();
     try {
-      // Establish prior successful use, then simulate pg's idle-pool error event.
-      await failed.db.transaction(async tx => { await tx.query("SELECT 1"); });
-      failed.pool.emit("error", new Error("private connection details"));
-      const work = vi.fn(async (tx: DatabaseTransaction) => {
-        await tx.query("SELECT 1");
-      });
-      for (let attempt = 0; attempt < 2; attempt++)
-        await expect(failed.db.transaction(work)).rejects.toThrow("Database unavailable");
+      old.pool.connect.mockRejectedValueOnce(new Error("unreachable"));
+      const work = vi.fn(async (tx: DatabaseTransaction) => { await tx.query("SELECT 1"); });
+      await expect(old.db.transaction(work)).rejects.toThrow("Database unavailable");
       expect(work).not.toHaveBeenCalled();
-      expect(failed.pool.connect).toHaveBeenCalledTimes(1);
-      expect(failed.calls.map(c => c.sql)).toEqual(["BEGIN", "SELECT 1", "COMMIT"]);
-
-      await failed.db.close();
-      expect(failed.pool.end).toHaveBeenCalledTimes(1);
-      expect(failed.pool.listenerCount("error")).toBe(0);
+      expect(old.pool.connect).toHaveBeenCalledTimes(1);
+      await old.db.transaction(work);
+      expect(work).toHaveBeenCalledTimes(1);
+      await old.db.close();
       await fresh.db.transaction(work);
-      expect(work).toHaveBeenCalledTimes(1);
-      expect(fresh.pool.connect).toHaveBeenCalledTimes(1);
-      expect(fresh.calls.map(c => c.sql)).toEqual(["BEGIN", "SELECT 1", "COMMIT"]);
-      expect(fresh.releases).toEqual([false]);
-      await expect(failed.db.transaction(work)).rejects.toThrow("Database unavailable");
-      expect(work).toHaveBeenCalledTimes(1);
-    } finally {
-      await failed.db.close();
-      await fresh.db.close();
-    }
+      expect(work).toHaveBeenCalledTimes(2);
+      await expect(old.db.transaction(work)).rejects.toThrow("Database unavailable");
+    } finally { await old.db.close(); await fresh.db.close(); }
+  });
+
+  it.each([
+    ["55P03", DatabaseTimeout], ["57014", DatabaseTimeout],
+    ["40P01", DatabaseConflict], ["40001", DatabaseConflict],
+    ["23505", DatabaseQueryError], ["42601", DatabaseQueryError],
+  ] as const)("classifies SQLSTATE %s and retains the client after rollback", async (code, ErrorType) => {
+    const { db, releases, calls } = fixture(["bad"], code);
+    try {
+      await expect(db.transaction(tx => tx.query("bad"))).rejects.toBeInstanceOf(ErrorType);
+      expect(calls.map(c => c.sql)).toEqual(["BEGIN", "bad", "ROLLBACK"]);
+      expect(releases).toEqual([false]);
+      await db.transaction(tx => tx.query("good"));
+      expect(releases).toEqual([false, false]);
+    } finally { await db.close(); }
   });
 
   it("rejects escaped transaction handles", async () => {
@@ -150,13 +161,24 @@ describe("pooled pg adapter control flow (no live database)", () => {
 describe("initial local pool limits", () => {
   it("applies configurable bounded test defaults without changing SSL settings", () => {
     const ssl = { rejectUnauthorized: true };
-    expect(pgPoolOptions({ host: "localhost", ssl })).toEqual({ host: "localhost", ssl, ...pgTestDefaults });
+    expect(pgPoolOptions({ host: "localhost", ssl })).toEqual({ host: "localhost", ssl, ...pgTestDefaults, options: " " });
     expect(pgPoolOptions({}, { max: 2 }).max).toBe(2);
     expect(pgPoolOptions({ statement_timeout: 0 }).statement_timeout).toBe(5000);
   });
   it.each([0, -1, Infinity, 0.5, Number.MAX_SAFE_INTEGER + 1])("rejects unbounded/invalid values: %s", value => {
     expect(() => pgPoolOptions({}, { statement_timeout: value })).toThrow("positive safe integers");
   });
+  it("rejects PGOPTIONS and prevents later environment changes bypassing limits", () => {
+    vi.stubEnv("PGOPTIONS", "-c statement_timeout=0");
+    expect(() => pgPoolOptions({})).toThrow("startup options");
+    vi.stubEnv("PGOPTIONS", "");
+    const options = pgPoolOptions({});
+    vi.stubEnv("PGOPTIONS", "-c lock_timeout=0");
+    const client = new Client(options) as unknown as { connectionParameters: { options: string; statement_timeout: number } };
+    expect(client.connectionParameters.options).toBe(" ");
+    expect(client.connectionParameters.statement_timeout).toBe(5000);
+  });
+
   it("blocks startup and URL timeout overrides", () => {
     expect(() => pgPoolOptions({ options: "-c statement_timeout=0" })).toThrow("startup options");
     for (const name of ["options", "statement_timeout", "lock_timeout", "connect_timeout", "idle_in_transaction_session_timeout"])
