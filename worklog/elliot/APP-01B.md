@@ -1,5 +1,7 @@
 # APP-01B — Offline database compatibility verification
 
+Review: [draft PR #28](https://github.com/JianTing-Li/spendwise/pull/28).
+
 Owner: Elliot. Specification: [#27](https://github.com/JianTing-Li/spendwise/issues/27). Parent: [#4](https://github.com/JianTing-Li/spendwise/issues/4), baseline [#26](https://github.com/JianTing-Li/spendwise/pull/26), adapter coordination [#23](https://github.com/JianTing-Li/spendwise/pull/23#issuecomment-6669950424).
 
 Independent evidence, exact checks, limits and ten-criterion audit: [acceptance audit](../../docs/app-01-acceptance-audit.md). Future authorized procedure and zero-model demo: [development guide](../../docs/development.md#future-authorized-neon-procedure-not-executed).
