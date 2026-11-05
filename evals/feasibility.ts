@@ -32,8 +32,9 @@ import {
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
 import type { Dataset, Finding, InvestigationInput } from "../src/contracts";
 import { loadGroundTruth, type GroundTruthCase } from "./ground-truth";
+import { BASELINE_VERSION, baselineFor } from "./baseline";
 
-export const FEASIBILITY_VERSION = "feasibility-v1";
+export const FEASIBILITY_VERSION = "feasibility-v2";
 const RUN_MS = 60_000;
 
 /** List prices per million tokens (USD), for an estimate only; no cache discounts. */
@@ -118,13 +119,13 @@ export async function runFeasibility(options: FeasibilityOptions) {
     result.findings.map((f) => validateFinding(f, exception, retrieval)),
   );
   const totalMs = now() - started;
+  const baseline = await baselineFor(data, exception);
 
   const labels = validated.map((f) => f.label);
   const citedRefs = cited(result.findings);
   const inputTokens = requests.reduce((a, r) => a + r.inputTokens, 0);
   const outputTokens = requests.reduce((a, r) => a + r.outputTokens, 0);
   const price = PRICES[model];
-  const baselineLabel = "Needs Review"; // evals/baseline.ts: rules only, no causes
   return {
     version: FEASIBILITY_VERSION,
     caseId,
@@ -170,23 +171,42 @@ export async function runFeasibility(options: FeasibilityOptions) {
     modelFindings: result.findings,
     validatedFindings: validated,
     comparison: {
-      expectedRunState: expected.expectedRunState,
-      runStateMatches: result.state === expected.expectedRunState,
-      expectedLabel: expected.expectedLabel,
-      acceptableLabels: expected.acceptableLabels,
-      validatedLabels: labels,
-      labelAcceptable:
-        labels.length > 0 &&
-        labels.every((l) => expected.acceptableLabels.includes(l)),
-      verifiedExplanation: validated.some(isVerifiedExplanation),
-      expectedCause: expected.expectedCause,
+      runState: {
+        expected: expected.expectedRunState,
+        actual: result.state,
+        matches: result.state === expected.expectedRunState,
+      },
+      label: {
+        expected: expected.expectedLabel,
+        acceptable: expected.acceptableLabels,
+        model: result.findings.map((f) => f.label),
+        validated: labels,
+        validatedAcceptable:
+          labels.length > 0 &&
+          labels.every((l) => expected.acceptableLabels.includes(l)),
+      },
+      // The records support an Explained label. This does not show the model
+      // identified the right cause: a supported finding's explanation is
+      // written by the application, not the model.
+      recordsSupportExplained: validated.some(isVerifiedExplanation),
+      cause: {
+        expected: expected.expectedCause,
+        modelExplanations: result.findings.map((f) => f.explanation),
+        explanationReplacedByApplication: validated.map(
+          (f, i) => f.explanation !== result.findings[i].explanation,
+        ),
+        correctness: "requires_review" as const,
+        note: "Whether the model's own explanation states the expected cause is a human judgment; compare modelExplanations with the expected cause.",
+      },
       requiredEvidenceMissing: expected.requiredEvidence
         .map((e) => `${e.type}:${e.id}`)
         .filter((key) => !citedRefs.has(key)),
       forbiddenClaimsMade: claimsMade(result.findings, expected.forbiddenClaims),
       baseline: {
-        label: baselineLabel,
-        labelAcceptable: expected.acceptableLabels.includes(baselineLabel),
+        version: BASELINE_VERSION,
+        label: baseline.label,
+        explanation: baseline.explanation,
+        labelAcceptable: expected.acceptableLabels.includes(baseline.label),
       },
     },
     hosting:

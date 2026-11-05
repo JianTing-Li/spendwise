@@ -1,7 +1,7 @@
 # FEAS-01 — Joint early Claude feasibility check
 
 Owner: Jian Ting. Reviewer: Elliot. Issue: https://github.com/JianTing-Li/spendwise/issues/9
-Branch: `feas-01-feasibility`, stacked on `ai-02-evidence-validation` (AI-02, #8, PR #22), which this issue depends on. Merge after #22.
+Branch: `feas-01-feasibility`. PR: https://github.com/JianTing-Li/spendwise/pull/25. AI-02 (#22) is merged, and current `main` is merged into this branch.
 
 ## Changes
 - `evals/feasibility.ts` and `npm run eval:feasibility`: an opted-in command that runs the real loop once on one records-only development case (default `renewal`, demo-v1), validates the findings, and prints a JSON report:
@@ -15,6 +15,12 @@ Branch: `feas-01-feasibility`, stacked on `ai-02-evidence-validation` (AI-02, #8
 - Without `--allow-paid` it makes no call; without `ANTHROPIC_API_KEY` it makes no call. Held-out cases and harness-condition cases are refused. Credentials never appear in the report or messages.
 - `src/agent/loop.ts`: optional `maxTokens` (default unchanged at 8,000) so the run can measure whether the limit cuts responses off; `--max-tokens`, `--effort` and `--model` flags for the comparison runs.
 - `tests/feasibility.test.ts` (5 offline tests with a scripted fake client).
+
+## Review changes (2026-11-05)
+Elliot's review on #25 asked for two changes before the paid run:
+- **Model reasoning vs verified explanation.** Validation replaces a supported finding's explanation with the application's own statement, so a model that gives the wrong cause could still look successful. The report now shows the model's labels and explanations next to the validated ones (`comparison.label`, `comparison.cause.modelExplanations`, `explanationReplacedByApplication`). `recordsSupportExplained` replaces `verifiedExplanation`: it says the records support the label, not that the model found the cause. Cause correctness is always `requires_review`, a human judgment. Regression test: correct citations with "office furniture" as the cause.
+- **Real baseline.** `evals/baseline.ts` now exports `baselineFor` and `BASELINE_VERSION` (`rules-v1`); `npm run eval:baseline` output is byte-for-byte unchanged. The report records the baseline's own label, explanation and version for the same case instead of a hardcoded label.
+- Report version is now `feasibility-v2`.
 
 ## Checks (actual)
 - See the PR for `npm run check` results. No paid calls have been made.
