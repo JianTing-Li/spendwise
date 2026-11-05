@@ -1,5 +1,13 @@
 import type { Investigator } from "../investigation";
-/** The real loop is Jian's first implementation task. Never fall back to a stub. */
+
+// The loop is in ./loop and the SDK client in ./client, so stub-mode routes
+// importing this module never load the SDK.
+
+/**
+ * The application's real-mode entry point until INT-01 (#10) wires
+ * `realInvestigatorFromEnv` (./client) to database-scoped retrieval. It fails explicitly
+ * rather than calling a model without application-scoped retrieval.
+ */
 export const realInvestigator: Investigator = {
   async investigate() {
     return {
