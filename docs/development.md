@@ -28,14 +28,14 @@ Injection, reset, run claiming, and review use transactions. A durable generatio
 Local development is a trusted, loopback-only single-user mode. Requests require the expected host; mutations additionally require the same origin, JSON, and a custom header. This is not deployed identity/authentication. Never expose the local server through a tunnel or bind it to a public interface. `VERCEL` or `DATABASE_MODE=neon` disables the local flow. Deployed authentication is future work.
 
 - `INVESTIGATOR_MODE=stub`: default; never calls an external model.
-- `INVESTIGATOR_MODE=real`: explicit unavailable/failed result; no fallback.
+- `INVESTIGATOR_MODE=real`: explicit failed/`unavailable` result until INT-01 wires the real loop to database-scoped retrieval; no fallback.
 - `DATABASE_MODE=local`: PGlite. Neon adapter is not implemented.
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DATABASE_URL`, `DATABASE_READONLY_URL`: server-only placeholders for future work. Never use `NEXT_PUBLIC_` for these.
 
 Enter future credentials locally or through hosting secret settings, never chat or source files. Git ignores all `.env*` except `.env.example`, key files, local DBs, and generated reports. Check staged files before every commit; ignore rules alone are not a secret scanner.
 
 ## Integration boundaries
-`Investigator` receives an exception, generation, acceptance time, deadline and cancellation signal. Retrieval is scoped by application-owned records. UI and agent consume the same contracts. The real adapter currently returns `unavailable`; the `Budget` helper is tested scaffolding for Jian to integrate into every real model/tool call. Set Anthropic `maxRetries: 0` when constructing the real SDK client.
+`Investigator` receives an exception, generation, acceptance time, deadline and cancellation signal. Retrieval is scoped by application-owned records. UI and agent consume the same contracts. The real loop (`createRealInvestigator` in `src/agent/loop.ts`, `realInvestigatorFromEnv` in `src/agent/client.ts`) charges every model request and attempted retrieval to `Budget`, sets SDK `maxRetries: 0`, and stops 10 seconds before the run deadline to leave time for validation and persistence. `ANTHROPIC_MODEL` defaults to `claude-opus-5-5`. The exported `realInvestigator` still returns `unavailable` until INT-01 supplies scoped retrieval.
 
 Evidence validation (`src/agent/validation.ts`) checks existence and scope, strips self-asserted support, flags human-only conclusions and unknown amounts, and keeps `Explained` only when the exception's claim category is objectively supported by the records. A completed run means the investigation finished with valid references, not that it was verified; see [decision 002](decisions/002-evidence-validation.md). Ground truth stays in `evals/ground-truth/`, outside all runtime imports.
 
