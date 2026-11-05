@@ -1,6 +1,6 @@
 # APP-01 — Durable PostgreSQL application persistence
 
-Owner: Elliot Watson. Specification: [issue #4](https://github.com/JianTing-Li/spendwise/issues/4).
+Owner: Elliot Watson. Specification: [issue #4](https://github.com/JianTing-Li/spendwise/issues/4). Review: [draft PR #26](https://github.com/JianTing-Li/spendwise/pull/26).
 
 ## Changes and decisions
 
