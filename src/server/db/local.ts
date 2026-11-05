@@ -2,28 +2,49 @@ import "server-only";
 import { PGlite } from "@electric-sql/pglite";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { databaseConfig } from "./config";
+import { PgDatabase } from "./pg";
+import { assertReadOnly, assertApplication } from "./permissions";
 import { Store } from "./store";
 const globalStore = globalThis as typeof globalThis & {
   spendwiseStore?: Promise<Store>;
 };
 export function getStore() {
-  if (
-    process.env.INVESTIGATOR_MODE &&
-    !["stub", "real"].includes(process.env.INVESTIGATOR_MODE)
-  )
+  if (process.env.INVESTIGATOR_MODE &&
+    !["stub", "real"].includes(process.env.INVESTIGATOR_MODE))
     throw new Error("Investigator mode unavailable");
-  if (
-    process.env.VERCEL ||
-    (process.env.DATABASE_MODE && process.env.DATABASE_MODE !== "local")
-  )
-    throw new Error("Database mode unavailable");
+  const config = databaseConfig();
   if (!globalStore.spendwiseStore)
     globalStore.spendwiseStore = (async () => {
+      if (config.mode !== "local") {
+        const db = PgDatabase.create(config.application);
+        const readonly = PgDatabase.create(config.readonly);
+        try {
+          await readonly.transaction(assertReadOnly);
+          await db.transaction(assertApplication);
+          const store = new Store(db);
+          await store.assertVersion();
+          return store;
+        }
+        catch (error) {
+          await db.close();
+          throw error;
+        }
+        finally {
+          await readonly.close();
+        }
+      }
       const directory = resolve(process.env.PGLITE_DATA_DIR || ".data/spendwise");
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const db = new PGlite(directory);
       const store = new Store(db);
-      await store.initialize();
+      try {
+        await store.initialize();
+      }
+      catch (error) {
+        await db.close();
+        throw error;
+      }
       return store;
     })().catch((error) => {
       globalStore.spendwiseStore = undefined;
