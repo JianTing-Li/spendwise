@@ -1,11 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
-import type { Database } from "./database";
-import { Store } from "./store";
-import { migrations } from "./migrations/bundled";
-import type { Dataset } from "../../contracts";
-import { baseline, injectedDataset } from "../../fixtures/scenarios";
-import { summarize } from "../../domain/finance";
-import { stubInvestigator } from "../investigation/stub";
+import type { Database } from "../../src/server/db/database";
+import { Store } from "../../src/server/db/store";
+import { seedLegacy001 } from "./legacy";
+import type { Dataset } from "../../src/contracts";
+import { baseline, injectedDataset } from "../../src/fixtures/scenarios";
+import { summarize } from "../../src/domain/finance";
+import { stubInvestigator } from "../../src/server/investigation/stub";
 
 function equal(actual: unknown, expected: unknown, message: string) {
   if (!isDeepStrictEqual(actual, expected)) throw new Error(message);
@@ -19,16 +19,7 @@ function records(data: Dataset) {
  * Shared by the local demo, offline regression and authorized Neon check.
  */
 export async function verifyIsolatedCompatibility(db: Database) {
-  // Populate immutable 001 first: this catches upgrade regressions in the
-  // same procedure that will later run on Neon, not just fresh-schema replay.
-  await db.transaction(async tx => {
-    await tx.exec(migrations[0]);
-    for (const v of baseline.vendors)
-      await tx.query('INSERT INTO vendors VALUES ($1,$2)', [v.id, JSON.stringify(v)]);
-    for (const [table, rows] of [['invoices', baseline.invoices], ['payments', baseline.payments], ['vendor_notes', baseline.notes]] as const)
-      for (const row of rows)
-        await tx.query(`INSERT INTO ${table} VALUES ($1,$2,$3)`, [row.id, row.vendorId, JSON.stringify(row)]);
-  });
+  await seedLegacy001(db, baseline);
   const store = new Store(db);
   await store.initialize();
   equal(records((await store.state()).dataset), records(baseline), "Baseline mismatch");

@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import { verifyIsolatedCompatibility } from "../src/server/db/compatibility";
+import { verifyIsolatedCompatibility } from "./db-verification/compatibility";
 async function main() {
   const db = new PGlite();
   try { console.log(JSON.stringify(await verifyIsolatedCompatibility(db))); }

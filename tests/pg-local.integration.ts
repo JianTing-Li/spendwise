@@ -309,16 +309,19 @@ test("real pg: retries across processes are predecessor-idempotent and reset gua
   assert.equal(await a.call({ action: "finish", id: retry.id, generation: retry.generation, result }), false);
   assert.equal((await store.state()).runs.length, 4);
 });
-test("real pg: privileged retrieval login fails closed; read-only role cannot write", options, async () => {
+test("real pg: broad read-only role is rejected for retrieval and cannot write", options, async () => {
   const { assertReadOnly, assertApplication } = await import('../src/server/db/permissions');
   await assert.rejects(primary.db.transaction(assertReadOnly), /Read-only/);
   await assert.rejects(primary.db.transaction(assertApplication), /Application/);
   // Existing PostgreSQL built-in role; no role creation, grants or credentials.
   await primary.db.transaction(async (tx) => {
     await tx.exec('SET LOCAL ROLE pg_read_all_data');
-    await assertReadOnly(tx);
     assert.equal((await tx.query('SELECT id FROM payments')).rows.length, 2);
   });
+  await assert.rejects(primary.db.transaction(async tx => {
+    await tx.exec('SET LOCAL ROLE pg_read_all_data');
+    await assertReadOnly(tx);
+  }), /Read-only database permissions required/);
   await assert.rejects(primary.db.transaction(async (tx) => {
     await tx.exec('SET LOCAL ROLE pg_read_all_data');
     await tx.exec('DELETE FROM payments');
@@ -364,13 +367,14 @@ test("real pg: populated 001 upgrades without changing records, results or revie
 
 // The exact disposable-schema scenario used by the future Neon command.
 test("real pg: shared compatibility procedure upgrades populated 001 and replays three zero-model cycles", options, async () => {
-  const { verifyIsolatedCompatibility } = await import('../src/server/db/compatibility');
+  const { verifyIsolatedCompatibility } = await import('../scripts/db-verification/compatibility');
   const name = 'app01_test_' + randomUUID().replaceAll('-', '');
   const isolated = scopedDatabase(name);
   await control.query(`CREATE SCHEMA "${name}"`);
   try {
     assert.deepEqual(await verifyIsolatedCompatibility(isolated.db), { cycles: 3, exceptionsPerCycle: 4, modelRequests: 0 });
     const { assertApplicationGrants } = await import('../src/server/db/permissions');
+    // Catalog-query syntax/control only: test owner is not a least-privilege app login.
     await isolated.db.transaction(assertApplicationGrants);
     await assert.rejects(isolated.db.transaction(async tx => {
       await tx.exec('SET LOCAL ROLE pg_read_all_data');
