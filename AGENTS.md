@@ -13,9 +13,18 @@ Treat a general request to work on SpendWise as a request to follow this routine
 
 ## Branch hygiene
 - Every editing session starts a new branch from the latest `origin/main`, for exactly one issue. Name it after the issue (for example `app-01-neon-adapter`).
-- Never commit to a branch whose PR is merged or under review. Open a new branch and issue instead.
+- One open PR per issue. Keep working on that PR's branch: review fixes and merging `origin/main` into it are expected. Never rewrite its history (no rebase or force-push).
+- Never commit to a branch whose PR is merged. New work after a merge gets a new branch and issue.
+- If a PR must be replaced, close the old one in the same step with "Superseded by #N".
 - Concurrent sessions use separate branches/worktrees. No blind pull, reset, force-push or merge.
 - Before asking for a merge: `git status` is clean, `git log @{u}..HEAD` is empty (everything pushed), the PR head SHA matches local `HEAD`, and CI is green on that SHA. If a push fails, say so and stop; do not report the work as in the PR.
+
+## Dependencies and combined PRs
+- Don't start an issue until every dependency is merged into `main`. Never base a PR on another unmerged PR's branch.
+- While blocked, review the other person's PRs, or take another ready issue whose dependencies are merged.
+- Exception: you may continue straight into a dependent issue on the same branch and PR as its dependency, up to 3 issues per PR. The PR says "Closes #N" for each issue, and each must be fully complete.
+- Every PR gets an AI code review before approval. The approving human reads the review's findings (not necessarily every line of code), confirms they're fixed or accepted, and then approves.
+- Review each other's PRs promptly, within a few hours on coding days, so no one sits blocked.
 
 ## Authority and workflow
 - Product requirements: `docs/prd.md`. Confirmed decisions: `docs/decisions/`.
