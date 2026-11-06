@@ -35,10 +35,10 @@ This is a validator false positive, not a model error. The explanation says "It 
 ## Decision: adjust, then proceed
 - **Proceed** with the single Claude investigator, Opus 5.5 at medium effort. The loop completed well inside every budget, cited valid evidence, stated the right cause, and avoided human-only conclusions.
 - **Keep `max_tokens` at 8,000.** Output was 1,448 tokens across 4 requests, and no request stopped on the limit.
-- **Adjust before EVAL-01:** fix the negation false positive in `src/agent/validation.ts`, with a regression test for "does not establish that the payment was approved". Keep the rule that real approval claims are flagged. Otherwise EVAL-01 would score correct, hedged explanations as failures.
+- **Adjust before EVAL-01:** fix the negation false positive in `src/agent/validation.ts`. Otherwise EVAL-01 would score correct, hedged explanations as failures. Done in this PR: a claim inside the complement of a denied verb of showing or knowing ("does not establish that …") now counts as negated, including later items of the same list. Real approval claims are still flagged (decision 002, rule 3). Regression tests in `tests/evidence.test.ts` use the run's exact text: it now validates as `Explained` and `supported`, with the application's own explanation. This was not re-run against the model, so no new paid call was made.
 - No model or effort comparison runs yet. The default configuration met the bar, so the remaining budget goes to EVAL-01.
 
 ## Shared blockers
 - **Hosting is unverified.** No deployment target exists yet. DEPLOY-01 ([#14](https://github.com/JianTing-Li/spendwise/issues/14)) is now Jian's. 15.7 s fits the 60 s budget, but host limits have not been checked.
 - **Retrieval is fixture-based.** Real database retrieval is APP-03 ([#6](https://github.com/JianTing-Li/spendwise/issues/6)), which depends on [#4](https://github.com/JianTing-Li/spendwise/issues/4).
-- **Validator false positive:** see the adjustment above.
+- **Validator false positive:** fixed in this PR (see the adjustment above). A narrower negation rule could still flag other correct hedges; EVAL-01 should report any finding downgraded only by an overclaim match.

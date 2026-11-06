@@ -406,6 +406,49 @@ describe("AI-02 review regressions (PR #22)", () => {
   });
 });
 
+describe("FEAS-01 paid-run regressions (decision 003)", () => {
+  // Verbatim from the 2026-11-05 run on synthetic demo records.
+  const runExplanation =
+    "The application reports that payments rose from 100000 cents in the prior period (Sep 2026) to 1300000 cents in the current period (Oct 2026). That is a difference of 1200000 cents, or 1200%. This difference equals the one-time payment pay-renewal-annual: 1200000 cents, completed, dated 2026-10-20, with no reversal reference. That payment references invoice inv-renewal (number NS-2026, dated 2026-10-01, 1200000 cents USD, line item 'Annual software renewal', service period 2026-10-01 / 2027-09-30). Note note-renewal (dated 2026-10-01) describes an annual renewal of $12,000 covering October 2026 through September 2027 and links to pay-renewal-annual and inv-renewal. The payment, invoice and note agree on amount, vendor and purpose. This supports the business reason for the increase. It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized. Calling note-renewal an 'approval note' does not count as verified approval. No other payment cites inv-renewal, so these records do not suggest a duplicate payment of that invoice.";
+  const runNextStep =
+    "A person should check that pay-renewal-annual went through the formal payment approval process. Accounting should decide the treatment of the 12-month service period 2026-10-01 to 2027-09-30, including whether it is a prepayment.";
+
+  it("a denied 'establish that' list negates each of its claims", () => {
+    for (const text of [
+      "It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized.",
+      "The records don't show whether the payment was approved.",
+      "This cannot confirm that these are duplicate payments.",
+      "The note does not prove that a refund is due or that the expense is recognized.",
+    ])
+      expect(overclaims(text), text).toBe(false);
+  });
+
+  it("a denial does not reach a separate statement or a negated noun", () => {
+    for (const text of [
+      // A new clause that is not another complement is still a claim.
+      "The records do not show that the invoice was disputed, and the payment was approved.",
+      // A denial with no complement clause does not govern later text.
+      "The records do not show a reversal, and the payment was approved.",
+      // Contrast and sentence ends close the denied statement.
+      "This does not prove that it is a duplicate, but the payment was approved.",
+      "It does not establish that it was late. The payment was approved.",
+      // A negated noun keeps the conservative rule from decision 002.
+      "There is no evidence that the payment is approved.",
+    ])
+      expect(overclaims(text), text).toBe(true);
+  });
+
+  it("the run's correct, hedged renewal explanation is now supported", async () => {
+    const f = await check(demo, RENEWAL, {
+      explanation: runExplanation,
+      nextStep: runNextStep,
+      evidence: renewalEvidence,
+    });
+    expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    expect(f.explanation).toMatch(/^Application check: /);
+  });
+});
+
 describe("AI-02 run outcome is separate from finding support", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

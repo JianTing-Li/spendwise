@@ -28,8 +28,14 @@ Elliot's review on #25 asked for two changes before the paid run:
 - The model labeled the renewal `Explained` with the expected cause and valid citations. The validator downgraded it to `Needs Review` (`contradicted`) because of a negation false positive: "does not establish that the payment was approved" has its "not" 4 words before the claim, one more than the 3-word window allows.
 - Full results, decision and blockers: [docs/decisions/003-feasibility.md](../../docs/decisions/003-feasibility.md).
 
+## Validator fix (2026-11-05)
+- `src/agent/validation.ts`: a claim inside the complement of a denied verb of showing or knowing ("does not establish that …", "doesn't show whether …") counts as negated. That includes later list items that each open another complement. A denial ends at a sentence end or a contrasting word. A negated noun ("no evidence that …") is still flagged, as in decision 002.
+- `tests/evidence.test.ts`: 3 new tests. They cover denied lists, statements a denial must not reach, and the run's exact renewal explanation, which now validates as `Explained` and `supported`. Two of the three failed on the old code.
+- Decision 002 rule 3 and decision 003 are updated. No new paid call was made.
+
 ## Checks (actual)
 - After merging main (PR #30): `npm run typecheck`, `npm run lint`, `npm test` (141 passed), `npm run build` all passed locally.
+- After the validator fix: typecheck, lint, `npm test` (144 passed), build and `npm run eval:baseline` all passed locally.
 
 ## Decisions
 - Default case `renewal` (demo-v1): expected Explained, so it exercises the full path to a verified explanation. Other development cases can be run with `--case`.
@@ -39,4 +45,3 @@ Elliot's review on #25 asked for two changes before the paid run:
 
 ## Next action
 - Elliot inspects the run and decision 003 on PR #25.
-- Fix the validator negation false positive (tracked separately) before EVAL-01.

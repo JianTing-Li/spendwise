@@ -54,12 +54,48 @@ function negated(text: string, index: number): boolean {
   const before = text.slice(0, index);
   let start = 0;
   for (const m of before.matchAll(CLAUSE_BREAK)) start = m.index + m[0].length;
-  return before
-    .slice(start)
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-NEGATION_WINDOW)
-    .some((word) => NEGATORS.has(word.toLowerCase().replace(/[^a-z']/g, "")));
+  return (
+    before
+      .slice(start)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(-NEGATION_WINDOW)
+      .some((word) => NEGATORS.has(word.toLowerCase().replace(/[^a-z']/g, ""))) ||
+    deniedComplement(before)
+  );
+}
+
+/** Sentence ends and contrasting words end a denied statement's scope. */
+const SCOPE_BREAK =
+  /[.;:!?\n]|\b(?:but|however|although|though|yet|whereas|while)\b/gi;
+/**
+ * A negated verb of showing or knowing, followed by its complement clause:
+ * "does not establish that", "doesn't show whether", "cannot confirm how".
+ */
+const DENIED_VERB =
+  /(?:\bnot|\bnever|\bcannot|n['’]t)\s+(?:\w+\s+){0,2}?(?:establish|show|prove|confirm|demonstrate|indicate|imply|verify|determine)(?:s|es|ed|ing)?\s+(?:that|whether|if|how|when|why)\b/gi;
+/** A further item in a denied list must itself be a complement clause. */
+const COMPLEMENT = /^\s*(?:(?:and|or)\s+)?(?:that|whether|if|how|when|why|who|what|which)\b/i;
+
+/**
+ * True when the claim sits inside the complement of a denied verb, including
+ * later items of a list ("does not establish that the payment was approved,
+ * how it is accounted for, or when the expense should be recognized"). Every
+ * list break between the verb and the claim must open another complement, so
+ * "does not show that X, and the payment was approved" stays a claim, as does
+ * a negated noun ("there is no evidence that the payment is approved").
+ */
+function deniedComplement(before: string): boolean {
+  let start = 0;
+  for (const m of before.matchAll(SCOPE_BREAK)) start = m.index + m[0].length;
+  const sentence = before.slice(start);
+  const denial = [...sentence.matchAll(DENIED_VERB)].at(-1);
+  if (!denial) return false;
+  return sentence
+    .slice(denial.index + denial[0].length)
+    .split(/,|\b(?:and|or)\b/i)
+    .slice(1)
+    .every((item) => !item.trim() || COMPLEMENT.test(item));
 }
 
 export function overclaims(text: string): boolean {
