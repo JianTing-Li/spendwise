@@ -1,0 +1,214 @@
+{
+  "record": {
+    "issue": "FEAS-01 (https://github.com/JianTing-Li/spendwise/issues/9)",
+    "kind": "Original paid run. One run is an example, not a reliability claim.",
+    "date": "2026-11-05",
+    "commit": "13f8499044dda2734e977dd0ee8ad237eaf715f5",
+    "commitNote": "Branch feas-01-feasibility HEAD when the report was written (report file 23:52 -05:00; the next commit, c7c1dae, is 23:53). The validator at this commit has the 3-word negation window from decision 002, so finding 1 was downgraded.",
+    "command": "npm run eval:feasibility -- --allow-paid",
+    "configuration": "See report.configuration (model claude-opus-5-5, effort medium, max_tokens 8000, SDK retries 0, 60 s budget, 10 s validation reserve).",
+    "sanitization": "The report generator never includes credentials. The key was read server-side from the ignored .env.local. This file was checked for keys, paths and personal data; nothing needed removing. All records are synthetic (INV-01).",
+    "report": "Verbatim JSON printed by the run, unchanged. Its hosting text predates DEPLOY-01 being assigned; hosting is still unverified.",
+    "retest": "Not part of this run. The offline retest of these model findings against the later validator is in decision 003 and tests/evidence.test.ts; it made no model call."
+  },
+  "report": {
+    "version": "feasibility-v2",
+    "caseId": "renewal",
+    "versions": {
+      "fixture": "demo-v1",
+      "groundTruth": "ground-truth-v2",
+      "prompt": "prompt-v1"
+    },
+    "configuration": {
+      "requestedModel": "claude-opus-5-5",
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "maxTokens": 8000,
+      "sdkRetries": 0,
+      "runBudgetMs": 60000,
+      "validationReserveMs": 10000
+    },
+    "run": {
+      "state": "completed",
+      "error": null,
+      "toolExecutions": 4,
+      "modelRequests": 4,
+      "investigationMs": 15691,
+      "totalMsIncludingValidation": 15694,
+      "stopReasons": [
+        "tool_use",
+        "tool_use",
+        "tool_use",
+        "tool_use"
+      ],
+      "requestLatencyMs": [
+        1963,
+        1404,
+        1403,
+        10915
+      ]
+    },
+    "usage": {
+      "inputTokens": 10474,
+      "outputTokens": 1448,
+      "estimatedCostUsd": 0.0709,
+      "costNote": "List-price estimate from reported tokens; check the Console for billed cost."
+    },
+    "modelFindings": [
+      {
+        "label": "Explained",
+        "explanation": "The application reports that payments rose from 100000 cents in the prior period (Sep 2026) to 1300000 cents in the current period (Oct 2026). That is a difference of 1200000 cents, or 1200%. This difference equals the one-time payment pay-renewal-annual: 1200000 cents, completed, dated 2026-10-20, with no reversal reference. That payment references invoice inv-renewal (number NS-2026, dated 2026-10-01, 1200000 cents USD, line item 'Annual software renewal', service period 2026-10-01 / 2027-09-30). Note note-renewal (dated 2026-10-01) describes an annual renewal of $12,000 covering October 2026 through September 2027 and links to pay-renewal-annual and inv-renewal. The payment, invoice and note agree on amount, vendor and purpose. This supports the business reason for the increase. It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized. Calling note-renewal an 'approval note' does not count as verified approval. No other payment cites inv-renewal, so these records do not suggest a duplicate payment of that invoice.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-renewal-annual"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-renewal"
+          },
+          {
+            "type": "note",
+            "id": "note-renewal"
+          }
+        ],
+        "nextStep": "A person should check that pay-renewal-annual went through the formal payment approval process. Accounting should decide the treatment of the 12-month service period 2026-10-01 to 2027-09-30, including whether it is a prepayment.",
+        "exceptionId": "increase:vendor-renewal:2026-10",
+        "referenceStatus": "unchecked",
+        "supportStatus": "unverified"
+      },
+      {
+        "label": "Needs Review",
+        "explanation": "The two recurring payments pay-renewal-sep (2026-09-15) and pay-renewal-oct (2026-10-15) are each 100000 cents, completed, with no reversal reference. Neither has an invoice reference (invoiceId is null), and the only note found (note-renewal) does not mention them. The records do not show what these monthly payments cover. Because the annual renewal (inv-renewal, pay-renewal-annual) starts on 2026-10-01, pay-renewal-oct may overlap with the annual coverage if both pay for the same software service, but the records neither confirm nor rule this out. Matching amounts across the two monthly payments do not confirm a duplicate. If there were an overlap, the possible excess would be at most the overlapping monthly amount, not the combined value of the payments.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-renewal-sep"
+          },
+          {
+            "type": "payment",
+            "id": "pay-renewal-oct"
+          },
+          {
+            "type": "payment",
+            "id": "pay-renewal-annual"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-renewal"
+          },
+          {
+            "type": "note",
+            "id": "note-renewal"
+          }
+        ],
+        "nextStep": "Get the invoices or contract for pay-renewal-sep and pay-renewal-oct. Ask the vendor or the contract owner whether the monthly charge is a separate service or was replaced by the annual renewal from 2026-10-01. A person should decide whether pay-renewal-oct needs to be recovered or credited.",
+        "exceptionId": "increase:vendor-renewal:2026-10",
+        "referenceStatus": "unchecked",
+        "supportStatus": "unverified"
+      }
+    ],
+    "validatedFindings": [
+      {
+        "exceptionId": "increase:vendor-renewal:2026-10",
+        "label": "Needs Review",
+        "explanation": "The application reports that payments rose from 100000 cents in the prior period (Sep 2026) to 1300000 cents in the current period (Oct 2026). That is a difference of 1200000 cents, or 1200%. This difference equals the one-time payment pay-renewal-annual: 1200000 cents, completed, dated 2026-10-20, with no reversal reference. That payment references invoice inv-renewal (number NS-2026, dated 2026-10-01, 1200000 cents USD, line item 'Annual software renewal', service period 2026-10-01 / 2027-09-30). Note note-renewal (dated 2026-10-01) describes an annual renewal of $12,000 covering October 2026 through September 2027 and links to pay-renewal-annual and inv-renewal. The payment, invoice and note agree on amount, vendor and purpose. This supports the business reason for the increase. It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized. Calling note-renewal an 'approval note' does not count as verified approval. No other payment cites inv-renewal, so these records do not suggest a duplicate payment of that invoice.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-renewal-annual"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-renewal"
+          },
+          {
+            "type": "note",
+            "id": "note-renewal"
+          }
+        ],
+        "nextStep": "A person should check that pay-renewal-annual went through the formal payment approval process. Accounting should decide the treatment of the 12-month service period 2026-10-01 to 2027-09-30, including whether it is a prepayment.",
+        "referenceStatus": "valid",
+        "supportStatus": "contradicted"
+      },
+      {
+        "exceptionId": "increase:vendor-renewal:2026-10",
+        "label": "Needs Review",
+        "explanation": "The two recurring payments pay-renewal-sep (2026-09-15) and pay-renewal-oct (2026-10-15) are each 100000 cents, completed, with no reversal reference. Neither has an invoice reference (invoiceId is null), and the only note found (note-renewal) does not mention them. The records do not show what these monthly payments cover. Because the annual renewal (inv-renewal, pay-renewal-annual) starts on 2026-10-01, pay-renewal-oct may overlap with the annual coverage if both pay for the same software service, but the records neither confirm nor rule this out. Matching amounts across the two monthly payments do not confirm a duplicate. If there were an overlap, the possible excess would be at most the overlapping monthly amount, not the combined value of the payments.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-renewal-sep"
+          },
+          {
+            "type": "payment",
+            "id": "pay-renewal-oct"
+          },
+          {
+            "type": "payment",
+            "id": "pay-renewal-annual"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-renewal"
+          },
+          {
+            "type": "note",
+            "id": "note-renewal"
+          }
+        ],
+        "nextStep": "Get the invoices or contract for pay-renewal-sep and pay-renewal-oct. Ask the vendor or the contract owner whether the monthly charge is a separate service or was replaced by the annual renewal from 2026-10-01. A person should decide whether pay-renewal-oct needs to be recovered or credited.",
+        "referenceStatus": "valid",
+        "supportStatus": "unverified"
+      }
+    ],
+    "comparison": {
+      "runState": {
+        "expected": "completed",
+        "actual": "completed",
+        "matches": true
+      },
+      "label": {
+        "expected": "Explained",
+        "acceptable": [
+          "Explained"
+        ],
+        "model": [
+          "Explained",
+          "Needs Review"
+        ],
+        "validated": [
+          "Needs Review",
+          "Needs Review"
+        ],
+        "validatedAcceptable": false
+      },
+      "recordsSupportExplained": false,
+      "cause": {
+        "expected": "An annual software renewal (invoice NS-2026, approval note) explains the $12,000 cash increase from $1,000 to $13,000. Expense recognition is undetermined and left to accounting review.",
+        "modelExplanations": [
+          "The application reports that payments rose from 100000 cents in the prior period (Sep 2026) to 1300000 cents in the current period (Oct 2026). That is a difference of 1200000 cents, or 1200%. This difference equals the one-time payment pay-renewal-annual: 1200000 cents, completed, dated 2026-10-20, with no reversal reference. That payment references invoice inv-renewal (number NS-2026, dated 2026-10-01, 1200000 cents USD, line item 'Annual software renewal', service period 2026-10-01 / 2027-09-30). Note note-renewal (dated 2026-10-01) describes an annual renewal of $12,000 covering October 2026 through September 2027 and links to pay-renewal-annual and inv-renewal. The payment, invoice and note agree on amount, vendor and purpose. This supports the business reason for the increase. It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized. Calling note-renewal an 'approval note' does not count as verified approval. No other payment cites inv-renewal, so these records do not suggest a duplicate payment of that invoice.",
+          "The two recurring payments pay-renewal-sep (2026-09-15) and pay-renewal-oct (2026-10-15) are each 100000 cents, completed, with no reversal reference. Neither has an invoice reference (invoiceId is null), and the only note found (note-renewal) does not mention them. The records do not show what these monthly payments cover. Because the annual renewal (inv-renewal, pay-renewal-annual) starts on 2026-10-01, pay-renewal-oct may overlap with the annual coverage if both pay for the same software service, but the records neither confirm nor rule this out. Matching amounts across the two monthly payments do not confirm a duplicate. If there were an overlap, the possible excess would be at most the overlapping monthly amount, not the combined value of the payments."
+        ],
+        "explanationReplacedByApplication": [
+          false,
+          false
+        ],
+        "correctness": "requires_review",
+        "note": "Whether the model's own explanation states the expected cause is a human judgment; compare modelExplanations with the expected cause."
+      },
+      "requiredEvidenceMissing": [],
+      "forbiddenClaimsMade": [],
+      "baseline": {
+        "version": "rules-v1",
+        "label": "Needs Review",
+        "explanation": "The configured cash-payment increase thresholds were met. Review linked records for a cause.",
+        "labelAcceptable": false
+      }
+    },
+    "hosting": "Unverified: no deployment target is chosen (DEPLOY-01 is on hold), so the 60-second budget has not been checked against a host's limits.",
+    "note": "One run is an example, not a reliability claim."
+  }
+}

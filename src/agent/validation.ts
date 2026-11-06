@@ -54,12 +54,69 @@ function negated(text: string, index: number): boolean {
   const before = text.slice(0, index);
   let start = 0;
   for (const m of before.matchAll(CLAUSE_BREAK)) start = m.index + m[0].length;
-  return before
-    .slice(start)
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-NEGATION_WINDOW)
-    .some((word) => NEGATORS.has(word.toLowerCase().replace(/[^a-z']/g, "")));
+  return (
+    before
+      .slice(start)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(-NEGATION_WINDOW)
+      .some((word) => NEGATORS.has(word.toLowerCase().replace(/[^a-z']/g, ""))) ||
+    deniedComplement(before)
+  );
+}
+
+/** Sentence ends and contrasting words end a denied statement's scope. */
+const SCOPE_BREAK =
+  /[.;:!?\n]|\b(?:but|however|although|though|yet|whereas|while)\b/gi;
+/**
+ * A negated verb of showing or knowing, followed by its complement clause:
+ * "does not establish that", "doesn't show whether", "cannot confirm how".
+ */
+const DENIED_VERB =
+  /(?:\bnot|\bnever|\bcannot|n['’]t)\s+(?:\w+\s+){0,2}?(?:establish|show|prove|confirm|demonstrate|indicate|imply|verify|determine)(?:s|es|ed|ing)?\s+(?:that|whether|if|how|when|why)\b/gi;
+/** A further item in a denied list must itself be a complement clause. */
+const COMPLEMENT = /^\s*(?:(?:and|or)\s+)?(?:that|whether|if|how|when|why|who|what|which)\b/i;
+/** Words that start a new clause of consequence, cause or sequence. */
+const CLAUSE_LINK =
+  /\b(?:so|because|since|then|thus|hence|therefore|consequently|accordingly|meaning|means|thereby)\b/i;
+/** A verb between a complement's opener and the claim means a new clause began. */
+const VERB =
+  /\b(?:is|are|was|were|be|been|being|has|have|had|do|does|did|will|would|shall|should|can|could|may|might|must)\b/i;
+/** Most words allowed between a complement's opener and the claim. */
+const MAX_GAP_WORDS = 4;
+
+/**
+ * True only when the claim is the subject matter of a denied verb's complement:
+ * "does not establish that the payment was approved", including later items of
+ * a list ("…, how it is accounted for, or when the expense should be
+ * recognized"). Anything that could start a separate statement ends the
+ * denial, so the claim stays flagged:
+ * - a clause link anywhere after the verb ("so", "because", "then", …);
+ * - a list break not followed by another complement ("…, and the payment was
+ *   approved"), including a break right before the claim;
+ * - more than four words, or any verb, between the complement's opener and the
+ *   claim ("that the invoice was disputed the payment was approved").
+ * A negated noun ("there is no evidence that the payment is approved") is not
+ * a denied verb and stays a claim. Ambiguity resolves to flagged.
+ */
+function deniedComplement(before: string): boolean {
+  let start = 0;
+  for (const m of before.matchAll(SCOPE_BREAK)) start = m.index + m[0].length;
+  const sentence = before.slice(start);
+  const denial = [...sentence.matchAll(DENIED_VERB)].at(-1);
+  if (!denial) return false;
+  const tail = sentence.slice(denial.index + denial[0].length);
+  if (CLAUSE_LINK.test(tail)) return false;
+  const items = tail.split(/,|\b(?:and|or)\b/i);
+  const last = items.length - 1;
+  // Empty items come from ", or"; the claim's own item must open a complement.
+  const listOk = items.every((item, i) =>
+    i === 0 || (i < last && !item.trim()) || COMPLEMENT.test(item),
+  );
+  if (!listOk) return false;
+  const gap = last === 0 ? items[0] : items[last].replace(COMPLEMENT, "");
+  const words = gap.split(/\s+/).filter(Boolean);
+  return words.length <= MAX_GAP_WORDS && !VERB.test(gap);
 }
 
 export function overclaims(text: string): boolean {

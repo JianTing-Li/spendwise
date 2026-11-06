@@ -10,7 +10,8 @@ import { detect } from "../src/domain/finance";
 import { injectedDataset } from "../src/fixtures/scenarios";
 import { developmentDataset } from "../src/fixtures/evaluation";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
-import { Dataset, type Finding } from "../src/contracts";
+import { Dataset, Finding } from "../src/contracts";
+import paidRun from "../evals/reports/feas-01-renewal-2026-11-05.json";
 
 // Validator tests use demo and development records only; the held-out split
 // (including the demo lookalike) is never used to tune validation.
@@ -403,6 +404,109 @@ describe("AI-02 review regressions (PR #22)", () => {
     expect(
       await check(unlinked, RENEWAL, { evidence: renewalEvidence }),
     ).toMatchObject({ label: "Explained", supportStatus: "supported" });
+  });
+});
+
+describe("FEAS-01 paid-run regressions (decision 003)", () => {
+  // Verbatim from the 2026-11-05 run on synthetic demo records.
+  const runExplanation =
+    "The application reports that payments rose from 100000 cents in the prior period (Sep 2026) to 1300000 cents in the current period (Oct 2026). That is a difference of 1200000 cents, or 1200%. This difference equals the one-time payment pay-renewal-annual: 1200000 cents, completed, dated 2026-10-20, with no reversal reference. That payment references invoice inv-renewal (number NS-2026, dated 2026-10-01, 1200000 cents USD, line item 'Annual software renewal', service period 2026-10-01 / 2027-09-30). Note note-renewal (dated 2026-10-01) describes an annual renewal of $12,000 covering October 2026 through September 2027 and links to pay-renewal-annual and inv-renewal. The payment, invoice and note agree on amount, vendor and purpose. This supports the business reason for the increase. It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized. Calling note-renewal an 'approval note' does not count as verified approval. No other payment cites inv-renewal, so these records do not suggest a duplicate payment of that invoice.";
+  const runNextStep =
+    "A person should check that pay-renewal-annual went through the formal payment approval process. Accounting should decide the treatment of the 12-month service period 2026-10-01 to 2027-09-30, including whether it is a prepayment.";
+
+  it("a denied 'establish that' list negates each of its claims", () => {
+    for (const text of [
+      "It does not establish that the payment was approved, how it should be accounted for, or when the expense should be recognized.",
+      "The records don't show whether the payment was approved.",
+      "This cannot confirm that these are duplicate payments.",
+      "The note does not prove that a refund is due or that the expense is recognized.",
+    ])
+      expect(overclaims(text), text).toBe(false);
+  });
+
+  it("a denial does not reach a separate statement or a negated noun", () => {
+    for (const text of [
+      // A new clause that is not another complement is still a claim.
+      "The records do not show that the invoice was disputed, and the payment was approved.",
+      // A denial with no complement clause does not govern later text.
+      "The records do not show a reversal, and the payment was approved.",
+      // Contrast and sentence ends close the denied statement.
+      "This does not prove that it is a duplicate, but the payment was approved.",
+      "It does not establish that it was late. The payment was approved.",
+      // A negated noun keeps the conservative rule from decision 002.
+      "There is no evidence that the payment is approved.",
+    ])
+      expect(overclaims(text), text).toBe(true);
+  });
+
+  // Review of PR #25: a denial must not reach a following clause of cause,
+  // consequence or sequence, with or without a comma.
+  const affirmedAfterDenial = [
+    "It does not establish that the invoice was disputed so the payment was approved.",
+    "It does not establish that the invoice was disputed because the payment was approved.",
+    "It does not establish that the invoice was disputed then the payment was approved.",
+    "It does not establish that the invoice was disputed, so the payment was approved.",
+    "The records do not show that it was late, therefore the payment was approved.",
+    "It does not establish that the invoice was disputed since the expense is recognized.",
+    // A new clause with no linking word: a verb before the claim ends the complement.
+    "It does not establish that the invoice was disputed the payment was approved.",
+    // A list break right before the claim, with no new complement.
+    "The records do not show that the invoice was disputed, and payments were approved.",
+  ];
+
+  it("a denial does not reach a following 'so', 'because' or 'then' clause", () => {
+    for (const text of affirmedAfterDenial)
+      expect(overclaims(text), text).toBe(true);
+    // Control: the disclaimer itself stays negated.
+    expect(overclaims("It does not establish that the payment was approved.")).toBe(false);
+  });
+
+  it("an affirmed approval after a denial is never upgraded, in explanation or nextStep", async () => {
+    for (const claim of affirmedAfterDenial) {
+      const inExplanation = await check(demo, RENEWAL, {
+        explanation: `${runExplanation} ${claim}`,
+        nextStep: runNextStep,
+        evidence: renewalEvidence,
+      });
+      const inNextStep = await check(demo, RENEWAL, {
+        explanation: runExplanation,
+        nextStep: `${runNextStep} ${claim}`,
+        evidence: renewalEvidence,
+      });
+      for (const f of [inExplanation, inNextStep]) {
+        expect(f, claim).toMatchObject({
+          label: "Needs Review",
+          supportStatus: "contradicted",
+        });
+        expect(f.explanation, claim).not.toMatch(/^Application check: /);
+      }
+    }
+  });
+
+  it("offline retest: the recorded paid-run findings under the current validator", async () => {
+    // Re-validates the model's own findings from the committed report. No model
+    // call; the original validated result stays in the report unchanged.
+    const recorded = Finding.array()
+      .parse(paidRun.report.modelFindings)
+      .map((f) => check(demo, RENEWAL, f));
+    const [first, second] = await Promise.all(recorded);
+    expect(paidRun.report.modelFindings[0].explanation).toBe(runExplanation);
+    expect(paidRun.report.validatedFindings.map((f) => f.supportStatus)).toEqual([
+      "contradicted",
+      "unverified",
+    ]);
+    expect(first).toMatchObject({ label: "Explained", referenceStatus: "valid", supportStatus: "supported" });
+    expect(second).toMatchObject({ label: "Needs Review", referenceStatus: "valid", supportStatus: "unverified" });
+  });
+
+  it("the run's correct, hedged renewal explanation is now supported", async () => {
+    const f = await check(demo, RENEWAL, {
+      explanation: runExplanation,
+      nextStep: runNextStep,
+      evidence: renewalEvidence,
+    });
+    expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    expect(f.explanation).toMatch(/^Application check: /);
   });
 });
 

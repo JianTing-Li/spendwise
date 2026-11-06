@@ -12,6 +12,8 @@ Held-out cases (`held-out.json`, including the demo lookalike) are never used to
 
 Version history: `ground-truth-v1` (setup) was keyed by vendor and omitted `increase:vendor-duplicate:2026-10` and two expected labels. `ground-truth-v2` (DATA-01) keys cases by exception ID, adds that case, sets a label on every case and adds the missing/contradictory, hostile, failure, limit and held-out cases. Correct an expectation only by bumping the version with a rationale here.
 
+`npm run eval:feasibility -- --allow-paid` (FEAS-01) runs the real loop once on one development case and prints a report comparing it with the expected result and the baseline. It refuses held-out cases and makes no call without the flag and a server-side key. The report goes to stdout; a run kept as evidence for a decision is saved under `evals/reports/` with its commit and configuration (generated output stays in the ignored `evals/results/`).
+
 `npm run eval:real -- --allow-paid` is reserved for explicit, separately authorized paid evaluation. It currently exits unavailable and makes no call. Stub tests are engineering checks, not model-quality results.
 
 The evaluator (EVAL-01) must record fixture/ground-truth/prompt versions, exact model ID/configuration, findings and evidence, failure categories, tool executions, model requests, latency, tokens, and available costs. Compare both methods on identical records; score evidence support against independent expected answers. Measure review time rather than promising improvement.
