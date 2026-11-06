@@ -20,7 +20,9 @@ it('validates predecessor-only request; preserves explicit errors and idempotenc
   retry.mockResolvedValue({ generation: 2, changed: false });
   expect(await (await POST(request({ predecessorId: 'r' }))).json()).toEqual({ ok: true, generation: 2, changed: false });
   retry.mockRejectedValue(new Error('invalid_retry'));
-  expect((await POST(request({ predecessorId: 'r' }))).status).toBe(409);
+  const rejected = await POST(request({ predecessorId: 'r' }));
+  expect(rejected.status).toBe(409);
+  expect(await rejected.json()).toEqual({ error: 'invalid_retry' });
   retry.mockRejectedValue(new Error('driver contains credentials'));
   const response = await POST(request({ predecessorId: 'r' }));
   expect(response.status).toBe(503);

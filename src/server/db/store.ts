@@ -39,9 +39,9 @@ export class Store {
     await tx.exec("DELETE FROM note_payments; DELETE FROM note_invoices;");
     for (const note of data.notes) {
       for (const id of note.paymentIds)
-        await tx.query("INSERT INTO note_payments VALUES ($1,$2)", [note.id, id]);
+        await tx.query("INSERT INTO note_payments VALUES ($1,$2) ON CONFLICT DO NOTHING", [note.id, id]);
       for (const id of note.invoiceIds)
-        await tx.query("INSERT INTO note_invoices VALUES ($1,$2)", [note.id, id]);
+        await tx.query("INSERT INTO note_invoices VALUES ($1,$2) ON CONFLICT DO NOTHING", [note.id, id]);
     }
   }
   async state(): Promise<DemoState> {
@@ -176,7 +176,7 @@ export class Store {
       }>("SELECT id FROM investigation_runs WHERE exception_id=$1 AND generation=$2 ORDER BY attempt DESC LIMIT 1", [previous.exception_id, meta.generation])).rows[0];
       if (latest.id !== previous.id || previous.attempt >= 3 || !["failed", "incomplete", "cancelled"].includes(previous.status))
         throw new Error("invalid_retry");
-      const run = Run.parse({ ...decodeRun(previous), id: `${previous.id}:retry`, state: "pending", findings: [], error: null, reviewedAt: null, toolExecutions: 0, modelRequests: 0 });
+      const run = Run.parse({ ...decodeRun(previous), id: `run:${meta.generation}:${previous.exception_id}:attempt-${previous.attempt + 1}`, state: "pending", findings: [], error: null, reviewedAt: null, toolExecutions: 0, modelRequests: 0 });
       await tx.query("INSERT INTO investigation_runs (id,exception_id,generation,status,deadline_at,payload,attempt,predecessor_id) VALUES ($1,$2,$3,'pending',$4,$5,$6,$7)", [run.id, run.exceptionId, run.generation, new Date(acceptedAt + 60000).toISOString(), encodeRun(run), previous.attempt + 1, predecessorId]);
       return { generation: meta.generation, changed: true };
     });

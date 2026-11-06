@@ -15,7 +15,7 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   await page.reload();
   await expect(card.getByText('Three attempts used. Reset the demo to start again.')).toBeVisible();
   await card.getByText('Attempt history').click();
-  await expect(card.getByRole('heading', { name: 'Attempt 3', exact: true })).toBeVisible();
+  await expect(card.getByRole('heading', { name: 'Attempt 2', exact: true })).toBeVisible();
   const after = await (await request.get('/api/demo')).json();
   expect(after.runs.filter((r: {
     exceptionId: string;

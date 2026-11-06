@@ -31,7 +31,13 @@ export function getStore() {
           throw error;
         }
         finally {
-          await readonly.close();
+          // Preflight-only pool: a close failure must not discard (and leak) the application pool.
+          try {
+            await readonly.close();
+          }
+          catch {
+            // Ignored: the preflight already passed or its error is rethrown above.
+          }
         }
       }
       const directory = resolve(process.env.PGLITE_DATA_DIR || ".data/spendwise");

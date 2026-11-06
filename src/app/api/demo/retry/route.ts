@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   }
   catch (error) {
     if (error instanceof Error && error.message === "invalid_retry")
-      return reply({ error: "invalid_input" }, 409);
+      return reply({ error: "invalid_retry" }, 409);
     return reply({ error: "unavailable" }, 503);
   }
 }

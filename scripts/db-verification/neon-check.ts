@@ -1,12 +1,12 @@
 /** Separately authorized compatibility check. Never part of routine tests. */
 import { randomUUID } from "node:crypto";
-import { databaseConfig } from "./config";
-import { PgDatabase } from "./pg";
-import { Store } from "./store";
-import type { Database } from "./database";
-import { assertReadOnly, assertApplication, assertApplicationGrants } from "./permissions";
-import { verifyIsolatedCompatibility } from "../../../scripts/db-verification/compatibility";
-import { withCleanup } from "../../../scripts/db-verification/cleanup";
+import { databaseConfig } from "../../src/server/db/config";
+import { PgDatabase } from "../../src/server/db/pg";
+import { Store } from "../../src/server/db/store";
+import type { Database } from "../../src/server/db/database";
+import { assertReadOnly, assertApplication, assertApplicationGrants } from "../../src/server/db/permissions";
+import { verifyIsolatedCompatibility } from "./compatibility";
+import { withCleanup } from "./cleanup";
 async function main() {
   if (process.env.NEON_CHECK_ALLOW_REMOTE !== "1")
     throw new Error("Separate Neon authorization required");

@@ -280,7 +280,7 @@ export default function Dashboard() {
               {attempts.length > 1 && (
                 <details>
                   <summary>Attempt history</summary>
-                  {attempts.map((run, index) => (
+                  {attempts.slice(0, -1).map((run, index) => (
                     <section key={run.id}>
                       <h3>Attempt {index + 1}</h3>
                       {runView(run, index + 1, true)}

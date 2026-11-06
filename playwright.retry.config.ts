@@ -5,5 +5,6 @@ export default defineConfig({
   webServer: { command: "npm run dev -- --port 3100", url: "http://127.0.0.1:3100", reuseExistingServer: false, timeout: 120000,
     // The exported real investigator remains explicitly unavailable (INT-01).
     // This exercises honest failures and user-click retry with zero model calls.
-    env: { PGLITE_DATA_DIR: ".data/e2e-retry", INVESTIGATOR_MODE: "real", DATABASE_MODE: "local" } },
+    // An explicitly empty key wins over .env.local, so real mode can never make paid calls here.
+    env: { PGLITE_DATA_DIR: ".data/e2e-retry", INVESTIGATOR_MODE: "real", DATABASE_MODE: "local", ANTHROPIC_API_KEY: "" } },
 });
