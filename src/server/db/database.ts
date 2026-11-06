@@ -6,6 +6,7 @@ export interface DatabaseTransaction {
 }
 
 export interface Database {
+  readonly dialect?: "postgres";
   transaction<T>(work: (transaction: DatabaseTransaction) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
