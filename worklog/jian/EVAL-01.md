@@ -1,7 +1,7 @@
 # EVAL-01 — Fair baseline comparisons and held-out evaluations
 
 Owner: Jian Ting. Reviewer: Elliot. Issue: https://github.com/JianTing-Li/spendwise/issues/12
-Branch: `eval-01-evaluation`, from `main` at `103b3c0` (PR #25 merged). PR: added when opened.
+Branch: `eval-01-evaluation`, from `main` at `103b3c0` (PR #25 merged). PR: https://github.com/JianTing-Li/spendwise/pull/33.
 
 ## Changes
 - `evals/evaluate.ts`: evaluator for the investigator and the baseline on identical records and harness conditions; scoring independent of model self-assessment; failure categories; versions, configuration, counts, latency, tokens and cost estimates; review time recorded as unavailable.
