@@ -80,6 +80,7 @@ export function pgPoolOptions(
 }
 
 export class PgDatabase implements Database {
+  readonly dialect = "postgres" as const;
   private closed = false;
   // pg-pool already removes a failed idle client. Handle the event without
   // poisoning healthy clients or permanently disabling the pool. Never replay work.
