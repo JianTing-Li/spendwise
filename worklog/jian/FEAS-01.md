@@ -33,15 +33,22 @@ Elliot's review on #25 asked for two changes before the paid run:
 - `tests/evidence.test.ts`: 3 new tests. They cover denied lists, statements a denial must not reach, and the run's exact renewal explanation, which now validates as `Explained` and `supported`. Two of the three failed on the old code.
 - Decision 002 rule 3 and decision 003 are updated. No new paid call was made.
 
+## Review changes 2 (2026-11-06)
+Elliot requested changes on PR #25 at `1e3675c`:
+- **P1, denial too wide.** Confirmed: "It does not establish that the invoice was disputed so the payment was approved." (and the same with "because" or "then") passed as negated. `deniedComplement` in `src/agent/validation.ts` now ends a denial at any clause link (so, because, since, then, therefore, …), at a list break not followed by another complement (including one right before the claim), and at a verb or more than 4 words between the complement opener and the claim.
+- Tests in `tests/evidence.test.ts`: 8 affirmative claims after a denial are flagged; each one, added to the run's explanation or to its `nextStep`, stays `Needs Review` / `contradicted` with the model's wording. The disclaimer control and the run's own explanation still pass. The 2 new P1 tests fail on `1e3675c` and pass now.
+- **P2, inspectable evidence.** The original paid-run report is committed unchanged in `evals/reports/feas-01-renewal-2026-11-05.json`, wrapped with its commit (`13f8499`), command, configuration and a sanitization note. A new "offline retest" test re-validates its two model findings from that file (finding 1 → `Explained`/`supported`; finding 2 → `Needs Review`/`unverified`). Decision 003 now separates the original paid result from the offline retest. No paid call.
+
 ## Checks (actual)
 - After merging main (PR #30): `npm run typecheck`, `npm run lint`, `npm test` (141 passed), `npm run build` all passed locally.
 - After the validator fix: typecheck, lint, `npm test` (144 passed), build and `npm run eval:baseline` all passed locally.
+- After review changes 2: typecheck, lint, `npm test` (147 passed) and build passed locally.
 
 ## Decisions
 - Default case `renewal` (demo-v1): expected Explained, so it exercises the full path to a verified explanation. Other development cases can be run with `--case`.
-- The report prints to stdout, like the baseline, so no generated output is written into the repository.
+- The report prints to stdout, like the baseline. The one paid run is kept under `evals/reports/` as decision evidence, at Elliot's request.
 - Hosting: no deployment target is chosen yet, so the 60-second budget is recorded as unverified against host limits. DEPLOY-01 (#14) is now Jian's.
 - Decision: adjust, then proceed. Keep Opus 5.5 medium and `max_tokens` 8,000. Fix the validator negation false positive before EVAL-01. No comparison runs. See decision 003.
 
 ## Next action
-- Elliot inspects the run and decision 003 on PR #25.
+- Elliot re-reviews PR #25 at the new head.

@@ -10,7 +10,8 @@ import { detect } from "../src/domain/finance";
 import { injectedDataset } from "../src/fixtures/scenarios";
 import { developmentDataset } from "../src/fixtures/evaluation";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
-import { Dataset, type Finding } from "../src/contracts";
+import { Dataset, Finding } from "../src/contracts";
+import paidRun from "../evals/reports/feas-01-renewal-2026-11-05.json";
 
 // Validator tests use demo and development records only; the held-out split
 // (including the demo lookalike) is never used to tune validation.
@@ -436,6 +437,66 @@ describe("FEAS-01 paid-run regressions (decision 003)", () => {
       "There is no evidence that the payment is approved.",
     ])
       expect(overclaims(text), text).toBe(true);
+  });
+
+  // Review of PR #25: a denial must not reach a following clause of cause,
+  // consequence or sequence, with or without a comma.
+  const affirmedAfterDenial = [
+    "It does not establish that the invoice was disputed so the payment was approved.",
+    "It does not establish that the invoice was disputed because the payment was approved.",
+    "It does not establish that the invoice was disputed then the payment was approved.",
+    "It does not establish that the invoice was disputed, so the payment was approved.",
+    "The records do not show that it was late, therefore the payment was approved.",
+    "It does not establish that the invoice was disputed since the expense is recognized.",
+    // A new clause with no linking word: a verb before the claim ends the complement.
+    "It does not establish that the invoice was disputed the payment was approved.",
+    // A list break right before the claim, with no new complement.
+    "The records do not show that the invoice was disputed, and payments were approved.",
+  ];
+
+  it("a denial does not reach a following 'so', 'because' or 'then' clause", () => {
+    for (const text of affirmedAfterDenial)
+      expect(overclaims(text), text).toBe(true);
+    // Control: the disclaimer itself stays negated.
+    expect(overclaims("It does not establish that the payment was approved.")).toBe(false);
+  });
+
+  it("an affirmed approval after a denial is never upgraded, in explanation or nextStep", async () => {
+    for (const claim of affirmedAfterDenial) {
+      const inExplanation = await check(demo, RENEWAL, {
+        explanation: `${runExplanation} ${claim}`,
+        nextStep: runNextStep,
+        evidence: renewalEvidence,
+      });
+      const inNextStep = await check(demo, RENEWAL, {
+        explanation: runExplanation,
+        nextStep: `${runNextStep} ${claim}`,
+        evidence: renewalEvidence,
+      });
+      for (const f of [inExplanation, inNextStep]) {
+        expect(f, claim).toMatchObject({
+          label: "Needs Review",
+          supportStatus: "contradicted",
+        });
+        expect(f.explanation, claim).not.toMatch(/^Application check: /);
+      }
+    }
+  });
+
+  it("offline retest: the recorded paid-run findings under the current validator", async () => {
+    // Re-validates the model's own findings from the committed report. No model
+    // call; the original validated result stays in the report unchanged.
+    const recorded = Finding.array()
+      .parse(paidRun.report.modelFindings)
+      .map((f) => check(demo, RENEWAL, f));
+    const [first, second] = await Promise.all(recorded);
+    expect(paidRun.report.modelFindings[0].explanation).toBe(runExplanation);
+    expect(paidRun.report.validatedFindings.map((f) => f.supportStatus)).toEqual([
+      "contradicted",
+      "unverified",
+    ]);
+    expect(first).toMatchObject({ label: "Explained", referenceStatus: "valid", supportStatus: "supported" });
+    expect(second).toMatchObject({ label: "Needs Review", referenceStatus: "valid", supportStatus: "unverified" });
   });
 
   it("the run's correct, hedged renewal explanation is now supported", async () => {
