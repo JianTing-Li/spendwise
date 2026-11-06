@@ -92,7 +92,7 @@ describe("FEAS-01 feasibility report (offline)", () => {
         },
         requiredEvidenceMissing: [],
         forbiddenClaimsMade: [],
-        baseline: { version: "rules-v1", label: "Needs Review", labelAcceptable: false },
+        baseline: { version: "rules-v2", label: "Explained", labelAcceptable: true },
       },
     });
     expect(report.run.stopReasons).toEqual(["tool_use", "tool_use"]);
@@ -191,8 +191,9 @@ describe("FEAS-01 feasibility report (offline)", () => {
       version: BASELINE_VERSION,
       label: expected.label,
       explanation: expected.explanation,
-      labelAcceptable: false,
+      labelAcceptable: true,
     });
+    expect(expected.label).toBe("Insufficient Evidence");
     expect(report.comparison.label.validatedAcceptable).toBe(true);
   });
 

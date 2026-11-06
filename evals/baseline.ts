@@ -1,37 +1,128 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { detect } from "../src/domain/finance";
+import { isVerifiedExplanation, validateFinding } from "../src/agent/validation";
+import { detect, periods } from "../src/domain/finance";
 import { injectedDataset, FIXTURE_VERSION } from "../src/fixtures/scenarios";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
-import type { Dataset, Exception } from "../src/contracts";
+import type { Retrieval } from "../src/investigation";
+import type { Dataset, Exception, Finding, Payment } from "../src/contracts";
 
-export const BASELINE_VERSION = "rules-v1";
+export const BASELINE_VERSION = "rules-v2";
+
+type Ref = Finding["evidence"][number];
+const inCurrent = (p: Payment) =>
+  p.date >= periods.currentStart && p.date < periods.endExclusive;
 
 /**
- * Rule-based result for one exception, from the same scoped records as the
- * investigator; no answer labels (INV-11). It reports the triggering rule and
- * the records, and never claims a business cause has been explained.
+ * Records a reviewer following the links would open first, from the scoped
+ * records only: the payments that carry the exception (current-period cash
+ * for an increase, the flagged pair for a duplicate), the invoices those
+ * payments reference, and the notes linked to any of them.
  */
-export async function baselineFor(data: Dataset, exception: Exception) {
-  const tools = fixtureRetrieval(data, exception);
-  const [payments, invoices, notes] = await Promise.all([
-    tools.list_payments(),
-    tools.get_invoices(),
-    tools.get_vendor_notes(),
-  ]);
+function linkedRecords(
+  exception: Exception,
+  records: { payments: Payment[]; invoices: Dataset["invoices"]; notes: Dataset["notes"] },
+): Ref[] {
+  const payments = records.payments.filter((p) =>
+    exception.rule === "payment_increase"
+      ? inCurrent(p) &&
+        p.status === "completed" &&
+        p.entryType === "outgoing" &&
+        p.invoiceId !== null
+      : exception.paymentIds.includes(p.id),
+  );
+  const paymentIds = new Set(payments.map((p) => p.id));
+  const invoiceIds = new Set(payments.map((p) => p.invoiceId));
+  const invoices = records.invoices.filter((i) => invoiceIds.has(i.id));
+  const notes = records.notes.filter(
+    (n) =>
+      n.paymentIds.some((id) => paymentIds.has(id)) ||
+      n.invoiceIds.some((id) => invoiceIds.has(id)),
+  );
+  return [
+    ...payments.map((p) => ({ type: "payment" as const, id: p.id })),
+    ...invoices.map((i) => ({ type: "invoice" as const, id: i.id })),
+    ...notes.map((n) => ({ type: "note" as const, id: n.id })),
+  ];
+}
+
+/**
+ * Rule-based result for one exception, from the same scoped records and the
+ * same retrieval as the investigator; no answer labels (INV-11). rules-v2
+ * follows record relationships: it is `Explained` only when the application's
+ * own record checks (decision 002) support the linked records, `Insufficient
+ * Evidence` when no invoice or note is linked, and `Needs Review` otherwise. It
+ * never states a business cause of its own.
+ *
+ * `retrieval` is what the baseline reads (a harness may make it fail);
+ * `validation` is the application-scoped retrieval used only for checking.
+ */
+export async function baselineFor(
+  data: Dataset,
+  exception: Exception,
+  retrieval: Retrieval = fixtureRetrieval(data, exception),
+  validation: Retrieval = fixtureRetrieval(data, exception),
+) {
+  let records;
+  let summary;
+  try {
+    const [payments, invoices, notes] = await Promise.all([
+      retrieval.list_payments(),
+      retrieval.get_invoices(),
+      retrieval.get_vendor_notes(),
+    ]);
+    summary = await retrieval.get_payment_summary();
+    records = { payments, invoices, notes };
+  } catch {
+    return {
+      exceptionId: exception.id,
+      rule: exception.rule,
+      state: "incomplete" as const,
+      label: "Insufficient Evidence" as const,
+      explanation: "Retrieval failed, so the baseline reached no conclusion.",
+      evidence: [] as Ref[],
+      supportStatus: "missing" as const,
+      summary: null,
+      records: null,
+    };
+  }
+  const evidence = linkedRecords(exception, records);
+  const documented = evidence.some((e) => e.type !== "payment");
+  const draft: Finding = {
+    exceptionId: exception.id,
+    label: documented ? "Explained" : "Insufficient Evidence",
+    explanation: documented
+      ? "Linked records were checked against the exception."
+      : "No invoice or note is linked to the payments behind this exception.",
+    evidence: documented ? evidence : [],
+    nextStep: documented
+      ? "A person reviews the linked records and decides the business reason."
+      : "Request the supporting invoice or vendor documentation.",
+    referenceStatus: "unchecked",
+    supportStatus: "unverified",
+  };
+  const checked = await validateFinding(draft, exception, validation);
+  const finding: Finding =
+    !documented || isVerifiedExplanation(checked)
+      ? checked
+      : {
+          ...checked,
+          label: "Needs Review",
+          explanation:
+            exception.rule === "payment_increase"
+              ? "The linked records do not pass the application's documented-increase checks. Review them for a cause."
+              : "The flagged payments do not pay distinct invoices. Duplication remains unconfirmed.",
+        };
   return {
     exceptionId: exception.id,
     rule: exception.rule,
-    summary: await tools.get_payment_summary(),
-    label: "Needs Review" as const,
-    explanation:
-      exception.rule === "payment_increase"
-        ? "The configured cash-payment increase thresholds were met. Review linked records for a cause."
-        : "Similar completed payments meet the duplicate-candidate rule. Duplication remains unconfirmed.",
-    paymentIds: payments.map((p) => p.id),
-    invoiceIds: invoices.map((i) => i.id),
-    noteIds: notes.map((n) => n.id),
-    records: { payments, invoices, notes },
+    state: "completed" as const,
+    label: finding.label,
+    explanation: finding.explanation,
+    evidence: finding.evidence,
+    supportStatus: finding.supportStatus,
+    summary,
+    records,
   };
 }
 
