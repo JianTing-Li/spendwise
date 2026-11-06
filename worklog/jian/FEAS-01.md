@@ -22,15 +22,21 @@ Elliot's review on #25 asked for two changes before the paid run:
 - **Real baseline.** `evals/baseline.ts` now exports `baselineFor` and `BASELINE_VERSION` (`rules-v1`); `npm run eval:baseline` output is byte-for-byte unchanged. The report records the baseline's own label, explanation and version for the same case instead of a hardcoded label.
 - Report version is now `feasibility-v2`.
 
+## Paid run (2026-11-05)
+- Jian approved one paid run. Command: `npm run eval:feasibility -- --allow-paid`, default case `renewal`, `claude-opus-5-5`, medium effort, `max_tokens` 8,000. The key was loaded from the ignored `.env.local` and never printed.
+- Result: `completed`, 4 tool executions, 4 model requests, 15.7 s, 10,474 input and 1,448 output tokens, about $0.07 at list price. Total paid spend so far: about $0.07.
+- The model labeled the renewal `Explained` with the expected cause and valid citations. The validator downgraded it to `Needs Review` (`contradicted`) because of a negation false positive: "does not establish that the payment was approved" has its "not" 4 words before the claim, one more than the 3-word window allows.
+- Full results, decision and blockers: [docs/decisions/003-feasibility.md](../../docs/decisions/003-feasibility.md).
+
 ## Checks (actual)
-- See the PR for `npm run check` results. No paid calls have been made.
+- After merging main (PR #30): `npm run typecheck`, `npm run lint`, `npm test` (141 passed), `npm run build` all passed locally.
 
 ## Decisions
 - Default case `renewal` (demo-v1): expected Explained, so it exercises the full path to a verified explanation. Other development cases can be run with `--case`.
 - The report prints to stdout, like the baseline, so no generated output is written into the repository.
-- Hosting: no deployment target is chosen (DEPLOY-01 is on hold), so the 60-second budget is recorded as unverified against host limits.
+- Hosting: no deployment target is chosen yet, so the 60-second budget is recorded as unverified against host limits. DEPLOY-01 (#14) is now Jian's.
+- Decision: adjust, then proceed. Keep Opus 5.5 medium and `max_tokens` 8,000. Fix the validator negation false positive before EVAL-01. No comparison runs. See decision 003.
 
-## Still to do in this issue
-- Jian: create an Anthropic API key with a spend limit (planned budget: $40 for ~1.5 weeks) and keep it in `.env.local` only; confirm the paid run.
-- Joint session with Elliot: run the default case, inspect the report together, and optionally compare `--effort low` and `--model claude-sonnet-5-5`.
-- Record the sanitized report, the proceed/adjust decision, the response-limit decision, and shared blockers in `docs/decisions/` and this worklog.
+## Next action
+- Elliot inspects the run and decision 003 on PR #25.
+- Fix the validator negation false positive (tracked separately) before EVAL-01.
