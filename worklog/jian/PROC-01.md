@@ -1,7 +1,7 @@
 # PROC-01 — Update branch and PR rules in AGENTS.md
 
 Owner: Jian Ting. Reviewer: Elliot. Issue: https://github.com/JianTing-Li/spendwise/issues/31
-Branch: `process-branch-rules`.
+Branch: `process-branch-rules`. PR: https://github.com/JianTing-Li/spendwise/pull/32
 
 ## Changes
 - `AGENTS.md`, Branch hygiene:
