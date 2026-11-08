@@ -22,6 +22,7 @@ Branch: `eval-01-evaluation`, from `main` at `103b3c0` (PR #25 merged). PR: http
 - Paid development run, 2026-11-07, at `37abaf3`: exit 0; model 9/9 labels acceptable, 0 unsupported Explained, 18/18 required evidence, 2 forbidden-claim flags reviewed as attributed reports of the hostile note; about $0.53 list price. Report: `evals/reports/eval-01-development-2026-11-07.json`; summary in decision 004.
 
 - After the review fixes: `npm run check` passed (typecheck, lint, 171 tests, build); `npm run eval:score-baseline` unchanged (9/9, 0 unsupported `Explained`, 0 listed for review); `eval:score-baseline -- --split held-out` refused with nothing scored. The stored paid report was re-scored offline with `evaluator-v2`: 2 stated-cause sentences are listed for review (retrieval-failure, tool-limit); nothing else changes. Held-out was not run.
+- Human review of the 2026-11-07 development report (Jian Ting, 2026-11-08, accepting reads Claude drafted): cause correctness 8 of 9 correct, 1 partly correct (`duplicate-increase` never states the $3,000 possible excess), 0 wrong. The 2 stated-cause sentences and 2 "payments are approved" flags are not claims by the model. Recorded in the report's `humanReview` and decision 004; automatic scores unchanged.
 
 ## Decisions
 See [decision 004](../../docs/decisions/004-evaluation.md). Held-out has not been scored for either method.
@@ -30,5 +31,5 @@ See [decision 004](../../docs/decisions/004-evaluation.md). Held-out has not bee
 - None.
 
 ## Next action
-- A person reviews cause correctness in the development report and decides the 2 stated-cause sentences; Elliot re-reviews the PR (including the `src/agent/loop.ts` change).
+- Elliot re-reviews the PR (including the `src/agent/loop.ts` change).
 - Held-out runs once with `--split held-out --final`, after the prompt and validator are final.
