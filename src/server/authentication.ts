@@ -26,10 +26,19 @@ function provider() {
     useSecureCookies: true,
     providers: [GitHub({ checks: ['pkce', 'state'], clientId: process.env.AUTH_GITHUB_ID!, clientSecret: process.env.AUTH_GITHUB_SECRET! })],
     session: { strategy: 'jwt', maxAge: 3600 },
-    logger: { error() {}, warn() {}, debug() {} },
+    // Only error type/name is logged. Never print Auth.js error messages or credentials.
+    logger: { error(error) { console.error('[auth]', error.name || 'AuthError'); }, warn() {}, debug() {} },
     callbacks: {
       jwt({ token, account }) {
-        if (account) token.sub = `github:${account.providerAccountId}`;
+        const now = Math.floor(Date.now() / 1000);
+        if (account) {
+          token.sub = `github:${account.providerAccountId}`;
+          token.signedInAt = now;
+        }
+        // Auth.js rotates a session cookie on GET /api/auth/session. Enforce an
+        // absolute one-hour lifetime independent of the refreshed JWT expiry.
+        if (typeof token.signedInAt !== 'number' || !Number.isSafeInteger(token.signedInAt) ||
+            token.signedInAt > now || now - token.signedInAt >= 3600) return null;
         return token;
       },
       session({ session, token }) {
@@ -54,7 +63,10 @@ export async function sessionPrincipal(request: Request) {
     if (!session?.user?.id || !session.expires || Date.parse(session.expires) <= Date.now()) return null;
     // Authenticated but revoked/ungranted identities remain identities, with zero permissions.
     return { subject: session.user.id, grant: config.grants[session.user.id] ?? { permissions: [] } };
-  } catch { return null; }
+  } catch (error) {
+    console.error('[auth:session]', error instanceof Error ? error.name : 'UnknownError');
+    return null;
+  }
 }
 export async function authenticationRoute(request: Request) {
   const config = hostedConfig();
@@ -73,5 +85,8 @@ export async function authenticationRoute(request: Request) {
     }
     const req = canonicalRequest(bounded, config.origin);
     return request.method === 'GET' ? await auth.handlers.GET(req) : await auth.handlers.POST(req);
-  } catch { return Response.json({ error: 'unauthorized' }, { status: 401 }); }
+  } catch (error) {
+    console.error('[auth:route]', error instanceof Error ? error.name : 'UnknownError');
+    return Response.json({ error: 'unauthorized' }, { status: 401 });
+  }
 }
