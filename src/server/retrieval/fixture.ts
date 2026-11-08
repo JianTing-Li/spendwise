@@ -21,6 +21,8 @@ export function fixtureRetrieval(
         p.date >= cutoff ||
         data.payments.some(
           (q) =>
+            q.vendorId === exception.vendorId &&
+            q.date < periods.endExclusive &&
             exception.paymentIds.includes(q.id) && q.reversalReference === p.id,
         )),
   );

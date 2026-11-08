@@ -41,9 +41,11 @@ describe("database scoped retrieval", () => {
     const r = demo.retrieval(demo.state.exceptions[0].id);
     await expect(r.list_payments({ paymentIds: Array(51).fill("x") })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(r.list_payments({ paymentIds: [""] })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(r.list_payments({ paymentIds: null } as never)).rejects.toMatchObject({ code: "invalid_input" });
     await expect(r.list_payments({ paymentIds: ["x".repeat(121)] })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(r.get_invoices({ sql: "SELECT * FROM payments" } as never)).rejects.toMatchObject({ code: "invalid_input" });
     expect(() => databaseRetrieval({ application: demo.db }, { exceptionId: "x", generation: -1 })).toThrow("invalid_scope");
+    expect(() => databaseRetrieval({ application: demo.db }, { exceptionId: "x" } as never)).toThrow("invalid_scope");
     await expect(demo.retrieval("missing").list_payments()).rejects.toMatchObject({ code: "invalid_scope" });
   });
   it("redacts driver errors and never silently falls back", async () => {
@@ -183,6 +185,32 @@ it("filters leaked note links, excludes future and unlinked notes, and bounds ag
     expect((await r.get_vendor_notes({noteIds:["linked"]})).length).toBe(1);
   } finally { await local.db.close(); }
 });
+it("fixture and SQL reject historical traversal through foreign or future referring payments", async () => {
+  const local = await retrievalDemoDatabase();
+  try {
+    const e = local.state.exceptions[0];
+    const template = local.state.dataset.payments.find(p => p.vendorId === e.vendorId)!;
+    const foreign = local.state.dataset.payments.find(p => p.vendorId !== e.vendorId)!;
+    const additions = [
+      { ...template, id: "old-scope-original", invoiceId: null, date: "2026-08-01" },
+      { ...template, id: "old-future-original", invoiceId: null, date: "2026-08-01" },
+      { ...foreign, id: "foreign-referrer", invoiceId: null, entryType: "reversal" as const, reversalReference: "old-scope-original" },
+      { ...template, id: "future-referrer", invoiceId: null, entryType: "reversal" as const, reversalReference: "old-future-original", date: periods.endExclusive },
+    ];
+    const exception = { ...e, paymentIds: ["foreign-referrer", "future-referrer"] };
+    await local.db.transaction(async tx => {
+      for (const p of additions)
+        await tx.query("INSERT INTO payments (id,vendor_id,payload) VALUES ($1,$2,$3)", [p.id,p.vendorId,JSON.stringify(p)]);
+      await tx.query("UPDATE exceptions SET payload=$2 WHERE id=$1", [e.id,JSON.stringify(exception)]);
+    });
+    const fixture = fixtureRetrieval({ ...local.state.dataset, payments: [...local.state.dataset.payments,...additions] }, exception);
+    const actual = local.retrieval(e.id);
+    const input = { paymentIds: additions.map(p => p.id) };
+    expect(await fixture.list_payments(input)).toEqual([]);
+    expect(await actual.list_payments(input)).toEqual([]);
+  } finally { await local.db.close(); }
+});
+
 it("fails closed when reader grants are unsafe or unavailable", async () => {
   const local = await retrievalDemoDatabase();
   try {

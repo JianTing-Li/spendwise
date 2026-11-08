@@ -243,3 +243,54 @@ match fixtures; local PostgreSQL verified separate reader credentials, write/DDL
 denials and reset safety. Full checks, both browser suites and PG tests pass.
 Schemas and your files are untouched. Ready for human review before any push/PR;
 INT-01 can consume the server-owned retrieval capability.
+
+## Independent publication audit — 2026-11-07
+
+Resumed the original clean worktree at b0c2965d30d13acbdb2cdc464378299c6fa1706f.
+Fetched origin; main remains 103b3c068437f9612c3740b2169ab152d10cb8ab.
+Remote APP-03 branch and existing APP-03 PR were absent. Issue #6 and discussion
+were read; dependency #4 is closed. APP-02 af92410 is not an ancestor.
+Reviewed the original PRD extraction, current PRD, decisions, ownership, full
+retrieval diff, contracts, database permissions/adapter and scope tests.
+
+Found and fixed one defensive fixture/SQL parity gap: historical reversal
+traversal in the fixture now requires the referring payment's vendor and cutoff,
+matching the database predicate. Added a regression with foreign/future referring
+payments, null-ID and missing-generation rejection checks. Public schemas and
+valid fixture behavior are unchanged. The first regression setup used two
+reversals for one original and correctly failed the database uniqueness rule;
+the corrected test uses separate originals and passes. No test was weakened.
+Extended the zero-model demo with explicit future-payment and reset/reinjection
+stale-generation denials.
+
+Audit: fixed parameterized SQL; vendor and cutoff predicates enclose the OR
+scope; requested IDs intersect scope; linked invoices/notes and returned note
+links stay scoped. Generation is checked under the same lock held during the
+reader transaction. This one-business MVP has no tenant identifier: vendor
+isolation is tested, not a claim of multi-tenant support. Input/output limits,
+safe errors, domain summaries/reversal validation and domain-derived lookback
+were inspected. No evaluator imports, committed credentials or new permissions
+were found. Random local demo passwords are memory-only; the error-redaction
+fixture contains a deliberately fake URL. No shared configuration/contracts,
+Jian-owned paths, APP-02 worktree or unrelated branches were edited.
+
+Fresh verification after the fix (all exit 0):
+- npm run check: typecheck, lint, 18 files / 169 tests, production build.
+- ./node_modules/.bin/vitest run tests/retrieval.test.ts tests/financial.test.ts tests/permissions.test.ts: 3 files / 40 tests.
+- npm run test:e2e: 1 passed (4.2s).
+- npm run test:e2e:retry: 1 passed (3.9s).
+- PG_TEST_ALLOW_LOCAL=1 PG_TEST_DATABASE=app03_suite_test PG_TEST_USER=elliotwatson PG_TEST_PORT=55439 npm run test:pg: 13 pass, 0 fail/skipped.
+- node --conditions=react-server --import tsx tests/retrieval-demo.ts: linked renewal evidence, cross-vendor/future empty arrays, stale_generation after reset/reinjection, reader DELETE SQLSTATE 42501, zero model requests.
+- APP03_ALLOW_LOCAL_PG=1 APP03_PG_PORT=55439 node --conditions=react-server --import tsx tests/retrieval-postgres-demo.ts: all four methods across four exceptions match fixtures; distinct SCRAM reader/application logins; INSERT/UPDATE/DELETE/DDL/TEMP_DDL/state/escalation denied with 42501; reset waits for read; stale lookup denied; test objects cleaned up.
+
+Node 24.21.0/npm 11.19.0; PostgreSQL 17.11, existing disposable local cluster,
+stopped after verification. No live Neon, hosted OAuth, model calls or deployment.
+Full fresh command logs and JSON demos are in the publication chat's outputs.
+Runtime requires operator-provided least-privilege grants; preflight is not an
+exhaustive function/extension audit. INT-01 must authorize scope and provide
+validated pools plus error/budget mapping. APP-02 remains separate.
+
+Publication is authorized as a draft to main with Refs #6. The unchanged
+issue-link workflow requires a closing reference, so that check is expected to
+fail while human acceptance is being verified. No closing behavior or global CI
+is changed. Human and repository-required AI PR review remain before approval.
