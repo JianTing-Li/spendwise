@@ -34,12 +34,44 @@ import type {
 import { loadGroundTruth, type GroundTruthCase } from "./ground-truth";
 import { BASELINE_VERSION, baselineFor } from "./baseline";
 
-export const EVALUATOR_VERSION = "evaluator-v1";
+export const EVALUATOR_VERSION = "evaluator-v2";
 const RUN_MS = 60_000;
 /** Retrievals allowed under the `tool_limit` condition (the real limit is 8). */
 export const TOOL_LIMIT_CONDITION = 1;
-/** Forbidden-claim text that cannot be matched literally; scored by proxy. */
+/** Forbidden-claim text that cannot be matched literally; see `statedCauses`. */
 const ANY_CAUSE = "any stated business cause";
+/** Refusal for held-out cases without explicit final confirmation (decision 004). */
+export const HELD_OUT_REFUSAL =
+  "Held-out cases run once, after tuning ends: add --final to confirm.";
+
+/** Wording that attributes, explains or suggests a cause. */
+const CAUSE =
+  /\b(?:caused by|cause (?:is|was|of)|due to|driven by|attribut(?:able|ed) to|(?:the )?result(?:s|ed)? (?:of|from)|explain(?:s|ed|ing)?|because of|stem(?:s|med)? from|reflect(?:s|ed)?|reason (?:for|is|was)|consistent with|suggest(?:s|ed)?|likely|probably)\b/g;
+/** A negator or "whether" shortly before the cause wording, with no contrast after it. */
+const NEGATED =
+  /\b(?:no|not|nothing|none|never|neither|nor|cannot|can't|unable to|does not|do not|did not|could not|couldn't|doesn't|don't|didn't|whether)\b(?!.*\b(?:but|however|rather|instead)\b)(?:\W+\w+){0,4}\W*$/;
+
+/**
+ * Sentences that may state a business cause, whatever the finding's label: any
+ * cause, explanation or suggestion wording that is not directly negated or
+ * put as a question ("nothing explains the increase" and "decide whether it is
+ * explained" are not flagged; "the increase was caused by a renewal" and "this
+ * could explain the increase" are). Matching is a review
+ * aid, not a judgment: a flagged sentence stays unresolved until a person
+ * decides, and a reworded cause with none of this wording is not found.
+ */
+export function statedCauses(findings: Finding[]) {
+  const sentences = findings.flatMap((f) =>
+    `${f.explanation}\n${f.nextStep}`.split(/(?<=[.;:!?])\s+|\n+/),
+  );
+  return sentences
+    .map((s) => s.trim())
+    .filter((s) =>
+      [...s.toLowerCase().matchAll(CAUSE)].some(
+        (m) => !NEGATED.test(s.toLowerCase().slice(0, m.index)),
+      ),
+    );
+}
 
 /** List prices per million tokens (USD), for an estimate only; no cache discounts. */
 export const PRICES: Record<string, { input: number; output: number }> = {
@@ -49,6 +81,20 @@ export const PRICES: Record<string, { input: number; output: number }> = {
 };
 
 export type Split = "development" | "held-out";
+
+/**
+ * Shared CLI guard for every evaluation entry point: reads `--split` and
+ * refuses held-out without `--final`, before any case is loaded or scored.
+ */
+export function splitFrom(argv: string[]): { split: Split; final: boolean } | { error: string } {
+  const i = argv.indexOf("--split");
+  const split = i >= 0 ? argv[i + 1] : "development";
+  if (split !== "development" && split !== "held-out")
+    return { error: "--split must be development or held-out." };
+  const final = argv.includes("--final");
+  if (split === "held-out" && !final) return { error: HELD_OUT_REFUSAL };
+  return { split, final };
+}
 export type FailureCategory =
   | "run_state_mismatch"
   | "run_failed"
@@ -139,11 +185,21 @@ export function scoreCase(expected: GroundTruthCase, run: CaseRun) {
   const text = run.findings
     .map((f) => `${f.explanation}\n${f.nextStep}`.toLowerCase())
     .join("\n");
+  // "Any stated business cause" is made when the method labels anything
+  // Explained, before or after validation (a downgraded claim was still
+  // stated). Cause wording under any other label stays unresolved for a
+  // person to decide; it never scores clean on the label alone.
+  const anyExplained = [...labels, ...run.findings.map((f) => f.label)].includes("Explained");
   const forbiddenClaimsMade = expected.forbiddenClaims.filter((claim) =>
-    claim === ANY_CAUSE
-      ? labels.includes("Explained")
-      : text.includes(claim.toLowerCase()),
+    claim === ANY_CAUSE ? anyExplained : text.includes(claim.toLowerCase()),
   );
+  const causeSentences =
+    expected.forbiddenClaims.includes(ANY_CAUSE) && !anyExplained
+      ? statedCauses(run.findings)
+      : [];
+  const forbiddenClaimsNeedReview = causeSentences.length
+    ? [{ claim: ANY_CAUSE, sentences: causeSentences }]
+    : [];
   const failures: FailureCategory[] = [];
   if (run.state !== expected.expectedRunState) failures.push("run_state_mismatch");
   if (run.state === "failed" || run.state === "cancelled") failures.push("run_failed");
@@ -153,6 +209,9 @@ export function scoreCase(expected: GroundTruthCase, run: CaseRun) {
   if (invalidReferences) failures.push("invalid_reference");
   if (missing.length) failures.push("missing_required_evidence");
   if (forbiddenClaimsMade.length) failures.push("forbidden_claim");
+  const needsReview: FailureCategory[] = forbiddenClaimsNeedReview.length
+    ? ["forbidden_claim"]
+    : [];
   return {
     runStateMatches: run.state === expected.expectedRunState,
     labelAcceptable,
@@ -168,11 +227,15 @@ export function scoreCase(expected: GroundTruthCase, run: CaseRun) {
     },
     invalidReferences,
     forbiddenClaimsMade,
+    /** Possible forbidden claims a person must decide; unresolved until then. */
+    forbiddenClaimsNeedReview,
     forbiddenClaimNote: expected.forbiddenClaims.includes(ANY_CAUSE)
-      ? `"${ANY_CAUSE}" is scored as any validated Explained finding; other claims are literal text matches, so a reworded claim needs human review.`
+      ? `"${ANY_CAUSE}" is made by any Explained label, before or after validation. Under other labels, sentences with cause wording are listed for human review and stay unresolved. Other claims are literal text matches. A reworded claim needs human review.`
       : "Literal text match; a reworded claim needs human review.",
     causeCorrectness: "requires_review" as const,
     failures,
+    /** Categories that are neither failed nor clean until a person decides. */
+    needsReview,
   };
 }
 export type CaseScore = ReturnType<typeof scoreCase>;
@@ -277,7 +340,10 @@ export function estimateCost(model: string, inputTokens: number, outputTokens: n
     : null;
 }
 
-function casesFor(split: Split, caseIds?: string[]) {
+function casesFor(split: Split, caseIds?: string[], final = false) {
+  // Every entry point goes through here, so held-out stays unscored without
+  // explicit final confirmation, for the model and the baseline alike.
+  if (split === "held-out" && !final) throw new Error(HELD_OUT_REFUSAL);
   const truth = loadGroundTruth();
   const pool = split === "development" ? truth.development.cases : truth.heldOut.cases;
   if (caseIds?.length) {
@@ -317,6 +383,10 @@ function aggregate(rows: Scored[]) {
     requiredEvidenceCited: { cited, required },
     invalidReferences: rows.reduce((a, r) => a + r.score.invalidReferences, 0),
     forbiddenClaimsMade: rows.reduce((a, r) => a + r.score.forbiddenClaimsMade.length, 0),
+    forbiddenClaimsNeedReview: rows.reduce(
+      (a, r) => a + r.score.forbiddenClaimsNeedReview.length,
+      0,
+    ),
     failureCounts,
     causeCorrectness: "requires_review" as const,
   };
@@ -328,8 +398,11 @@ const REVIEW_TIME = {
 };
 
 /** Baseline only: no model call, no credentials. */
-export async function evaluateBaseline(split: Split, caseIds?: string[]) {
-  const { version, cases } = casesFor(split, caseIds);
+export async function evaluateBaseline(
+  split: Split,
+  options: { caseIds?: string[]; final?: boolean } = {},
+) {
+  const { version, cases } = casesFor(split, options.caseIds, options.final);
   const rows = [];
   for (const c of cases) {
     const data = datasetFor(c);
@@ -399,12 +472,12 @@ async function evaluateCase(c: GroundTruthCase, options: ModelOptions) {
 /** Model and baseline on identical records. Makes model calls via `client`. */
 export async function evaluate(
   split: Split,
-  options: Partial<ModelOptions> & { client: ModelClient; caseIds?: string[] },
+  options: Partial<ModelOptions> & { client: ModelClient; caseIds?: string[]; final?: boolean },
 ) {
   const model = options.model ?? DEFAULT_MODEL;
   const effort = options.effort ?? "medium";
   const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
-  const { version, cases } = casesFor(split, options.caseIds);
+  const { version, cases } = casesFor(split, options.caseIds, options.final);
   const rows: Awaited<ReturnType<typeof evaluateCase>>[] = [];
   // Sequential: one investigation at a time, like the application.
   for (const c of cases)

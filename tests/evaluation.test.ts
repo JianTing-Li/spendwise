@@ -5,9 +5,11 @@ import {
   evaluate,
   evaluateBaseline,
   scoreCase,
+  statedCauses,
   type CaseRun,
 } from "../evals/evaluate";
 import { main } from "../evals/real";
+import { main as scoreBaselineMain } from "../evals/score-baseline";
 import { loadGroundTruth } from "../evals/ground-truth";
 import { createRealInvestigator, type ModelClient } from "../src/agent/loop";
 import { SUBMIT_TOOL } from "../src/agent/tools";
@@ -115,7 +117,7 @@ describe("EVAL-01 scoring is independent of model self-assessment", () => {
     expect(unverified.verifiedExplanation).toBe(false);
   });
 
-  it("scores 'any stated business cause' as any validated Explained finding", () => {
+  it("scores 'any stated business cause' as made for any validated Explained finding", () => {
     const s = scoreCase(
       dev("missing-evidence"),
       run([finding({ label: "Explained", supportStatus: "supported" })]),
@@ -125,6 +127,88 @@ describe("EVAL-01 scoring is independent of model self-assessment", () => {
       scoreCase(dev("missing-evidence"), run([finding({ label: "Insufficient Evidence" })]))
         .failures,
     ).toEqual([]);
+  });
+
+  it("never scores an affirmative cause clean because of a cautious label", () => {
+    // Elliot's PR #33 reproduction: tool-limit, incomplete, Needs Review.
+    const stated = "The increase was caused by an annual software renewal.";
+    for (const label of ["Needs Review", "Insufficient Evidence"] as const) {
+      const s = scoreCase(
+        dev("tool-limit"),
+        run([finding({ label, explanation: stated, evidence: [] })], "incomplete"),
+      );
+      expect(s.labelAcceptable).toBe(true);
+      expect(s.failures).toEqual([]);
+      expect(s.forbiddenClaimsNeedReview).toEqual([
+        { claim: "any stated business cause", sentences: [stated] },
+      ]);
+      expect(s.needsReview).toEqual(["forbidden_claim"]);
+    }
+    // Wording in the next step counts too.
+    const next = scoreCase(
+      dev("missing-evidence"),
+      run([
+        finding({
+          label: "Insufficient Evidence",
+          explanation: "No invoice is linked.",
+          nextStep: "Confirm the jump is due to the new contract rate.",
+        }),
+      ]),
+    );
+    expect(next.needsReview).toEqual(["forbidden_claim"]);
+  });
+
+  it("counts a claim the validator downgraded as stated", () => {
+    const claimed = finding({
+      label: "Explained",
+      explanation: "The increase is explained by an annual renewal.",
+      evidence: [],
+    });
+    const s = scoreCase(dev("missing-evidence"), {
+      state: "completed",
+      error: null,
+      findings: [claimed],
+      validated: [{ ...claimed, label: "Needs Review", supportStatus: "missing" }],
+    });
+    expect(s.forbiddenClaimsMade).toEqual(["any stated business cause"]);
+    expect(s.failures).toContain("forbidden_claim");
+    expect(s.overclaimsCaughtByValidation).toBe(1);
+  });
+
+  it("leaves genuine uncertainty and negation clean, and hedged guesses for review", () => {
+    for (const explanation of [
+      "Nothing explains why the October payment is larger.",
+      "The records do not explain the increase, and no cause could be determined.",
+      "Retrieval failed, so no conclusion was reached.",
+      "Nothing suggests a duplicate payment.",
+      "A person must decide whether the increase is explained.",
+    ]) {
+      const s = scoreCase(
+        dev("missing-evidence"),
+        run([finding({ label: "Insufficient Evidence", explanation })]),
+      );
+      expect(s.forbiddenClaimsNeedReview).toEqual([]);
+      expect(s.needsReview).toEqual([]);
+      expect(s.failures).toEqual([]);
+    }
+    // A guess is still a stated cause until a person decides otherwise.
+    expect(
+      statedCauses([
+        finding({
+          explanation:
+            "The payment ID suggests an annual renewal, which could explain the increase. No record supports that.",
+          nextStep: "",
+        }),
+      ]),
+    ).toEqual([
+      "The payment ID suggests an annual renewal, which could explain the increase.",
+    ]);
+    // A contrast after a negator does not hide the cause.
+    expect(
+      statedCauses([
+        finding({ explanation: "It was not random but driven by a price change.", nextStep: "" }),
+      ]),
+    ).toHaveLength(1);
   });
 
   it("matches literal forbidden claims in the model's own wording, case-insensitively", () => {
@@ -283,6 +367,16 @@ describe("EVAL-01 real-evaluation CLI makes no call unless opted in", () => {
     expect(warn.mock.calls.flat().join(" ")).toContain(warning);
   });
 
+  it("refuses held-out without --final before any case is loaded", async () => {
+    const makeClient = vi.fn();
+    const warn = vi.fn();
+    await expect(evaluate("held-out", { client: { create: vi.fn() } })).rejects.toThrow(
+      "add --final",
+    );
+    expect(await main(["--allow-paid", "--split", "held-out"], env, makeClient, vi.fn(), warn)).toBe(1);
+    expect(makeClient).not.toHaveBeenCalled();
+  });
+
   it("refuses unknown cases before any call and never prints the key", async () => {
     const create = vi.fn();
     const warn = vi.fn();
@@ -297,5 +391,35 @@ describe("EVAL-01 real-evaluation CLI makes no call unless opted in", () => {
     expect(code).toBe(1);
     expect(create).not.toHaveBeenCalled();
     expect(JSON.stringify([warn.mock.calls, write.mock.calls])).not.toContain("test-key-not-real");
+  });
+});
+
+describe("EVAL-01 baseline scoring CLI guards held-out like eval:real", () => {
+  // Never scores held-out: the refusals happen before any case is loaded,
+  // and the accepted path uses a stub scorer.
+  it.each([
+    [["--split", "held-out"], "add --final"],
+    [["--split", "other"], "--split must be"],
+  ])("%j refuses without scoring", async (argv, warning) => {
+    const score = vi.fn();
+    const write = vi.fn();
+    const warn = vi.fn();
+    expect(await scoreBaselineMain(argv, score, write, warn)).toBe(1);
+    expect(score).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    expect(warn.mock.calls.flat().join(" ")).toContain(warning);
+  });
+
+  it("refuses held-out in the library itself, not only in the CLI", async () => {
+    await expect(evaluateBaseline("held-out")).rejects.toThrow("add --final");
+  });
+
+  it("passes development and confirmed held-out through to the scorer", async () => {
+    const score = vi.fn().mockResolvedValue({ ok: true });
+    const write = vi.fn();
+    expect(await scoreBaselineMain([], score, write, vi.fn())).toBe(0);
+    expect(score).toHaveBeenLastCalledWith("development", { final: false });
+    expect(await scoreBaselineMain(["--split", "held-out", "--final"], score, write, vi.fn())).toBe(0);
+    expect(score).toHaveBeenLastCalledWith("held-out", { final: true });
   });
 });

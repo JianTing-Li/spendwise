@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Effort, ModelClient } from "../src/agent/loop";
-import { estimateCost, evaluate, type Split } from "./evaluate";
+import { estimateCost, evaluate, splitFrom } from "./evaluate";
 import { loadGroundTruth } from "./ground-truth";
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
@@ -39,15 +39,12 @@ export async function main(
     warn("Real evaluation requires explicit --allow-paid opt-in. No model call was made.");
     return 1;
   }
-  const split = (flag(argv, "--split") ?? "development") as Split;
-  if (split !== "development" && split !== "held-out") {
-    warn("--split must be development or held-out.");
+  const parsed = splitFrom(argv);
+  if ("error" in parsed) {
+    warn(`${parsed.error} No model call was made.`);
     return 1;
   }
-  if (split === "held-out" && !argv.includes("--final")) {
-    warn("Held-out cases run once, after tuning ends: add --final to confirm. No model call was made.");
-    return 1;
-  }
+  const { split, final } = parsed;
   if (!env.ANTHROPIC_API_KEY) {
     warn("ANTHROPIC_API_KEY is not set in the server-side environment. No model call was made.");
     return 1;
@@ -84,6 +81,7 @@ export async function main(
       model,
       effort: effort as Effort | undefined,
       maxTokens: maxTokens ? Number(maxTokens) : undefined,
+      final,
     });
     write(`${JSON.stringify(report, null, 2)}\n`);
     return 0;
