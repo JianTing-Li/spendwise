@@ -1,9 +1,12 @@
-/** Local demo capability. Hosted requests fail closed until real authentication exists. */
+/** Loopback synthetic capability; hosted identity uses the separate application boundary below. */
 export function localRequestAllowed(
   request: Request,
   hosted = Boolean(process.env.VERCEL),
 ): boolean {
   if (hosted || process.env.DATABASE_MODE === "neon") return false;
+  if (request.headers.has("forwarded") ||
+      (request.headers.has("x-forwarded-for") && !/^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(request.headers.get("x-forwarded-for")!)) ||
+      (request.headers.has("x-forwarded-proto") && request.headers.get("x-forwarded-proto") !== "http")) return false;
   const url = new URL(request.url);
   const host = request.headers.get("host");
   if (!host || !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return false;
@@ -29,3 +32,36 @@ export function localRequestAllowed(
     request.headers.get("origin") === incoming.origin
   );
 }
+
+import { permits, type Permission, type Principal } from './access-policy';
+export { permits, permitsResource } from './access-policy';
+export type { Principal } from './access-policy';
+const localGrant: Principal = { subject: 'local:loopback', grant: { permissions: ['read', 'inject', 'reset', 'review', 'retry'] } };
+export type Access = { principal: Principal; denied?: never } | { principal?: never; denied: Response };
+export function deny(status: 401 | 403) {
+  return Response.json({ error: status === 401 ? 'unauthorized' : 'forbidden' }, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+export async function identify(request: Request): Promise<Access> {
+  // Origin failures have their own 403 semantics even if no cookie is present.
+  if (request.headers.get('sec-fetch-site') === 'cross-site' &&
+      !(request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate'))
+    return { denied: deny(403) }; // Lax cookies permit top-level OAuth return navigation, never cross-site mutations.
+  const local = !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
+  if (local) {
+    if (localRequestAllowed(request)) return { principal: localGrant };
+    return { denied: deny(403) };
+  }
+  const { hostedConfig, sessionPrincipal } = await import('./authentication');
+  const config = hostedConfig();
+  if (!config) return { denied: deny(401) };
+  const origin = request.headers.get('origin');
+  if ((origin && origin !== config.origin) || (request.method !== 'GET' &&
+    (origin !== config.origin || request.headers.get('x-spendwise-demo') !== '1')))
+    return { denied: deny(403) };
+  const principal = await sessionPrincipal(request);
+  return principal ? { principal } : { denied: deny(401) };
+}
+export function authorize(principal: Principal, permission: Permission, runId?: string) {
+  return permits(principal, permission, runId) ? null : deny(403);
+}
+export { boundedJson } from './request-body';
