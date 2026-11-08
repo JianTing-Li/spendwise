@@ -15,8 +15,8 @@ const grants = { 'github:123': { permissions: ['read', 'inject', 'reset', 'revie
 function req(body?: unknown, cookie = '', extra: Record<string,string> = {}) {
   return new Request(`${origin}/api/demo`, { method: body === undefined ? 'GET' : 'POST', headers: { host: 'demo.example', origin, cookie, 'x-spendwise-demo': '1', 'content-type': 'application/json', ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
-async function cookie(sub = 'github:123', maxAge = 3600) {
-  return `${salt}=${await encode({ token: { sub }, secret, salt, maxAge })}`;
+async function cookie(sub = 'github:123', maxAge = 3600, signedInAt = Math.floor(Date.now() / 1000)) {
+  return `${salt}=${await encode({ token: { sub, signedInAt }, secret, salt, maxAge })}`;
 }
 beforeEach(() => {
   vi.stubEnv('VERCEL', '1'); vi.stubEnv('AUTH_URL', origin); vi.stubEnv('AUTH_SECRET', secret);
@@ -35,6 +35,33 @@ it('denies missing, forged, tampered, expired and wrong-secret cookies before da
     expect((await retry(req({predecessorId:'r'},c))).status).toBe(401);
   }
   expect(store.state).not.toHaveBeenCalled(); expect(store.inject).not.toHaveBeenCalled(); expect(store.retry).not.toHaveBeenCalled();
+});
+it('enforces an absolute one-hour sign-in lifetime despite session refresh', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const withinHour = await cookie('github:123', 3600, now - 59 * 60);
+  const refresh = await authenticationRoute(new Request(`${origin}/api/auth/session`, {
+    headers: { cookie: withinHour },
+  }));
+  expect(refresh.status).toBe(200);
+  expect((await refresh.json()).user?.id).toBe('github:123');
+  const refreshed = refresh.headers.getSetCookie()
+    .map(value => value.split(';')[0])
+    .find(value => value.startsWith(`${salt}=`)) ?? withinHour;
+  // A freshly encoded cookie cannot override the original sign-in timestamp.
+  expect((await GET(req(undefined, await cookie('github:123', 3600, now - 61 * 60)))).status).toBe(401);
+  // The real rotated cookie must also stop working once the absolute hour passes.
+  vi.setSystemTime(new Date((now + 61) * 1000));
+  try {
+    expect((await GET(req(undefined, refreshed))).status).toBe(401);
+  } finally {
+    vi.useRealTimers();
+  }
+  expect(store.state).not.toHaveBeenCalled();
+});
+it('fails closed for legacy session cookies without a sign-in timestamp', async () => {
+  const legacy = `${salt}=${await encode({ token: { sub: 'github:123' }, secret, salt, maxAge: 3600 })}`;
+  expect((await GET(req(undefined, legacy))).status).toBe(401);
+  expect(store.state).not.toHaveBeenCalled();
 });
 it('allows all explicitly granted operations using real Auth.js encrypted session verification', async () => {
   const c = await cookie();
