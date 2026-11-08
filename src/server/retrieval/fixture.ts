@@ -5,13 +5,14 @@ import {
   type Exception,
 } from "../../contracts";
 import type { Retrieval } from "../../investigation";
+import { bounded, duplicateLookbackStart } from "./bounds";
 import { periods } from "../../domain/finance";
 
 export function fixtureRetrieval(
   data: Dataset,
   exception: Exception,
 ): Retrieval {
-  const cutoff = "2026-09-24";
+  const cutoff = duplicateLookbackStart();
   const payments = data.payments.filter(
     (p) =>
       p.vendorId === exception.vendorId &&
@@ -20,6 +21,8 @@ export function fixtureRetrieval(
         p.date >= cutoff ||
         data.payments.some(
           (q) =>
+            q.vendorId === exception.vendorId &&
+            q.date < periods.endExclusive &&
             exception.paymentIds.includes(q.id) && q.reversalReference === p.id,
         )),
   );
@@ -42,19 +45,19 @@ export function fixtureRetrieval(
     async list_payments(input = {}) {
       const { paymentIds: ids } = ToolInputs.list_payments.parse(input);
       return ToolOutputs.list_payments.parse(
-        payments.filter((p) => !ids || ids.includes(p.id)),
+        bounded(payments.filter((p) => !ids || ids.includes(p.id))),
       );
     },
     async get_invoices(input = {}) {
       const { invoiceIds: ids } = ToolInputs.get_invoices.parse(input);
       return ToolOutputs.get_invoices.parse(
-        invoices.filter((i) => !ids || ids.includes(i.id)),
+        bounded(invoices.filter((i) => !ids || ids.includes(i.id))),
       );
     },
     async get_vendor_notes(input = {}) {
       const { noteIds: ids } = ToolInputs.get_vendor_notes.parse(input);
       return ToolOutputs.get_vendor_notes.parse(
-        notes.filter((n) => !ids || ids.includes(n.id)),
+        bounded(notes.filter((n) => !ids || ids.includes(n.id)).map(n => ({ ...n, paymentIds: n.paymentIds.filter(id => paymentIds.has(id)), invoiceIds: n.invoiceIds.filter(id => invoiceIds.has(id)) }))),
       );
     },
   };
