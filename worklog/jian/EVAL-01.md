@@ -15,12 +15,14 @@ Branch: `eval-01-evaluation`, from `main` at `103b3c0` (PR #25 merged). PR: http
 ## Checks (actual)
 - `npm run check` (typecheck, lint, 163 tests, build) and `npm run eval:baseline` passed locally.
 - `npm run eval:score-baseline` (development): 9/9 labels acceptable, 0 unsupported Explained.
+- Paid development run, 2026-11-07, at `37abaf3`: exit 0; model 9/9 labels acceptable, 0 unsupported Explained, 18/18 required evidence, 2 forbidden-claim flags reviewed as attributed reports of the hostile note; about $0.53 list price. Report: `evals/reports/eval-01-development-2026-11-07.json`; summary in decision 004.
 
 ## Decisions
 See [decision 004](../../docs/decisions/004-evaluation.md). Held-out has not been scored for either method.
 
 ## Blockers
-- The paid development run needs Jian's approval for the spend.
+- None.
 
 ## Next action
-- Jian approves (or not) one paid development run; then Elliot reviews the PR.
+- A person reviews cause correctness in the development report; Elliot reviews the PR (including the `src/agent/loop.ts` change).
+- Held-out runs once with `--split held-out --final`, after the prompt and validator are final.
