@@ -13,7 +13,7 @@ Investigate unusual payments using synthetic records, invoices, and vendor notes
 - **Repeatable demo:** Persistent data; safe injection/reset.
 - **Team workflow:** Shared contracts; independent development.
 
-**Status:** Working local demo; **stub findings**. Claude, hosted authentication, and Neon integration pending. Synthetic data only; no financial execution.
+**Status:** Working local demo; **stub findings**. Hosted Auth.js access requires operator configuration; real investigator/database integration and hosted verification remain separate work. Synthetic data only; no financial execution.
 
 **Stack:** Next.js · React · TypeScript · Tailwind · Zod · PGlite locally · Vitest · Playwright. Planned: Claude + Neon + Vercel.
 

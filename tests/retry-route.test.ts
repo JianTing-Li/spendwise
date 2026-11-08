@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
 const { retry, state } = vi.hoisted(() => ({ retry: vi.fn(), state: vi.fn() }));
 vi.mock('../src/server/db/local', () => ({ getStore: async () => ({ retry, state }) }));
 vi.mock('../src/server/investigation/run', () => ({ runPending: vi.fn() }));
@@ -7,10 +8,10 @@ const request = (body: object, origin = 'http://localhost:3100') => new Request(
 afterEach(() => { vi.unstubAllEnvs(); vi.resetAllMocks(); });
 it('denies hosted, Neon and foreign-origin retries before storage', async () => {
   vi.stubEnv('VERCEL', '1');
-  expect((await POST(request({ predecessorId: 'r' }))).status).toBe(403);
+  expect((await POST(request({ predecessorId: 'r' }))).status).toBe(401);
   vi.stubEnv('VERCEL', '');
   vi.stubEnv('DATABASE_MODE', 'neon');
-  expect((await POST(request({ predecessorId: 'r' }))).status).toBe(403);
+  expect((await POST(request({ predecessorId: 'r' }))).status).toBe(401);
   vi.stubEnv('DATABASE_MODE', 'postgres');
   expect((await POST(request({ predecessorId: 'r' }, 'https://foreign.test'))).status).toBe(403);
   expect(retry).not.toHaveBeenCalled();
