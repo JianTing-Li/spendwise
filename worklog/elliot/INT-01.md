@@ -71,5 +71,12 @@ No agent/evaluator, contract, fixture, migration, manifest/dependency or CI edit
 Shared coordination: review the Vitest marker alias and documentation in the draft
 PR. Existing unavailable real export stays unchanged as a compatibility boundary.
 
+GitHub run 42545016780 passed typecheck/lint/219 tests/build and PostgreSQL,
+but its browser check timed out on initial dashboard readiness before injection.
+The E2E now awaits and asserts the initial GET response (bounded at 20 seconds)
+instead of relying on the default five-second UI wait across cold compilation
+and PGlite initialization. No investigation deadline or financial assertion was
+changed. The branch's next CI run supplies the final result.
+
 Next action: user-led reproduction/teach-back and normal AI/Jian/human PR review.
 Live hosting/SDK verification remains separately authorized DEPLOY-01 work.
