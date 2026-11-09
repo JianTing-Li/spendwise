@@ -6,13 +6,12 @@ import { databaseConfig } from "./config";
 import { PgDatabase } from "./pg";
 import { assertReadOnly, assertApplication } from "./permissions";
 import { Store } from "./store";
+import { investigatorMode } from "../investigation/result";
 const globalStore = globalThis as typeof globalThis & {
   spendwiseStore?: Promise<Store>;
 };
 export function getStore() {
-  if (process.env.INVESTIGATOR_MODE &&
-    !["stub", "real"].includes(process.env.INVESTIGATOR_MODE))
-    throw new Error("Investigator mode unavailable");
+  investigatorMode();
   const config = databaseConfig();
   if (!globalStore.spendwiseStore)
     globalStore.spendwiseStore = (async () => {

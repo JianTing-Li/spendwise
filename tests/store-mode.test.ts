@@ -32,3 +32,11 @@ it('unknown mode fails before any adapter is created',async()=>{
  vi.stubEnv('DATABASE_MODE','unknown');const {getStore}=await import('../src/server/db/local');
  expect(()=>getStore()).toThrow('Invalid database mode');expect(mocks.local).not.toHaveBeenCalled();expect(mocks.create).not.toHaveBeenCalled();
 });
+it('blank investigator mode fails consistently at startup and injection',async()=>{
+ vi.stubEnv('INVESTIGATOR_MODE','');
+ const {getStore}=await import('../src/server/db/local');
+ const {investigatorMode}=await import('../src/server/investigation/result');
+ expect(()=>getStore()).toThrow('Investigator mode unavailable');
+ expect(()=>investigatorMode()).toThrow('Investigator mode unavailable');
+ expect(mocks.local).not.toHaveBeenCalled();expect(mocks.create).not.toHaveBeenCalled();
+});

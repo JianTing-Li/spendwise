@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "../src/server/db/store";
 import type { Database } from "../src/server/db/database";
-import { runPending } from "../src/server/investigation/run";
+import { logRunFailure, runPending } from "../src/server/investigation/run";
+import { DatabaseTimeout, DatabaseUnavailable } from "../src/server/db/pg";
+import { RetrievalError } from "../src/server/retrieval/bounds";
 import { normalizeResult } from "../src/server/investigation/result";
 import { stubInvestigator } from "../src/server/investigation/stub";
 import { syntheticModel, message, call, draft } from "./helpers/int01-model";
@@ -105,6 +107,73 @@ it("bounds validation lookups together with model dispatches; counts invalid req
   ]) };
   await runPending(store, { client });
   expect((await store.state()).runs.every(r => r.state === "incomplete" && r.error === "tool_limit" && r.toolExecutions === 8 && r.modelRequests === 1)).toBe(true);
+  expect((await store.state()).runs.every(r => r.findings.length === 1 && r.findings[0].referenceStatus === "unchecked")).toBe(true);
+});
+it("keeps all findings unchecked when six filtered lookups leave too little validation budget", async () => {
+  vi.stubEnv("INVESTIGATOR_MODE", "real");
+  const store = await setup(); await store.inject();
+  const findings = [{ ...draft("not-yet-checked"), label: "Explained" }, draft()];
+  await runPending(store, { client: { create: async params => message(params.messages.length === 1 ?
+    Array.from({length:6}, () => call("list_payments", {paymentIds:[]})) :
+    [call("submit_findings", {findings})]) } });
+  const runs = (await store.state()).runs;
+  expect(runs.every(r => r.state === "incomplete" && r.error === "tool_limit" && r.toolExecutions === 8 && r.modelRequests === 2)).toBe(true);
+  for (const run of runs) expect(run.findings).toEqual(findings.map(f => ({ ...f,
+    exceptionId: run.exceptionId, label: f.label === "Explained" ? "Needs Review" : f.label,
+    referenceStatus: "unchecked", supportStatus: "unverified" })));
+});
+it.each([0, 6, 8])("preserves findings when retrieval is unavailable after %i model lookups", async attempts => {
+  vi.stubEnv("INVESTIGATOR_MODE", "real");
+  const base = await setup(); await base.inject();
+  const read = vi.fn(async () => { throw new DatabaseUnavailable(); });
+  const reader: Database = { close: async () => {}, transaction: read };
+  const store = new Store(base.db, reader);
+  const findings = [{...draft("unchecked-payment"),label:"Explained"}, draft()];
+  await runPending(store, { client: { create: async params => message(attempts && params.messages.length === 1 ?
+    Array.from({length:attempts}, () => call("list_payments", {paymentIds:[]})) :
+    [call("submit_findings", {findings})]) } });
+  const runs = (await store.state()).runs;
+  expect(runs.every(r => r.state === "incomplete" && r.error === "unavailable" &&
+    r.toolExecutions === Math.min(8, attempts + 1) && r.modelRequests === (attempts ? 2 : 1))).toBe(true);
+  expect(runs.every(r => r.findings.length === 2 && r.findings.every(f =>
+    f.label !== "Explained" && f.referenceStatus === "unchecked" && f.supportStatus === "unverified"))).toBe(true);
+  expect(read).toHaveBeenCalledTimes(4 * Math.min(8, attempts + 1));
+});
+it("survives transient shared poll failures without aborting model waits and stops polling at completion", async () => {
+  vi.stubEnv("INVESTIGATOR_MODE", "real");
+  const store = await setup(); await store.inject();
+  const log = vi.spyOn(console,"error").mockImplementation(() => {});
+  const active = store.activeRuns.bind(store);
+  const polls = vi.spyOn(store,"activeRuns").mockRejectedValueOnce(new DatabaseUnavailable())
+    .mockRejectedValueOnce(new DatabaseTimeout("57014")).mockImplementation(active);
+  const signals: AbortSignal[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const task = runPending(store,{client:{create:async (_params,options) => {
+    signals.push(options.signal); await gate;
+    return message([call("submit_findings",{findings:[draft()]})]);
+  }}});
+  await waitFor(async () => polls.mock.calls.length >= 3);
+  expect(signals).toHaveLength(4);
+  expect(signals.every(signal => !signal.aborted)).toBe(true);
+  expect(polls.mock.calls.every(([ids]) => ids.length === 4)).toBe(true);
+  expect(log.mock.calls.flat()).toContainEqual({name:"DatabaseTimeout",message:"Database operation timed out",code:"57014"});
+  release(); await task;
+  expect((await store.state()).runs.every(r => r.state === "completed" && r.error === null)).toBe(true);
+  const count = polls.mock.calls.length;
+  await new Promise(resolve => setTimeout(resolve,550));
+  expect(polls).toHaveBeenCalledTimes(count);
+});
+it("logs only safe typed classifications, never arbitrary error diagnostics", () => {
+  const log = vi.spyOn(console,"error").mockImplementation(() => {});
+  logRunFailure(new RetrievalError("unavailable"));
+  logRunFailure(new DatabaseUnavailable());
+  logRunFailure(new Error("private SQL credential marker"));
+  expect(log.mock.calls.flat()).toEqual([
+    {name:"RetrievalError",message:"unavailable"},
+    {name:"DatabaseUnavailable",message:"Database unavailable"},
+    {name:"InvestigationError",message:"Investigation operation failed"},
+  ]);
 });
 it("caps model requests at ten, with retries disabled", async () => {
   vi.stubEnv("INVESTIGATOR_MODE", "real");

@@ -54,10 +54,23 @@ expired pending/running rows as incomplete/deadline, including after process dea
 Retry mutations materialize expiry. There is no new background worker or scheduler:
 an unavailable database cannot be promised an immediate terminal write, but a
 reopened/readable database cannot display an expired run as indefinitely running.
-Request abort cancels current work; a short sequential poll detects reset from
-other processes. An abort race bounds even a deliberately noncooperative fake
+Request abort cancels current work; one shared sequential poll every 500 ms detects
+reset from other processes (at most two observation transactions per second per
+`runPending` batch, independent of its number of runs). Observation failures are
+logged and retried; only a definite inactive answer aborts work. Local deadline
+timers and generation guards remain effective during observation outages.
+An abort race bounds even a deliberately noncooperative fake
 model, while checks around dispatch/SQL and generation-guarded persistence prevent
 late work from being accepted. The real SDK receives the abort signal too.
+
+Validation preloads the three full evidence sets sequentially, charging fresh
+reads to the existing eight-retrieval limit. Cached full sets cost no extra read;
+filtered results are never substituted. If a read is unavailable or the budget
+cannot cover validation, the run stays incomplete and retains every submitted
+finding as unchecked/unverified; any Explained label becomes Needs Review. An
+existing investigator error (for example unavailable) is preserved. These findings
+cannot be treated as verified or mark the run completed. No extra read or model
+retry is granted to obtain validation capacity.
 
 The runtime keeps both application and reader pools. Local PGlite initialization
 creates/verifies its fixed NOLOGIN reader and evidence-only grants, including on
@@ -172,3 +185,32 @@ a dedicated dashboard cancel button remains UI work. This PR requires the normal
 AI review, Jian's consumer review of the shared test/documentation changes, and
 human review before approval or merge. Local versions were Node 24.21.0,
 npm 11.19.0 and PostgreSQL 17.11, differing from the pinned Node/npm patch versions.
+
+### Disposition of Jian's review on head 4d2c94c
+
+The [review](https://github.com/JianTing-Li/spendwise/pull/37#pullrequestreview-5821937614)
+identified three blocking findings and seven nonblocking considerations.
+
+- 1–3: corrected transient observation handling and preservation of unchecked
+  findings on validation outages/exhaustion, with durable fake-model regressions.
+- 5: consolidated four per-run polls into the shared observation above.
+- 7: logs distinguish typed retrieval/database failures and safe SQLSTATEs, while
+  arbitrary errors keep the generic classification; no raw driver/SDK text.
+- 8: startup calls the same strict mode parser as injection. Blank and unknown
+  settings fail before adapter creation; unset still selects stub.
+- 4: request cancellation is retained for this bounded, request-owned runner.
+  Refresh/close can therefore cancel paid work and consume the attempt. This is a
+  demo limitation, not the desired final UX. Refresh-safe execution needs an
+  explicit cancel control and a verified host lifecycle; removing the abort
+  listener alone would neither provide durable background execution nor prove
+  interruption safety. Carry that decision into UI-01/DEPLOY-01 review.
+- 6: four-way paid concurrency/rate limits remain unmeasured. Zero SDK retries is
+  required by INV-08; failures remain explicit unavailable outcomes, with only
+  user-initiated bounded retries. Measuring capacity or changing scheduling belongs
+  to a separately authorized live verification; no limits are relaxed here.
+- 9: retain Jian's offered SDK factory cleanup as an agent-side follow-up; the
+  server runtime/client duplication and stale agent comment remain documented.
+- 10: centralized INV-08 constants across the agent/shared budget/durable runtime
+  remain a coordinated follow-up. Existing hard limits stay at 8/10/60 seconds,
+  enforced independently by schema, loop and durable reservations and regression
+  checks. No contract or Jian-owned module changes accompany these review fixes.

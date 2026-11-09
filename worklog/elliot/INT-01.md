@@ -80,3 +80,50 @@ changed. The branch's next CI run supplies the final result.
 
 Next action: user-led reproduction/teach-back and normal AI/Jian/human PR review.
 Live hosting/SDK verification remains separately authorized DEPLOY-01 work.
+
+## Review fixes — 2026-11-09
+
+Elliot session, responding to [Jian's review of 4d2c94c](https://github.com/JianTing-Li/spendwise/pull/37#pullrequestreview-5821937614).
+An isolated checkout starts at the matching fetched PR head; the existing branch
+and history are retained. Dependencies remain ancestral to that head. Owned paths:
+application database/investigation modules, integration/configuration tests and
+INT-01 documentation. No contracts, agent/evaluator code, financial rules,
+migrations, dependencies or CI settings changed.
+
+- Fixed findings 1–3: observation failure no longer invents a deadline; unavailable
+  or exhausted validation retains all submitted findings as unchecked/unverified,
+  downgrading Explained to Needs Review and preserving an existing run error.
+- Fixed 5/7/8: one shared sequential poll per batch every 500 ms; safe typed
+  database/retrieval diagnostics; one strict investigator-mode parser at startup
+  and injection, including blank configuration.
+- Disposition of 4/6/9/10 is in the verification document: retain request-owned
+  cancellation while UI/host lifecycle is unresolved; live concurrency is
+  unmeasured; SDK factory and shared-limit cleanup need coordinated follow-up.
+  Zero SDK retries and the original 8/10/60 budgets remain enforced.
+
+Actual checks on these changes:
+- `npm run check`: typecheck, lint, 226 tests across 22 files, production build.
+- Targeted integration/configuration rerun after strengthening assertions:
+  22 tests across two files passed, including zero/six/eight failed reads,
+  six filtered reads with insufficient validation capacity, shared poll recovery,
+  reset/deadline cancellation, safe logging and blank-mode startup rejection.
+- Both Playwright suites passed (one test each), using isolated local PGlite
+  directories: demo/inspect/review/refresh/reset and unavailable real-mode retry,
+  persisted history, three-attempt cap and stale predecessor 409. Screenshot
+  inspection confirms the failed/unavailable labels and attempt history render.
+  Initial sandbox run could not bind loopback port 3100; the authorized local
+  rerun passed. No application failure was masked.
+- `npm run eval:baseline`: exit 0, offline synthetic records only.
+- `git diff --check`: passed.
+
+Verification story: dashboard action → authorized mutation handler → durable
+PGlite runs/findings → GET state → honest UI labels and persisted history. The
+new fake-model regressions exercise real scoped database retrieval and counters;
+the browser suites verify its existing rendering/persistence boundaries. All
+model clients are fake or unavailable; the retry suite explicitly empties the
+API key. No secrets loaded, paid requests, remote DB calls, deployment or merge.
+Local PostgreSQL was not rerun for this review pass; GitHub's PostgreSQL job
+provides the current remote check. Node 24.21.0/npm 11.19.0; dependencies installed
+from the unchanged lockfile using offline `npm ci --ignore-scripts`.
+
+Next action: Jian/human review of these corrections and documented follow-ups.

@@ -48,6 +48,10 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
     if (!full.has(name)) await call(name, undefined);
     return full.get(name);
   }
+  async function prepareValidation() {
+    for (const name of ["list_payments", "get_invoices", "get_vendor_notes"] as const)
+      await cached(name);
+  }
   let investigator: Investigator = stubInvestigator;
   if (mode === "real") {
     const { createRealInvestigator, DEFAULT_MODEL } = await import("../../agent/loop");
@@ -79,5 +83,5 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
       });
     }
   }
-  return { investigator, validation, counters, check };
+  return { investigator, validation, counters, check, prepareValidation };
 }

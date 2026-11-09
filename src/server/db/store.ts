@@ -199,8 +199,11 @@ export class Store {
     });
   }
   async active(id: string, generation: number) {
-    return this.db.transaction(async tx => (await tx.query(
-      "SELECT r.id FROM investigation_runs r JOIN demo_state d ON d.id=1 AND d.generation=r.generation WHERE r.id=$1 AND r.generation=$2 AND r.status='running' AND r.deadline_at>clock_timestamp()", [id,generation])).rows.length > 0);
+    return (await this.activeRuns([id], generation)).includes(id);
+  }
+  async activeRuns(ids: string[], generation: number): Promise<string[]> {
+    return this.db.transaction(async tx => (await tx.query<{id: string}>(
+      "SELECT r.id FROM investigation_runs r JOIN demo_state d ON d.id=1 AND d.generation=r.generation WHERE r.id=ANY($1::text[]) AND r.generation=$2 AND r.status='running' AND r.deadline_at>clock_timestamp()", [ids,generation])).rows.map(r => r.id));
   }
   async reset() {
     return this.db.transaction(async (tx) => {
