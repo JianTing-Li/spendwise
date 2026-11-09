@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { Client, type Pool, type PoolClient } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DatabaseConflict, DatabaseQueryError, DatabaseTimeout, PgDatabase, pgPoolOptions, pgTestDefaults } from "../src/server/db/pg";
+import { DatabaseConflict, DatabaseQueryError, DatabaseTimeout, DatabaseUnavailable, PgDatabase, pgPoolOptions, pgTestDefaults } from "../src/server/db/pg";
 import type { DatabaseTransaction } from "../src/server/db/database";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -90,6 +90,30 @@ describe("pooled pg adapter control flow (no live database)", () => {
     expect(work).not.toHaveBeenCalled();
     expect(pool.connect).toHaveBeenCalledTimes(1);
     expect(releases).toEqual([]);
+    await db.close();
+  });
+
+  it("keeps only a safe driver code when acquisition fails", async () => {
+    const { db, pool } = fixture();
+    const caught = async () => db.transaction(vi.fn()).catch((error: unknown) => error);
+    pool.connect.mockRejectedValueOnce(Object.assign(new Error("password authentication failed"), { code: "28P01" }));
+    const login = await caught();
+    expect(login).toBeInstanceOf(DatabaseUnavailable);
+    expect(login).toMatchObject({ driverCode: "28P01", message: "Database unavailable" });
+    pool.connect.mockRejectedValueOnce(Object.assign(new Error("tls"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" }));
+    expect(await caught()).toMatchObject({ driverCode: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
+    pool.connect.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "postgresql://user:pw@host/db" }));
+    expect((await caught() as DatabaseUnavailable).driverCode).toBeUndefined();
+    pool.connect.mockRejectedValueOnce(new Error("timeout exceeded when trying to connect"));
+    expect((await caught() as DatabaseUnavailable).driverCode).toBeUndefined();
+    await db.close();
+  });
+
+  it("keeps the code of a connection-class query failure", async () => {
+    const { db } = fixture(["SELECT 1"], "08006");
+    const error = await db.transaction((tx) => tx.query("SELECT 1")).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DatabaseUnavailable);
+    expect(error).toMatchObject({ driverCode: "08006" });
     await db.close();
   });
 

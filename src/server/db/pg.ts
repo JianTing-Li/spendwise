@@ -18,8 +18,14 @@ export const pgTestDefaults: Readonly<PgLimits> = Object.freeze({
   idle_in_transaction_session_timeout: 5000,
 });
 
+/** A driver or Node error code such as 28P01, ECONNREFUSED or a TLS code; never a message. */
+export function safeDriverCode(error: unknown): string | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  return typeof code === "string" && /^[A-Z0-9_]{2,40}$/.test(code) ? code : undefined;
+}
+
 export class DatabaseUnavailable extends Error {
-  constructor(readonly outcomeUnknown = false) {
+  constructor(readonly outcomeUnknown = false, readonly driverCode?: string) {
     super("Database unavailable");
     this.name = "DatabaseUnavailable";
   }
@@ -49,7 +55,7 @@ function classify(error: unknown) {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String(error.code) : "";
   if (!/^[0-9A-Z]{5}$/.test(code) || code.startsWith("08") || /^57P0[123]$/.test(code))
-    return new DatabaseUnavailable();
+    return new DatabaseUnavailable(false, safeDriverCode(error));
   if (code === "55P03" || code === "57014") return new DatabaseTimeout(code);
   if (code.startsWith("40")) return new DatabaseConflict(code);
   return new DatabaseQueryError(code);
@@ -98,7 +104,7 @@ export class PgDatabase implements Database {
     if (this.closed) throw new DatabaseUnavailable();
     let client: PoolClient;
     try { client = await this.pool.connect(); }
-    catch { throw new DatabaseUnavailable(); }
+    catch (error) { throw new DatabaseUnavailable(false, safeDriverCode(error)); }
     let active = true;
     let discard = false;
     let began = false;

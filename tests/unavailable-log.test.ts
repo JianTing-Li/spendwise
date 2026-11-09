@@ -28,6 +28,19 @@ describe("logDemoUnavailable", () => {
     expect(JSON.stringify(logged(new Error(secret)))).not.toContain("postgresql");
   });
 
+  it("uses the error's name, which survives minified class names", () => {
+    class h extends Error {
+      driverCode = "28P01";
+      constructor() { super("Database unavailable"); this.name = "DatabaseUnavailable"; }
+    }
+    expect(logged(new h())).toEqual({ name: "DemoUnavailable", errorClass: "DatabaseUnavailable", driverCode: "28P01" });
+  });
+
+  it("drops an unsafe driver code or name", () => {
+    const error = Object.assign(new Error("x"), { driverCode: "pw=secret value", name: "has spaces and :" });
+    expect(logged(error)).toEqual({ name: "DemoUnavailable", errorClass: "Error" });
+  });
+
   it("handles non-Error values", () => {
     expect(logged("boom")).toEqual({ name: "DemoUnavailable", errorClass: "NonError" });
   });
