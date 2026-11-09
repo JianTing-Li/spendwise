@@ -15,7 +15,7 @@ npm run test:e2e
 npm run eval:baseline
 ```
 
-Development binds to `127.0.0.1:3000`. E2E uses port 3100 and a separate `.data/e2e` directory. Stop any process using that test database before running E2E. `npm start` serves a production build locally. Hosted requests fail closed.
+Development binds to `127.0.0.1:3000`. E2E uses port 3100 and a separate `.data/e2e` directory. Stop any process using that test database before running E2E. `npm start` serves a production build locally. Hosted requests fail closed. `next-env.d.ts` is generated and ignored, so on a fresh clone run `npm run typecheck` or `npm run dev` before using `tsc` or an editor's TypeScript checks.
 
 ## Local storage
 PGlite stores records in `.data/spendwise` by default; override with `PGLITE_DATA_DIR`. One application process may own a database directory at a time. Tests create separate memory/temp databases. Do not run CLI migrations while the server has the database open.
@@ -55,7 +55,9 @@ Vercel Fluid Compute documents a 300-second Hobby maximum. The route's proposed 
 Sources checked 2026-11-04: [Next.js](https://nextjs.org/docs/app/getting-started/installation), [PGlite](https://pglite.dev/docs/filesystems), [Neon pooling](https://neon.com/docs/connect/connection-pooling), [Vercel limits](https://vercel.com/docs/functions/limitations).
 
 ## Dependency limitations
-`npm audit --omit=dev --audit-level=moderate` reported zero production vulnerabilities during setup. Full `npm audit` reports moderate development-tooling advisories (16 at setup, 8 on 2026-11-04), including transitive minimatch denial-of-service exposure; OPS-01 (#13) tracks them. ESLint 9.39.5 is deprecated upstream but passes with this Next.js lint integration; review a supported lint-stack upgrade before expanding CI to untrusted inputs. No force downgrade or cross-major transitive override was applied just to hide audit findings. These findings are not claimed resolved.
+Linting uses ESLint 10 with `eslint-config-next`, which Next.js documents as supported. `eslint-plugin-import`, `eslint-plugin-jsx-a11y` and `eslint-plugin-react` do not list ESLint 10 in their peer dependencies yet, so npm prints `ERESOLVE` peer warnings and `npm ls` marks them invalid; the preset's compatibility layer runs them, and no overrides are used.
+
+`npm audit --omit=dev --audit-level=moderate` reports zero production vulnerabilities. Full `npm audit` reports one moderate development-tooling advisory, minimatch denial of service ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), affecting versions below 11.0.1). npm lists 10 affected packages because `eslint` and `typescript-eslint` depend on `minimatch@^10`, and their current releases do not accept a fixed version. It is limited to lint tooling: minimatch handles glob patterns from lint configuration and the command line, not application input. The fixes `npm audit` offers are downgrades to unsupported ESLint 9 or to `eslint-config-next` 15, which targets an older Next.js. Neither those nor a cross-major override are applied. This finding is not resolved.
 
 ## PostgreSQL and Neon verification
 
