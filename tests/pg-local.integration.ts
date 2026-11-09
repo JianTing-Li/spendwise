@@ -334,8 +334,11 @@ test("real pg: broad read-only role is rejected for retrieval and cannot write",
 
 test("real pg: populated 001 upgrades without changing records, results or reviews", options, async () => {
   const { migrations } = await import('../src/server/db/migrations/bundled');
-  const { runPending } = await import('../src/server/investigation/run');
-  await store.inject(); await runPending(store);
+  await store.inject();
+  for (const run of (await store.state()).runs) {
+    const input = await store.claim(run.id);
+    await store.finish(run.id, run.generation, await stubInvestigator.investigate(input!, new AbortController().signal));
+  }
   await store.review((await store.state()).runs[0].id);
   const expected = await store.state();
   const legacySchema = 'app01_test_' + randomUUID().replaceAll('-', '');

@@ -1,10 +1,13 @@
+import { RunError } from "../../investigation/budget";
+import { investigatorMode, normalizeResult } from "../investigation/result";
 import type { Database, DatabaseTransaction } from "./database";
+import { initializeLocalReader } from "./local-reader";
 import { migrate } from "./migrate";
 import { Dataset, DemoState, Exception, Run, InvestigationResult, type InvestigationInput, } from "../../contracts";
 import { baseline, injectedDataset } from "../../fixtures/scenarios";
 import { detect, summarize, validateDataset } from "../../domain/finance";
 export class Store {
-  constructor(readonly db: Database) { }
+  constructor(readonly db: Database, readonly reader?: Database) { }
   async assertVersion() {
     await this.db.transaction(async (tx) => {
       const versions = (await tx.query<{
@@ -22,6 +25,7 @@ export class Store {
       if (!existing.rows.length)
         await this.writeDataset(tx, baseline);
     });
+    if (this.db.dialect !== "postgres") await initializeLocalReader(this.db);
   }
   private async writeDataset(tx: DatabaseTransaction, input: Dataset) {
     const data = validateDataset(input);
@@ -46,10 +50,10 @@ export class Store {
   }
   async state(): Promise<DemoState> {
     return this.db.transaction(async (tx) => {
-      const meta = (await tx.query<{
-        generation: number;
-        injected: boolean;
-      }>("SELECT generation, injected FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
+      // One coherent, read-only snapshot; polling never writes or locks reset.
+      await tx.exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const meta = (await tx.query<{ generation: number; injected: boolean }>(
+        "SELECT generation, injected FROM demo_state WHERE id = 1")).rows[0];
       const records = async (table: string) => (await tx.query<{
         payload: unknown;
       }>(`SELECT payload FROM ${table} ORDER BY id`)).rows.map((r) => r.payload);
@@ -59,26 +63,17 @@ export class Store {
         payments: await records("payments"),
         notes: await records("vendor_notes"),
       });
-      // A request/process killed mid-run must not stay 'running' forever.
-      const expired = await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE status IN ('pending', 'running') AND deadline_at <= clock_timestamp()");
-      for (const row of expired.rows) {
-        const run = {
-          ...decodeRun(row),
-          state: "incomplete" as const,
-          error: "deadline" as const,
-        };
-        await tx.query("UPDATE investigation_runs SET status = 'incomplete', payload = $2 WHERE id = $1", [row.id, encodeRun(run)]);
-      }
       return DemoState.parse({
         ...meta,
         dataset,
         summaries: summarize(dataset),
         exceptions: (await records("exceptions")).map((x) => Exception.parse(x)),
-        runs: (await tx.query<RunRow>("SELECT * FROM investigation_runs ORDER BY exception_id, attempt")).rows.map(decodeRun),
+        runs: (await tx.query<RunRow>("SELECT * FROM investigation_runs ORDER BY exception_id, attempt")).rows.map(row => effectiveRun(row)),
       });
     });
   }
   async inject(acceptedAt = Date.now()) {
+    const mode = investigatorMode();
     return this.db.transaction(async (tx) => {
       const meta = (await tx.query<{
         generation: number;
@@ -94,7 +89,7 @@ export class Store {
           id: `run:${meta.generation}:${exception.id}`,
           exceptionId: exception.id,
           generation: meta.generation,
-          mode: process.env.INVESTIGATOR_MODE === "real" ? "real" : "stub",
+          mode,
           state: "pending",
           findings: [],
           error: null,
@@ -119,7 +114,7 @@ export class Store {
       await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
       const row = (await tx.query<RunRow & {
         exception: unknown;
-      }>("SELECT r.*, e.payload AS exception FROM investigation_runs r JOIN exceptions e ON e.id = r.exception_id WHERE r.id = $1 AND r.status = 'pending' AND r.deadline_at > clock_timestamp()", [id])).rows[0];
+      }>("SELECT r.*, e.payload AS exception FROM investigation_runs r JOIN exceptions e ON e.id = r.exception_id WHERE r.generation = (SELECT generation FROM demo_state WHERE id=1) AND r.id = $1 AND r.status = 'pending' AND r.deadline_at > clock_timestamp()", [id])).rows[0];
       if (!row)
         return null;
       const run = decodeRun(row);
@@ -134,7 +129,7 @@ export class Store {
     });
   }
   async finish(id: string, generation: number, result: InvestigationResult): Promise<boolean> {
-    const parsed = InvestigationResult.parse(result);
+    const parsed = normalizeResult(InvestigationResult.parse(result));
     if (["pending", "running"].includes(parsed.state))
       throw new Error("invalid_result");
     return this.db.transaction(async (tx) => {
@@ -150,7 +145,11 @@ export class Store {
       const final = Date.now() >= deadline
         ? { ...parsed, state: "incomplete", findings: [], error: "deadline" }
         : parsed;
-      const run = Run.parse({ ...decodeRun(row), ...final });
+      const previous = decodeRun(row);
+      if (previous.mode !== parsed.mode) throw new Error("invalid_result");
+      const run = Run.parse({ ...previous, ...final,
+        toolExecutions: Math.max(previous.toolExecutions, parsed.toolExecutions),
+        modelRequests: Math.max(previous.modelRequests, parsed.modelRequests) });
       await tx.query("UPDATE investigation_runs SET status = $2, payload = $3 WHERE id = $1", [id, run.state, encodeRun(run)]);
       // Roll back a success if persistence itself exhausted the deadline.
       if (run.state === "completed" && Date.now() >= deadline)
@@ -163,6 +162,8 @@ export class Store {
       const meta = (await tx.query<{
         generation: number;
       }>("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
+      // Mutations materialize expiry; GET only derives it.
+      await tx.query("UPDATE investigation_runs SET status='incomplete', payload=jsonb_set(payload,'{error}','\"deadline\"'::jsonb) WHERE generation=$1 AND status IN ('pending','running') AND deadline_at<=clock_timestamp()", [meta.generation]);
       const previous = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2", [predecessorId, meta.generation])).rows[0];
       if (!previous)
         throw new Error("invalid_retry");
@@ -180,6 +181,26 @@ export class Store {
       await tx.query("INSERT INTO investigation_runs (id,exception_id,generation,status,deadline_at,payload,attempt,predecessor_id) VALUES ($1,$2,$3,'pending',$4,$5,$6,$7)", [run.id, run.exceptionId, run.generation, new Date(acceptedAt + 60000).toISOString(), encodeRun(run), previous.attempt + 1, predecessorId]);
       return { generation: meta.generation, changed: true };
     });
+  }
+  /** Short atomic reservation before work. Never replay after uncertain commit. */
+  async charge(id: string, generation: number, counter: "toolExecutions" | "modelRequests", amount = 1) {
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10) throw new Error("invalid_counter");
+    return this.db.transaction(async tx => {
+      const meta = (await tx.query<{generation: number}>("SELECT generation FROM demo_state WHERE id=1 FOR SHARE")).rows[0];
+      if (meta.generation !== generation) throw new RunError("stale_generation");
+      const row = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2 AND status='running' AND deadline_at>clock_timestamp() FOR UPDATE", [id,generation])).rows[0];
+      if (!row) throw new RunError("deadline");
+      const run = decodeRun(row);
+      const limit = counter === "toolExecutions" ? 8 : 10;
+      if (run[counter] + amount > limit) throw new RunError(counter === "toolExecutions" ? "tool_limit" : "model_limit");
+      run[counter] += amount;
+      await tx.query("UPDATE investigation_runs SET payload=$2 WHERE id=$1", [id,encodeRun(run)]);
+      return run[counter];
+    });
+  }
+  async active(id: string, generation: number) {
+    return this.db.transaction(async tx => (await tx.query(
+      "SELECT r.id FROM investigation_runs r JOIN demo_state d ON d.id=1 AND d.generation=r.generation WHERE r.id=$1 AND r.generation=$2 AND r.status='running' AND r.deadline_at>clock_timestamp()", [id,generation])).rows.length > 0);
   }
   async reset() {
     return this.db.transaction(async (tx) => {
@@ -227,4 +248,11 @@ function encodeRun(run: Run) {
   void generation;
   void state;
   return JSON.stringify(payload);
+}
+
+function effectiveRun(row: RunRow) {
+  const run = decodeRun(row);
+  return ["pending", "running"].includes(run.state) && new Date(row.deadline_at).getTime() <= Date.now()
+    ? { ...run, state: "incomplete" as const, error: "deadline" as const, findings: [] }
+    : run;
 }

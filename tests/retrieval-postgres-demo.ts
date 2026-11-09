@@ -5,6 +5,8 @@ import { Pool } from "pg";
 import { PgDatabase } from "../src/server/db/pg";
 import { Store } from "../src/server/db/store";
 import { databaseRetrieval } from "../src/server/retrieval/database";
+import { runPending } from "../src/server/investigation/run";
+import { syntheticModel } from "./helpers/int01-model";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
 
 // Creates/drops only a fixed disposable database and three test roles on an
@@ -13,7 +15,7 @@ async function main() {
   assert.equal(process.env.APP03_ALLOW_LOCAL_PG,"1");
   const port = Number(process.env.APP03_PG_PORT ?? "55439");
   assert(Number.isInteger(port) && port>1024 && port<65536);
-  const adminConfig = { host:"/tmp",port,user:userInfo().username,database:"postgres",ssl:false };
+  const adminConfig = { host:"/tmp",port,user:process.env.APP03_PG_USER || userInfo().username,database:"postgres",ssl:false };
   const admin = new Pool(adminConfig);
   const password = randomBytes(24).toString("hex");
   let owner: PgDatabase | undefined;
@@ -85,25 +87,55 @@ async function main() {
     const result = {database:"PostgreSQL 17",separatePasswordLogins:true,fixtureParity:{exceptions:state.exceptions.length,methods:4},
       legitimate:{summary:await r.get_payment_summary(),payments:await r.list_payments(),invoices:await r.get_invoices(),notes:await r.get_vendor_notes()},
       outOfScope:{requested:foreign.id,returned:[]},readerDenied:denied,sqlstate:"42501",modelRequests:0};
+    // INT-01: independent runtime pools and short transactions around fake
+    // model waits. Duplicate workers must neither duplicate calls nor claims.
+    process.env.INVESTIGATOR_MODE = "real";
+    const durable = new Store(application, reader);
+    await durable.reset(); await durable.inject();
+    let fakeRequests = 0;
+    const fake = syntheticModel();
+    let waitingModels = 0;
+    let allWaiting!: () => void;
+    const waitingGate = new Promise<void>(resolve => { allWaiting = resolve; });
+    const client = { create: async (...args: Parameters<typeof fake.create>) => {
+      fakeRequests++;
+      if (args[0].messages.length === 1) {
+        if (++waitingModels === 4) allWaiting();
+        await waitingGate;
+        const waiting = (await admin.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname='app03_retrieval_test' AND usename IN ('app03_app','app03_reader') AND state='idle in transaction'" )).rows[0].count;
+        assert.equal(waiting, 0, "no transaction is held during model waits");
+      }
+      return fake.create(...args);
+    }};
+    await Promise.all([runPending(durable,{client}),runPending(durable,{client})]);
+    const completed = await durable.state();
+    assert.equal(fakeRequests, 8);
+    assert.equal(completed.runs.length, 4);
+    assert(completed.runs.every(run=>run.mode==='real' && run.state==='completed' && run.toolExecutions===3 && run.modelRequests===2));
+    await durable.review(completed.runs[0].id);
+    Object.assign(result,{durableRuns:4,fakeRequests,paidModelRequests:0});
+    const current = completed.exceptions.find(e=>e.vendorId==='vendor-renewal')!;
+    const currentGeneration = completed.generation;
     let releaseRead!: () => void;
     let enterRead!: () => void;
-    const entered = new Promise<void>(resolve => { enterRead=resolve; });
+    let readersEntered = 0;
+    const entered = new Promise<void>(resolve => { enterRead=() => { if (++readersEntered === 2) resolve(); }; });
     const released = new Promise<void>(resolve => { releaseRead=resolve; });
     const actualReader = reader;
     const pausedReader = {dialect:"postgres" as const,close:async()=>{},transaction:<T>(work: Parameters<PgDatabase["transaction"]>[0]) => actualReader.transaction(async tx => {
       enterRead(); await released; return work(tx) as Promise<T>;
     })};
-    const racing = databaseRetrieval({application,reader:pausedReader},{exceptionId:exception.id,generation:state.generation});
-    const lookup = racing.list_payments();
+    const racing = databaseRetrieval({application,reader:pausedReader},{exceptionId:current.id,generation:currentGeneration});
+    const lookup = Promise.all([racing.list_payments(),racing.get_invoices()]);
     await entered;
     let resetFinished=false;
     const reset = new Store(application).reset().then(()=>{resetFinished=true;});
     await new Promise(resolve=>setTimeout(resolve,30));
     assert.equal(resetFinished,false);
     releaseRead();
-    assert((await lookup).length>0);
+    assert((await lookup).every(rows=>rows.length>0));
     await reset;
-    Object.assign(result,{generationRace:"reset waited for evidence read"});
+    Object.assign(result,{generationRace:"two readers shared the lock; reset waited for both"});
     await assert.rejects(r.list_payments(),e=>(e as {code?:string}).code==="stale_generation");
     // Printed only after cleanup succeeds below.
     return result;

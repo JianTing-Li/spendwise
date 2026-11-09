@@ -22,22 +22,13 @@ export function getStore() {
         try {
           await readonly.transaction(assertReadOnly);
           await db.transaction(assertApplication);
-          const store = new Store(db);
+          const store = new Store(db, readonly);
           await store.assertVersion();
           return store;
         }
         catch (error) {
-          await db.close();
+          await Promise.allSettled([db.close(), readonly.close()]);
           throw error;
-        }
-        finally {
-          // Preflight-only pool: a close failure must not discard (and leak) the application pool.
-          try {
-            await readonly.close();
-          }
-          catch {
-            // Ignored: the preflight already passed or its error is rethrown above.
-          }
         }
       }
       const directory = resolve(process.env.PGLITE_DATA_DIR || ".data/spendwise");

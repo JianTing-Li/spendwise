@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const store = await getStore();
     const result = await store.retry(predecessorId, acceptedAt);
-    await runPending(store);
+    await runPending(store, { signal: request.signal });
     return reply(MutationResponse.parse({ ok: true, ...result }));
   }
   catch (error) {

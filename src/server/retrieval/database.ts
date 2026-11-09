@@ -18,7 +18,7 @@ const scopedPayments = `WITH scoped_payments AS (
    AND q.id=ANY($4::text[]) AND q.reversal_reference=p.id)))`;
 
 /** Server-owned capability, created only after APP-02 authorizes this run.
- * application holds the reset lock; reader is a distinct restricted login.
+ * application shares the reset lock; reader is a distinct restricted login.
  * Local PGlite uses the same transaction with a fixed restricted role instead.
  * Neither database handle is returned to the investigator.
  */
@@ -33,9 +33,10 @@ export function databaseRetrieval(
   async function execute<T>(work: (tx: DatabaseTransaction, exception: Exception) => Promise<T>): Promise<T> {
     try {
       return await databases.application.transaction(async (control) => {
-        // Every Store mutation takes this lock, so evidence and generation stay coherent.
+        // Concurrent evidence reads share this lock. Reset/injection take UPDATE,
+        // so generation and records stay coherent until the short read ends.
         const meta = (await control.query<{ generation: number }>(
-          "SELECT generation FROM demo_state WHERE id=1 FOR UPDATE")).rows[0];
+          "SELECT generation FROM demo_state WHERE id=1 FOR SHARE")).rows[0];
         if (meta?.generation !== scope.generation) throw new RetrievalError("stale_generation");
         const row = (await control.query<{ payload: unknown }>(
           "SELECT payload FROM exceptions WHERE id=$1", [scope.exceptionId])).rows[0];
