@@ -1,7 +1,7 @@
 # OPS-01 — Upgrade lint tooling and resolve dependency advisories
 
 Owner: Jian Ting (assignee moved from Elliot on 2026-11-09). Issue: https://github.com/JianTing-Li/spendwise/issues/13
-Branch: `ops-01-lint-tooling`, from `origin/main` at `5b6bcb6`.
+Branch: `ops-01-lint-tooling`, from `origin/main` at `5b6bcb6`. PR: https://github.com/JianTing-Li/spendwise/pull/38
 
 ## Changes
 - `eslint` 9.39.5 → 10.14.0, exact pin, lockfile updated. ESLint 9 is marked unsupported on npm.
