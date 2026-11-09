@@ -378,7 +378,8 @@ footer {
   margin-bottom: 24px;
   border-radius: 6px;
 }
-.record:focus {
+.record:focus,
+.run-status:focus {
   outline: 3px solid #bd8725;
   outline-offset: 2px;
 }

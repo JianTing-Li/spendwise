@@ -25,15 +25,18 @@ export function useDemo() {
   const generation = useRef(-1);
   const mutation = useRef<{ kind: string; controller: AbortController } | null>(null);
 
-  const report = useCallback((cause: unknown) => {
-    if (cause instanceof DemoError && [401, 403].includes(cause.status)) setData(null);
+  const report = useCallback((cause: unknown, source: "read" | "mutation" = "read") => {
+    if (cause instanceof DemoError && (cause.status === 401 || (source === "read" && cause.status === 403))) setData(null);
     setError(cause instanceof DemoError ? cause.message : "Connection lost. Reload to check the current state before trying again.");
   }, []);
 
-  const load = useCallback(async (signal?: AbortSignal, expectedEpoch = epoch.current) => {
+  const load = useCallback(async (signal?: AbortSignal, expectedEpoch = epoch.current, timeoutMs = 5000) => {
     const id = ++requestId.current;
+    const controller = new AbortController();
+    const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+    const timer = setTimeout(() => controller.abort(new DemoError(408, "Progress request timed out. Reload to check the current state.")), timeoutMs);
     try {
-      const response = await fetch("/api/demo", { cache: "no-store", signal });
+      const response = await fetch("/api/demo", { cache: "no-store", signal: requestSignal });
       if (!response.ok) throw responseError(response.status);
       const next = DemoState.parse(await response.json());
       if (signal?.aborted || expectedEpoch !== epoch.current || id < appliedId.current || next.generation < generation.current) return;
@@ -44,15 +47,17 @@ export function useDemo() {
     } catch (cause) {
       if (!signal?.aborted && expectedEpoch === epoch.current && id >= appliedId.current) {
         appliedId.current = id;
-        report(cause);
+        report(controller.signal.aborted ? controller.signal.reason : cause);
       }
-    }
+    } finally { clearTimeout(timer); }
   }, [report]);
 
   useEffect(() => {
     const controller = new AbortController();
     const lifecycle = epoch;
-    const timer = setTimeout(() => void load(controller.signal), 0);
+    // Initial local startup can compile the route and initialize PGlite.
+    // Subsequent reads, including every progress poll, use the shorter bound.
+    const timer = setTimeout(() => void load(controller.signal, undefined, 20_000), 0);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -102,7 +107,13 @@ export function useDemo() {
       // Reads started before this commit cannot reintroduce old findings/review.
       await load(current.controller.signal, ++epoch.current);
     } catch (cause) {
-      if (expectedEpoch === epoch.current && !current.controller.signal.aborted) report(cause);
+      if (expectedEpoch === epoch.current && !current.controller.signal.aborted) {
+        // A read started before this denial must not erase its feedback or
+        // restore records after a 401. An explicit Reload starts a new read.
+        epoch.current++;
+        if (kind === "reset" && cause instanceof DemoError && cause.status === 403) setData(data);
+        report(cause, "mutation");
+      }
     } finally {
       if (mutation.current === current) { mutation.current = null; setBusy(null); }
     }

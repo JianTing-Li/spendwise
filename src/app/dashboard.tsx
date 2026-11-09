@@ -3,13 +3,15 @@ import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
 import { money } from "./format";
+import { INVESTIGATION_LIMITS } from "../contracts";
 
 export default function Dashboard() {
   const { data, busy, error, load, act, active } = useDemo();
   const latestRuns = data?.exceptions.flatMap((exception) =>
     data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
   ) ?? [];
-  const reviewed = latestRuns.filter((run) => run.reviewedAt).length;
+  const reviewableRuns = latestRuns.filter(run => run.state === "completed");
+  const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
   return (
     <main>
@@ -66,7 +68,7 @@ export default function Dashboard() {
       )}
       {!data && !error && <p role="status">{busy === "reset" ? "Clearing scenario findings and review acknowledgments…" : "Loading synthetic records…"}</p>}
       {(active || busy === "inject" || busy === "retry") && <div className="progress" role="status">
-        {error ? "Progress updates are unavailable. Reload to check current run states." : "Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to 8 retrievals, 10 model requests and 60 seconds."}
+        {error ? "Progress updates are unavailable. Reload to check current run states." : `Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to ${INVESTIGATION_LIMITS.toolExecutions} retrievals, ${INVESTIGATION_LIMITS.modelRequests} model requests and ${INVESTIGATION_LIMITS.runMs / 1000} seconds.`}
         <p className="fine">Keep this page open while it runs. Reset stops the scenario and clears its findings and human review acknowledgments.</p>
       </div>}
       <section className="metrics" aria-label="Payment overview">
@@ -84,9 +86,9 @@ export default function Dashboard() {
           <p>Human review</p>
           <strong>
             {data ? reviewed : "—"}
-            <span> / {data ? latestRuns.length : "—"}</span>
+            <span> / {data ? reviewableRuns.length : "—"}</span>
           </strong>
-          <small>Acknowledgment, not payment approval or evidence verification</small>
+          <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
         </div>
       </section>
       <section className="panel">

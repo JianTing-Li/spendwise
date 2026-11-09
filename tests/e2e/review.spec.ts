@@ -59,6 +59,7 @@ test("keyboard/mobile evidence, verified vs draft labels, and run-specific revie
   await opened(page);
   const card = page.getByRole("article");
   await expect(card.getByText("Verified record explanation", { exact: true })).toHaveCount(1);
+  await expect(card.getByRole("heading", { name: "Explained", exact: true })).toHaveCount(1);
   await expect(card.getByText("Draft · explanation not verified", { exact: true })).toHaveCount(1);
   await expect(card.getByRole("heading", { name: "Unresolved question" })).toBeVisible();
   await expect(card.getByText(/At least \$6,000.00 and 25%/)).toBeVisible();
@@ -74,6 +75,7 @@ test("keyboard/mobile evidence, verified vs draft labels, and run-specific revie
   await review.focus();
   await page.keyboard.press("Space");
   await expect(card.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
+  await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
   await expect(card.getByText(/Acknowledgment only; explanation support is unchanged/)).toBeVisible();
   await page.reload();
   await expect(card.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
@@ -128,15 +130,19 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await expect(card.getByText("incomplete", { exact: true })).toBeVisible();
     const retryButton = card.getByRole("button", { name: "Retry investigation (1/3 attempts used)" });
     await expect(retryButton).toBeEnabled();
+    await retryButton.focus();
     // Two clicks in one task exercise the ref guard before a disabled render.
     await retryButton.evaluate(button => { button.dispatchEvent(new MouseEvent("click", { bubbles: true })); button.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await expect(card.getByText("running", { exact: true })).toBeVisible();
+    await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     expect(retries).toBe(1);
     retry.release();
     await expect(card.getByText("cancelled", { exact: true })).toBeVisible();
+    await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     await card.getByRole("button", { name: "Retry investigation (2/3 attempts used)" }).focus();
     await page.keyboard.press("Space");
     await expect(card.getByText("failed", { exact: true })).toBeVisible();
+    await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     await expect(card.getByText("Three attempts used. Reset the demo to start again.")).toBeVisible();
     await expect(card.getByRole("button", { name: /Retry investigation/ })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Mark reviewed" })).toHaveCount(0);
@@ -201,12 +207,13 @@ test("reset during execution rejects late read and mutation responses", async ({
   } finally { injection.release(); staleRead.release(); }
 });
 
-test("read and mutation access denial hide records and require an authorized reload", async ({ page }) => {
+test("read denial and mutation 401 hide records; scoped mutation 403 preserves readable records", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   let status = 401;
+  let mutationStatus = 403;
   let posts = 0;
   await page.route("**/api/demo", async route => {
-    if (route.request().method() === "POST") { posts++; return route.fulfill({ status: 403, json: { error: "unauthorized" } }); }
+    if (route.request().method() === "POST") { posts++; return route.fulfill({ status: mutationStatus, json: { error: "unauthorized" } }); }
     return route.fulfill(status === 200 ? { json: injected } : { status, json: { error: "unauthorized" } });
   });
   await page.goto("/");
@@ -221,8 +228,20 @@ test("read and mutation access denial hide records and require an authorized rel
   await expect(page.getByRole("article")).toHaveCount(1);
   await page.getByRole("button", { name: "Mark reviewed", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText("Access denied");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByText("Human acknowledgment recorded")).toHaveCount(0);
+  await page.getByRole("button", { name: "Reload", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "Reset demo" }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Access denied");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await page.getByRole("button", { name: "Reload", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  mutationStatus = 401;
+  await page.getByRole("button", { name: "Mark reviewed", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("Sign in again");
   await expect(page.getByRole("article")).toHaveCount(0);
-  expect(posts).toBe(1);
+  expect(posts).toBe(3);
 });
 
 test("stub, incomplete, invalid-reference and unresolved findings never acquire a verified badge", async ({ page }) => {
@@ -246,5 +265,70 @@ test("stub, incomplete, invalid-reference and unresolved findings never acquire 
     const card = page.getByRole("article");
     await expect(card.getByText("Draft · explanation not verified", { exact: true })).toBeVisible();
     await expect(card.getByText("Verified record explanation", { exact: true })).toHaveCount(0);
+    await expect(card.getByRole("heading", { name: "Explained", exact: true })).toHaveCount(0);
+    await expect(card.getByRole("heading", { name: "Needs Review", exact: true })).toHaveCount(1);
   }
+});
+
+test("human review includes only completed latest runs and stub states describe the demonstration", async ({ page }) => {
+  const state = copy(injected);
+  const exception = state.exceptions[0];
+  const run = state.runs[0];
+  const states = ["completed", "pending", "running", "incomplete", "failed", "cancelled"] as const;
+  state.exceptions = states.map(status => ({ ...copy(exception), id: `${exception.id}:${status}` }));
+  state.runs = states.map((status, index) => ({ ...copy(run), id: `${run.id}:${status}`, exceptionId: state.exceptions[index].id, state: status, findings: [], reviewedAt: status === "completed" ? "2026-11-09T18:00:00.000Z" : null }));
+  await page.route("**/api/demo", route => route.fulfill({ json: state }));
+  await opened(page);
+  const metric = page.locator(".metrics > div").filter({ has: page.getByText("Human review", { exact: true }) });
+  await expect(metric.locator("strong")).toHaveText("1 / 1");
+  await expect(metric).toContainText("Completed runs only");
+  await expect(page.getByText("Human acknowledgment recorded", { exact: true })).toHaveCount(1);
+  for (const status of states.slice(1)) {
+    const card = page.getByRole("article").filter({ has: page.getByText(status, { exact: true }) });
+    await expect(card.getByText("Draft · awaiting human review", { exact: true })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Mark reviewed", exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByText(/Stub completed — the stub finished/)).toBeVisible();
+  await expect(page.getByText(/Stub running — preparing demonstration findings/)).toBeVisible();
+});
+
+test("a stalled progress read times out without cancelling execution and can be reloaded", async ({ page }) => {
+  let state = copy(baseline);
+  const injection = gate();
+  const stalledRead = gate();
+  let holdRead = false;
+  let stalled = false;
+  let posts = 0;
+  let cancelledPosts = 0;
+  page.on("requestfailed", request => { if (request.method() === "POST") cancelledPosts++; });
+  await page.route("**/api/demo", async route => {
+    if (route.request().method() === "GET") {
+      if (holdRead) { stalled = true; await stalledRead.promise; }
+      return route.fulfill({ json: state });
+    }
+    posts++;
+    state = copy(injected);
+    state.runs[0].state = "running";
+    holdRead = true;
+    await injection.promise;
+    return route.fulfill({ json: { ok: true, generation: state.generation, changed: true } });
+  });
+  try {
+    await opened(page);
+    await page.getByRole("button", { name: "Simulate new payments" }).click();
+    await expect.poll(() => stalled).toBe(true);
+    await expect(page.locator("main").getByRole("alert")).toContainText("Progress request timed out", { timeout: 8000 });
+    await expect(page.getByText("Progress updates are unavailable. Reload to check current run states.")).toBeVisible();
+    expect(cancelledPosts).toBe(0);
+    holdRead = false;
+    await page.getByRole("button", { name: "Reload", exact: true }).click();
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("article").getByText("running", { exact: true })).toBeVisible();
+    state.runs[0].state = "completed";
+    injection.release();
+    stalledRead.release();
+    await expect(page.getByRole("button", { name: "Mark reviewed", exact: true })).toBeEnabled();
+    expect(posts).toBe(1);
+    expect(cancelledPosts).toBe(0);
+  } finally { injection.release(); stalledRead.release(); }
 });

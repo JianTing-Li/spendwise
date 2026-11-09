@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef } from "react";
-import type { Dataset, Exception, Run } from "../contracts";
+import { INVESTIGATION_LIMITS, type Dataset, type Exception, type Run } from "../contracts";
 import { money } from "./format";
 
 const stateDescriptions: Record<Run["state"], string> = {
@@ -12,11 +12,19 @@ const stateDescriptions: Record<Run["state"], string> = {
   failed: "Failed — the investigation could not finish.",
   cancelled: "Cancelled — execution stopped before completion.",
 };
+const stubStateDescriptions: Record<Run["state"], string> = {
+  pending: "Stub pending — waiting to start the demonstration.",
+  running: "Stub running — preparing demonstration findings; no AI investigation.",
+  completed: "Stub completed — the stub finished; no AI investigation or explanation verification was performed.",
+  incomplete: "Stub incomplete — the demonstration did not finish within its evidence or execution limits.",
+  failed: "Stub failed — the demonstration could not finish.",
+  cancelled: "Stub cancelled — the demonstration stopped before completion.",
+};
 const errorDescriptions = {
   unavailable: "Investigation service or evidence unavailable.",
   invalid_input: "The investigation input could not be accepted.",
   unauthorized: "Investigation access was denied.",
-  deadline: "The 60-second limit was reached.",
+  deadline: `The ${INVESTIGATION_LIMITS.runMs / 1000}-second limit was reached.`,
   tool_limit: "The retrieval limit was reached.",
   model_limit: "The model request limit was reached.",
   invalid_evidence: "Some evidence references could not be validated.",
@@ -33,6 +41,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
 }) {
   const prefix = useId();
   const sources = useRef<HTMLDetailsElement>(null);
+  const status = useRef<HTMLParagraphElement>(null);
   const payments = dataset.payments.filter(p => p.vendorId === exception.vendorId);
   const invoices = dataset.invoices.filter(i => i.vendorId === exception.vendorId);
   const notes = dataset.notes.filter(n => n.vendorId === exception.vendorId);
@@ -45,6 +54,12 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
     record?.focus();
     record?.scrollIntoView({ block: "center", behavior: "instant" });
   }
+  function runAction(action: object, path?: string) {
+    // Keep keyboard focus in this card before the activating button is
+    // disabled or replaced. The same status node survives an attempt change.
+    status.current?.focus();
+    void act(action, path);
+  }
 
   function runView(run: Run | undefined, count: number, historical = false) {
     if (!run) return <p>Investigation not started.</p>;
@@ -52,14 +67,14 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
       <div className="tags">
         <span className="tag">{run.mode === "stub" ? "Stub · no AI call" : "Real model"}</span>
         <span className={`tag state-${run.state}`}>{run.state}</span>
-        <span className="tag">{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>
+        {run.state === "completed" && <span className="tag">{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>}
       </div>
-      <p role={historical ? undefined : "status"}>{stateDescriptions[run.state]}</p>
-      <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/8 · Model requests {run.modelRequests}/10 · 60 seconds maximum per attempt</p>
+      <p className="run-status" ref={historical ? undefined : status} tabIndex={historical ? undefined : -1} role={historical ? undefined : "status"} aria-label={historical ? undefined : "Investigation status"}>{run.mode === "stub" ? stubStateDescriptions[run.state] : stateDescriptions[run.state]}</p>
+      <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
       {run.error && <p className="run-error">{errorDescriptions[run.error]} ({run.error})</p>}
       {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (count < 3 ? <>
         <p className="fine">Retry starts one new bounded attempt. It may make model requests in real mode; it never runs automatically.</p>
-        <button disabled={busy} onClick={() => void act({ predecessorId: run.id }, "/api/demo/retry")}>
+        <button disabled={busy} onClick={() => runAction({ predecessorId: run.id }, "/api/demo/retry")}>
           Retry investigation ({count}/3 attempts used)
         </button>
       </> : <p>Three attempts used. Reset the demo to start again.</p>)}
@@ -67,7 +82,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
-          <h3>{finding.label}</h3>
+          <h3>{verified ? "Explained" : finding.label === "Explained" ? "Needs Review" : finding.label}</h3>
           <p className={verified ? "support verified" : "support"}>{verified ? "Verified record explanation" : "Draft · explanation not verified"}</p>
           <h4>{verified ? "Supported explanation" : finding.label === "Explained" ? "Draft explanation" : "Unresolved question"}</h4>
           <p>{finding.explanation}</p>
@@ -88,7 +103,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
       {run.reviewedAt && <p className="review-ack">Reviewed {new Date(run.reviewedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. Acknowledgment only; explanation support is unchanged.</p>}
       {!historical && run.state === "completed" && <>
         <p className="fine">Mark reviewed records your acknowledgment for this run and generation. It does not approve a payment or verify an explanation.</p>
-        <button className="secondary" disabled={busy || Boolean(run.reviewedAt)} onClick={() => void act({ action: "review", runId: run.id })}>
+        <button className="secondary" disabled={busy || Boolean(run.reviewedAt)} onClick={() => runAction({ action: "review", runId: run.id })}>
           {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
         </button>
       </>}
