@@ -32,7 +32,7 @@ All 10 packages trace to one advisory, minimatch denial of service, GHSA-g3hv-75
 ## Not done
 - `npm run test:pg` was not run; no database code changed. CI runs it.
 - `npm ls` exits non-zero because of the three plugin peer ranges. No script or CI step uses it.
-- Issue #13's body still names `worklog/elliot/OPS-01.md`; this worklog follows the current owner.
+- Only 11 of the 87 enabled rules were triggered under ESLint 10; the rest were compared by configuration only. `eslint-plugin-react`'s `isExplicitComponent` calls the removed `getJSDocComment` inside a try/catch, so class components identified only by a JSDoc tag are no longer recognised. This repository has none.
 
 ## Next action
 Re-check whether `eslint` and `typescript-eslint` accept a fixed minimatch, and whether the three plugins list ESLint 10, at the next dependency update.

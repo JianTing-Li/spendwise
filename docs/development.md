@@ -15,7 +15,7 @@ npm run test:e2e
 npm run eval:baseline
 ```
 
-Development binds to `127.0.0.1:3000`. E2E uses port 3100 and a separate `.data/e2e` directory. Stop any process using that test database before running E2E. `npm start` serves a production build locally. Hosted requests fail closed.
+Development binds to `127.0.0.1:3000`. E2E uses port 3100 and a separate `.data/e2e` directory. Stop any process using that test database before running E2E. `npm start` serves a production build locally. Hosted requests fail closed. `next-env.d.ts` is generated and ignored, so on a fresh clone run `npm run typecheck` or `npm run dev` before using `tsc` or an editor's TypeScript checks.
 
 ## Local storage
 PGlite stores records in `.data/spendwise` by default; override with `PGLITE_DATA_DIR`. One application process may own a database directory at a time. Tests create separate memory/temp databases. Do not run CLI migrations while the server has the database open.
