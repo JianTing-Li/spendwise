@@ -55,11 +55,18 @@ export interface RealInvestigatorOptions {
   reserveMs?: number;
   /** Per-request counters for evaluations; never receives credentials. */
   onRequest?(telemetry: RequestTelemetry): void;
+  /**
+   * Evaluation harness only (EVAL-01 `tool_limit` condition): a lower
+   * retrieval limit. It can only tighten the 8-execution budget (INV-08).
+   */
+  toolLimit?: number;
 }
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
 export const VALIDATION_RESERVE_MS = 10_000;
 export const DEFAULT_MAX_TOKENS = 8_000;
+/** INV-08 retrieval budget, enforced by `Budget`; a harness may only lower it. */
+const MAX_TOOL_EXECUTIONS = 8;
 // Contract limits already bound records; this also bounds the text sent back.
 const MAX_TOOL_RESULT_CHARS = 60_000;
 
@@ -123,6 +130,10 @@ export function createRealInvestigator(
 ): Investigator {
   const now = options.now ?? Date.now;
   const reserve = options.reserveMs ?? VALIDATION_RESERVE_MS;
+  const toolLimit = Math.min(
+    MAX_TOOL_EXECUTIONS,
+    Math.max(0, Math.floor(options.toolLimit ?? MAX_TOOL_EXECUTIONS)),
+  );
   return {
     async investigate(input, signal) {
       const budget = new Budget(Date.parse(input.deadlineAt) - reserve, now);
@@ -231,6 +242,8 @@ export function createRealInvestigator(
             }
             // Every attempted retrieval counts, including unknown/invalid ones.
             try {
+              if (budget.toolExecutions >= toolLimit)
+                throw new RunError("tool_limit");
               budget.takeTool();
             } catch (error) {
               if (error instanceof RunError && error.code === "tool_limit") {

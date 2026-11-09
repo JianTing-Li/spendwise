@@ -210,7 +210,7 @@ export async function runFeasibility(options: FeasibilityOptions) {
       },
     },
     hosting:
-      "Unverified: no deployment target is chosen (DEPLOY-01 is on hold), so the 60-second budget has not been checked against a host's limits.",
+      "Unverified: no deployment exists yet (DEPLOY-01), so the 60-second budget has not been checked against a host's limits.",
     note: "One run is an example, not a reliability claim.",
   };
 }
