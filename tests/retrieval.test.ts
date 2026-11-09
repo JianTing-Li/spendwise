@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+import { PGlite } from "@electric-sql/pglite";
 import { retrievalDemoDatabase } from "./retrieval-support";
+import { Store } from "../src/server/db/store";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
 import { databaseRetrieval } from "../src/server/retrieval/database";
 import { duplicateLookbackStart } from "../src/server/retrieval/bounds";
@@ -209,6 +211,45 @@ it("fixture and SQL reject historical traversal through foreign or future referr
     expect(await fixture.list_payments(input)).toEqual([]);
     expect(await actual.list_payments(input)).toEqual([]);
   } finally { await local.db.close(); }
+});
+
+it("a fresh local database serves retrieval through normal initialization", async () => {
+  const db = new PGlite();
+  try {
+    const store = new Store(db);
+    await store.initialize();
+    await store.inject();
+    const state = await store.state();
+    const retrieval = databaseRetrieval({ application: store.db, reader: store.reader },
+      { exceptionId: state.exceptions[0].id, generation: state.generation });
+    expect((await retrieval.list_payments()).length).toBeGreaterThan(0);
+  } finally { await db.close(); }
+});
+
+it("logs only the error class and SQLSTATE when a query fails", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const local = await retrievalDemoDatabase();
+  try {
+    class DriverFailure extends Error {
+      code = "57P01";
+      detail = "private SQL parameter marker";
+    }
+    const application: Database = { close: async () => {}, transaction: async () => { throw new DriverFailure("private record marker"); } };
+    const failing = databaseRetrieval({ application }, { exceptionId: "exception", generation: 1 });
+    await expect(failing.list_payments()).rejects.toMatchObject({ code: "unavailable" });
+    expect(log.mock.calls).toEqual([[{ name: "RetrievalUnavailable", errorClass: "DriverFailure", code: "57P01" }]]);
+
+    log.mockClear();
+    const noCode = databaseRetrieval({ application: { close: async () => {}, transaction: async () => { throw "private text"; } } }, { exceptionId: "exception", generation: 1 });
+    await expect(noCode.list_payments()).rejects.toMatchObject({ code: "unavailable" });
+    expect(log.mock.calls).toEqual([[{ name: "RetrievalUnavailable", errorClass: "NonError" }]]);
+
+    log.mockClear();
+    await local.db.exec("REVOKE SELECT ON payments FROM spendwise_retrieval_reader");
+    await expect(local.retrieval(local.state.exceptions[0].id).list_payments()).rejects.toMatchObject({ code: "unavailable" });
+    expect(log.mock.calls).toEqual([[expect.objectContaining({ name: "RetrievalUnavailable", code: "42501" })]]);
+    expect(Object.keys(log.mock.calls[0][0]).sort()).toEqual(["code", "errorClass", "name"]);
+  } finally { log.mockRestore(); await local.db.close(); }
 });
 
 it("fails closed when reader grants are unsafe or unavailable", async () => {

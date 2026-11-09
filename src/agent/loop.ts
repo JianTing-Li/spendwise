@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { z } from "zod";
 import {
+  INVESTIGATION_LIMITS,
   ToolInputs,
   ToolOutputs,
   type ErrorCode,
@@ -66,7 +67,7 @@ export const DEFAULT_MODEL = "claude-opus-5-5";
 export const VALIDATION_RESERVE_MS = 10_000;
 export const DEFAULT_MAX_TOKENS = 8_000;
 /** INV-08 retrieval budget, enforced by `Budget`; a harness may only lower it. */
-const MAX_TOOL_EXECUTIONS = 8;
+const MAX_TOOL_EXECUTIONS = INVESTIGATION_LIMITS.toolExecutions;
 // Contract limits already bound records; this also bounds the text sent back.
 const MAX_TOOL_RESULT_CHARS = 60_000;
 
