@@ -1,7 +1,7 @@
 # DEPLOY-02 — Log why the demo route is unavailable
 
 Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/41
-Branch: `deploy-02-demo-error-log`, from `origin/main` at `32200af`. PR: PR_LINK
+Branch: `deploy-02-demo-error-log`, from `origin/main` at `32200af`. PR: https://github.com/JianTing-Li/spendwise/pull/42
 
 ## Changes
 - `/api/demo` logs an unavailable failure through `logDemoUnavailable`, in both `GET` and `POST`. The HTTP response is unchanged.
