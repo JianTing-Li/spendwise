@@ -1,4 +1,4 @@
-import type { InvestigationInput, InvestigationResult } from "../../contracts";
+import { INVESTIGATION_LIMITS, type InvestigationInput, type InvestigationResult } from "../../contracts";
 import type { Investigator, Retrieval } from "../../investigation";
 import type { ModelClient } from "../../agent/loop";
 import { RunError } from "../../investigation/budget";
@@ -58,9 +58,8 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
     // SDK is never loaded by stub or fake-client tests. Missing key never falls back.
     let client = fakeClient;
     if (!client && process.env.ANTHROPIC_API_KEY?.trim()) {
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const sdk = new Anthropic({ maxRetries: 0 });
-      client = { create: (params, options) => sdk.messages.create(params, options) };
+      const { anthropicModelClient } = await import("../../agent/client");
+      client = anthropicModelClient();
     }
     if (!client) investigator = (await import("../../agent/real")).realInvestigator;
     else {
@@ -76,7 +75,7 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
           // Jian's loop, including invalid inputs/unknown tools. A killed process
           // may leave a conservative reservation; it can never undercount work.
           const attempts = response.content.filter(b => b.type === "tool_use" && b.name !== "submit_findings").length;
-          const amount = Math.min(attempts, 8 - counters.toolExecutions);
+          const amount = Math.min(attempts, INVESTIGATION_LIMITS.toolExecutions - counters.toolExecutions);
           if (amount > 0) await charge("toolExecutions", amount);
           return response;
         } },

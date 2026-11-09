@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { ErrorCode } from "../contracts";
+import { INVESTIGATION_LIMITS, type ErrorCode } from "../contracts";
 export class RunError extends Error {
   constructor(public readonly code: z.infer<typeof ErrorCode>) {
     super(code);
@@ -18,12 +18,12 @@ export class Budget {
   // Count before execution: failures and explicit retries consume budget too.
   takeTool() {
     this.check();
-    if (this.toolExecutions >= 8) throw new RunError("tool_limit");
+    if (this.toolExecutions >= INVESTIGATION_LIMITS.toolExecutions) throw new RunError("tool_limit");
     this.toolExecutions++;
   }
   takeModel() {
     this.check();
-    if (this.modelRequests >= 10) throw new RunError("model_limit");
+    if (this.modelRequests >= INVESTIGATION_LIMITS.modelRequests) throw new RunError("model_limit");
     this.modelRequests++;
   }
 }

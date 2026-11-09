@@ -12,6 +12,9 @@ import { stubInvestigator } from "../src/server/investigation/stub";
 import { summarize } from "../src/domain/finance";
 import { injectedDataset } from "../src/fixtures/scenarios";
 import type { DemoState, InvestigationInput } from "../src/contracts";
+import type { Database } from "../src/server/db/database";
+import { databaseRetrieval } from "../src/server/retrieval/database";
+import { RetrievalError } from "../src/server/retrieval/bounds";
 import { localTestConnection, scopedDatabase, verifyTarget } from "./helpers/pg-local";
 const schema = "app01_test_" + randomUUID().replaceAll("-", "");
 const control = new Pool(pgPoolOptions({ ...localTestConnection, application_name: schema + "_control" }));
@@ -155,6 +158,41 @@ test("real pg: concurrent cross-process claims have one winner", options, async 
   const results = await raceWithLock(workers, { action: "claim", id: run.id });
   assert.equal(results.filter(Boolean).length, 1);
   assert.equal((await store.state()).runs.find(r => r.id === run.id)?.state, "running");
+});
+test("real pg: evidence reads overlap while reset waits for both", options, async () => {
+  await store.inject();
+  const state = await store.state();
+  let arrived = 0;
+  let overlap!: () => void;
+  const overlapping = new Promise<string>(done => { overlap = () => done("overlapping"); });
+  let release!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  // The real application transaction holds the demo_state lock during this wait.
+  const reader: Database = {
+    dialect: "postgres",
+    close: async () => {},
+    transaction: async <T>() => {
+      if (++arrived === 2) overlap();
+      await gate;
+      return [] as T;
+    },
+  };
+  const retrieval = databaseRetrieval({ application: primary.db, reader },
+    { exceptionId: state.exceptions[0].id, generation: state.generation });
+  const reads = Promise.all([retrieval.list_payments(), retrieval.list_payments()]);
+  // Shorter than the three-second lock timeout, so serialized reads fail here.
+  const outcome = await Promise.race([overlapping, delay(2000, "timed out", { ref: false })]);
+  if (outcome !== "overlapping") release();
+  assert.equal(outcome, "overlapping");
+  let resetFinished = false;
+  const resetting = new Store(fresh().db).reset().then(() => { resetFinished = true; });
+  await delay(300);
+  assert.equal(resetFinished, false);
+  release();
+  await reads;
+  await resetting;
+  await assert.rejects(retrieval.list_payments(),
+    (error: unknown) => error instanceof RetrievalError && error.code === "stale_generation");
 });
 test("real pg: reset invalidates another process's claimed in-flight result", options, async () => {
   const a = await worker(), b = await worker();

@@ -7,7 +7,7 @@ import { encode } from 'next-auth/jwt';
 import { GET, POST } from '../src/app/api/demo/route';
 import { POST as retry } from '../src/app/api/demo/retry/route';
 import { authenticationRoute, hostedConfig } from '../src/server/authentication';
-import { boundedJson, identify, permitsResource } from '../src/server/access';
+import { boundedJson, identify } from '../src/server/access';
 const origin = 'https://demo.example';
 const secret = 'offline-only-not-a-real-secret-1234567890';
 const salt = '__Secure-authjs.session-token';
@@ -124,14 +124,9 @@ it('uses Auth.js secure cookies and refuses sign-in/sign-out without CSRF; strip
   const text = await response.text(); expect(text).toContain('github:123'); expect(text).not.toContain(secret); expect(text).not.toContain('offline-provider-secret');
   expect((await authenticationRoute(new Request(`${origin}/api/auth/signout`,{method:'POST',headers:{origin:'https://evil.example'}}))).status).toBe(403);
 });
-it('redacts dependency errors and checks future retrieval subject, IDs and generation', async () => {
+it('redacts dependency errors', async () => {
   store.state.mockRejectedValue(new Error(secret));
   const response = await GET(req(undefined,await cookie())); expect(response.status).toBe(503); expect(await response.text()).toBe('{"error":"unavailable"}');
-  const p = {subject:'github:123',grant:{permissions:['read' as const]}};
-  const scope = {subject:p.subject,generation:2,resourceIds:['p1']};
-  expect(permitsResource(p,scope,'p1',2)).toBe(true);
-  expect(permitsResource(p,scope,'p2',2)).toBe(false); expect(permitsResource(p,scope,'p1',3)).toBe(false);
-  expect(permitsResource(p,{...scope,subject:'github:999'},'p1',2)).toBe(false);
 });
 it('keeps local mode isolated from proxy hosts and hosted flags', async () => {
   vi.stubEnv('VERCEL',''); vi.stubEnv('AUTH_URL',''); vi.stubEnv('DATABASE_MODE','local');

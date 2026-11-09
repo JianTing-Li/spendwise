@@ -64,7 +64,8 @@ stable by ID in SQL; callers should treat fixture order as incidental.
 Other safe error codes are `invalid_input`, `invalid_scope`, `stale_generation`,
 and `unavailable`. Raw driver errors, SQL, record contents and credentials are
 never included. A permission, parsing, connection or domain-validation failure
-is unavailable, with no fixture fallback. INT-01 must map these rejections to
+is unavailable, with no fixture fallback. For diagnosis, the server logs only the
+error class and SQLSTATE of an unavailable failure. INT-01 must map these rejections to
 explicit incomplete/unavailable evidence and count failed calls within its
 existing lookup budget. This module does not grant permissions, implement auth,
 persist results or call a model.

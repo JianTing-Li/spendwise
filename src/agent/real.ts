@@ -4,9 +4,9 @@ import type { Investigator } from "../investigation";
 // importing this module never load the SDK.
 
 /**
- * The application's real-mode entry point until INT-01 (#10) wires
- * `realInvestigatorFromEnv` (./client) to database-scoped retrieval. It fails explicitly
- * rather than calling a model without application-scoped retrieval.
+ * The fail-closed real-mode investigator, used by the durable runtime when no
+ * API key is configured. It reports unavailable and never calls a model or
+ * falls back to the stub (INV-09).
  */
 export const realInvestigator: Investigator = {
   async investigate() {

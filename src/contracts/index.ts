@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+/** INV-08 per-run limits: the single definition. Never raise these silently. */
+export const INVESTIGATION_LIMITS = Object.freeze({
+  toolExecutions: 8,
+  modelRequests: 10,
+  runMs: 60_000,
+});
+
 export const Id = z.string().min(1).max(120);
 export const DateOnly = z.iso.date();
 export const Cents = z.number().int().safe();
@@ -120,8 +127,8 @@ export const InvestigationResult = z.object({
   state: RunState,
   findings: z.array(Finding).max(20),
   error: ErrorCode.nullable(),
-  toolExecutions: z.number().int().min(0).max(8),
-  modelRequests: z.number().int().min(0).max(10),
+  toolExecutions: z.number().int().min(0).max(INVESTIGATION_LIMITS.toolExecutions),
+  modelRequests: z.number().int().min(0).max(INVESTIGATION_LIMITS.modelRequests),
 });
 export type InvestigationResult = z.infer<typeof InvestigationResult>;
 export const Run = InvestigationResult.extend({
