@@ -20,14 +20,17 @@ const safeReasons = new Set([
   "Database migration required",
 ]);
 
-/** Logs only the error class, SQLSTATE and allowlisted reason; never messages from drivers. */
+/** Logs only the error name, codes and allowlisted reason; never messages from drivers. */
 export function logDemoUnavailable(error: unknown) {
-  const { sqlstate } = (error ?? {}) as { sqlstate?: unknown };
+  const { sqlstate, driverCode } = (error ?? {}) as { sqlstate?: unknown; driverCode?: unknown };
   const message = error instanceof Error ? error.message : "";
+  // Production builds minify class names, so use the name each error class sets.
+  const errorClass = error instanceof Error && /^[A-Za-z]{1,40}$/.test(error.name) ? error.name : error instanceof Error ? "Error" : "NonError";
   console.error({
     name: "DemoUnavailable",
-    errorClass: error instanceof Error ? error.constructor.name : "NonError",
+    errorClass,
     ...(typeof sqlstate === "string" && /^[0-9A-Z]{5}$/.test(sqlstate) ? { code: sqlstate } : {}),
+    ...(typeof driverCode === "string" && /^[A-Z0-9_]{2,40}$/.test(driverCode) ? { driverCode } : {}),
     ...(safeReasons.has(message) ? { reason: message } : {}),
   });
 }
