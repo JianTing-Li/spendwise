@@ -1,7 +1,7 @@
 # APP-04 — Retrieval and access follow-ups
 
 Owner: Jian Ting (assignee moved from Elliot on 2026-11-09, with Elliot's agreement as relayed by Jian). Issue: https://github.com/JianTing-Li/spendwise/issues/36
-Branch: `app-04-retrieval-follow-ups`, from `origin/main` at `5e10d8f`.
+Branch: `app-04-retrieval-follow-ups`, from `origin/main` at `5e10d8f`. PR: https://github.com/JianTing-Li/spendwise/pull/40
 
 ## Criteria already met by INT-01 (PR #37)
 - Reader role at runtime: `Store.initialize` calls `initializeLocalReader`. Neon steps are in `src/server/retrieval/README.md`. This branch adds the missing fresh-database test.
@@ -31,4 +31,4 @@ Branch: `app-04-retrieval-follow-ups`, from `origin/main` at `5e10d8f`.
 - The prompt's "at most 8 retrievals" and the evaluators' own `RUN_MS` are still literals. The issue does not list them, and the prompt should not change before the held-out run.
 
 ## Next action
-Push, open the PR, and confirm `test:pg` in CI. Run the AI review before approval.
+Confirm `test:pg` in CI. Run the AI review before approval.
