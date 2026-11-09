@@ -311,6 +311,82 @@ footer {
 .error button {
   margin-left: 12px;
 }
+.finding {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.finding h4 {
+  font-size: 13px;
+  margin: 16px 0 5px;
+}
+.cash-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 14px 0;
+  border-block: 1px solid var(--line);
+}
+.cash-comparison dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.cash-comparison dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.finding-detail {
+  margin: 20px 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.evidence-links {
+  padding-left: 20px;
+  font-size: 13px;
+}
+.evidence-links a {
+  display: inline-block;
+  padding: 8px 0;
+  color: var(--green);
+  text-underline-offset: 3px;
+}
+.support {
+  padding: 8px 10px;
+  background: #f4ead8;
+  color: #795b27 !important;
+  border-radius: 4px;
+}
+.support.verified,
+.state-completed {
+  background: #e4f0e7;
+  color: var(--green) !important;
+}
+.state-failed,
+.run-error {
+  background: #f9e7e2;
+  color: #803d2c !important;
+  padding: 8px;
+  border-radius: 4px;
+}
+.state-cancelled {
+  background: #edf0f3;
+  color: #465563;
+}
+.progress {
+  background: #edf2e9;
+  border: 1px solid #bdcfc0;
+  padding: 16px;
+  margin-bottom: 24px;
+  border-radius: 6px;
+}
+.record:focus,
+.run-status:focus {
+  outline: 3px solid #bd8725;
+  outline-offset: 2px;
+}
+.review-ack {
+  border-left: 3px solid var(--green);
+  padding-left: 12px;
+}
 @media (max-width: 760px) {
   main {
     padding: 0 20px;

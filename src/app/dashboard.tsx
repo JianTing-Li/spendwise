@@ -1,121 +1,18 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { DemoState, type Run } from "../contracts";
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
+import { useDemo } from "./use-demo";
+import { ReviewCard } from "./review-card";
+import { money } from "./format";
+import { INVESTIGATION_LIMITS } from "../contracts";
 
 export default function Dashboard() {
-  const [data, setData] = useState<DemoState | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const load = useCallback(async () => {
-    const response = await fetch("/api/demo", { cache: "no-store" });
-    if (!response.ok)
-      throw new Error(
-        "Demo unavailable. Check your sign-in, access permissions, or service configuration.",
-      );
-    setData(DemoState.parse(await response.json()));
-  }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/demo", { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(
-            "Demo unavailable. Check your sign-in, access permissions, or service configuration.",
-          );
-        return DemoState.parse(await response.json());
-      })
-      .then(setData)
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(e.message);
-      });
-    return () => controller.abort();
-  }, []);
-  async function act(action: object, path = "/api/demo") {
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch(path, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Spendwise-Demo": "1",
-        },
-        body: JSON.stringify(action),
-      });
-      if (!response.ok)
-        throw new Error(
-          "Action could not be completed. Reload to check the current state.",
-        );
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Action unavailable.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { data, busy, error, load, act, active } = useDemo();
   const latestRuns = data?.exceptions.flatMap((exception) =>
-    data.runs.filter((run) => run.exceptionId === exception.id).slice(-1),
+    data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
   ) ?? [];
-  const reviewed = latestRuns.filter((run) => run.reviewedAt).length;
+  const reviewableRuns = latestRuns.filter(run => run.state === "completed");
+  const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
-  function runView(run: Run | undefined, count = 1, historical = false) {
-    if (!run) return <p>Investigation not started.</p>;
-    return (
-      <>
-        <div className="tags">
-          <span className="tag">
-            {run.mode === "stub" ? "Stub · no AI call" : "Real model"}
-          </span>
-          <span className="tag">{run.state}</span>
-          {run.reviewedAt && <span className="tag reviewed">Reviewed</span>}
-        </div>
-        {run.error && (
-          <p role="status">
-            Investigation {run.state}: {run.error}.
-          </p>
-        )}
-        {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (
-          count < 3 ? (
-            <button
-              disabled={busy}
-              onClick={() => act({ predecessorId: run.id }, "/api/demo/retry")}
-            >
-              Retry investigation ({count}/3 attempts used)
-            </button>
-          ) : <p>Three attempts used. Reset the demo to start again.</p>
-        )}
-        {run.findings.map((finding, i) => (
-          <div key={i}>
-            <h3>{finding.label}</h3>
-            <p>{finding.explanation}</p>
-            <p className="fine">
-              References: {finding.referenceStatus} · Explanation support:{" "}
-              {finding.supportStatus}
-            </p>
-            <p>
-              <strong>Next step:</strong> {finding.nextStep}
-            </p>
-          </div>
-        ))}
-        {!historical && run.state === "completed" && (
-          <button
-            className="secondary"
-            disabled={busy || Boolean(run.reviewedAt)}
-            onClick={() => act({ action: "review", runId: run.id })}
-          >
-            {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
-          </button>
-        )}
-      </>
-    );
-  }
   return (
     <main>
       <header>
@@ -140,21 +37,21 @@ export default function Dashboard() {
         </div>
         <div className="controls">
           <button
-            disabled={busy || !data || data.injected}
+            disabled={Boolean(busy) || Boolean(error) || !data || data.injected}
             onClick={() => act({ action: "inject", scenarioId: "demo-v1" })}
           >
-            {busy
-              ? "Working…"
+            {busy === "inject"
+              ? "Starting investigations…"
               : data?.injected
                 ? "Scenario injected"
                 : "Simulate new payments"}
           </button>
           <button
             className="secondary"
-            disabled={busy || !data}
+            disabled={busy === "reset" || (!data && !busy)}
             onClick={() => act({ action: "reset" })}
           >
-            Reset demo
+            {busy === "reset" ? "Resetting…" : "Reset demo"}
           </button>
         </div>
       </section>
@@ -163,21 +60,21 @@ export default function Dashboard() {
           {error}
           <button
             className="secondary"
-            onClick={() =>
-              load()
-                .then(() => setError(""))
-                .catch((e) => setError(e.message))
-            }
+            onClick={() => void load()}
           >
             Reload
           </button>
         </div>
       )}
-      {!data && !error && <p role="status">Loading synthetic records…</p>}
+      {!data && !error && <p role="status">{busy === "reset" ? "Clearing scenario findings and review acknowledgments…" : "Loading synthetic records…"}</p>}
+      {(active || busy === "inject" || busy === "retry") && <div className="progress" role="status">
+        {error ? "Progress updates are unavailable. Reload to check current run states." : `Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to ${INVESTIGATION_LIMITS.toolExecutions} retrievals, ${INVESTIGATION_LIMITS.modelRequests} model requests and ${INVESTIGATION_LIMITS.runMs / 1000} seconds.`}
+        <p className="fine">Keep this page open while it runs. Reset stops the scenario and clears its findings and human review acknowledgments.</p>
+      </div>}
       <section className="metrics" aria-label="Payment overview">
         <div>
           <p>October cash paid</p>
-          <strong>{money(total)}</strong>
+          <strong>{data ? money(total) : "—"}</strong>
           <small>Net of completed reversals</small>
         </div>
         <div>
@@ -188,10 +85,10 @@ export default function Dashboard() {
         <div>
           <p>Human review</p>
           <strong>
-            {reviewed}
-            <span> / {latestRuns.length}</span>
+            {data ? reviewed : "—"}
+            <span> / {data ? reviewableRuns.length : "—"}</span>
           </strong>
-          <small>Review does not approve a payment</small>
+          <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
         </div>
       </section>
       <section className="panel">
@@ -258,79 +155,16 @@ export default function Dashboard() {
           </div>
         )}
         <div className="queue">
-          {data?.exceptions.map((exception) => {
-            const attempts = data.runs.filter((run) => run.exceptionId === exception.id);
-            return (
-            <article className="finding" key={exception.id}>
-              <div className="finding-heading">
-                <span className="rule">
-                  {exception.rule === "payment_increase"
-                    ? "PAYMENT INCREASE"
-                    : "POSSIBLE DUPLICATE"}
-                </span>
-                <h2>
-                  {
-                    data.dataset.vendors.find(
-                      (v) => v.id === exception.vendorId,
-                    )?.name
-                  }
-                </h2>
-              </div>
-              {runView(attempts.at(-1), attempts.length)}
-              {attempts.length > 1 && (
-                <details>
-                  <summary>Attempt history</summary>
-                  {attempts.slice(0, -1).map((run, index) => (
-                    <section key={run.id}>
-                      <h3>Attempt {index + 1}</h3>
-                      {runView(run, index + 1, true)}
-                    </section>
-                  ))}
-                </details>
-              )}
-              <details>
-                <summary>Inspect source records</summary>
-                <p className="fine">
-                  Trigger:{" "}
-                  {exception.rule === "payment_increase"
-                    ? "At least $5,000 and 20% increase (dollar threshold only when prior total ≤ 0)."
-                    : "Same vendor, currency and amount; completed outgoing payments within seven calendar days."}
-                </p>
-                {data.dataset.payments
-                  .filter((p) => exception.paymentIds.includes(p.id))
-                  .map((p) => (
-                    <div className="record" key={p.id}>
-                      <strong>{p.id}</strong>
-                      <p>
-                        {p.date} · {money(p.amountCents)} · {p.status} ·{" "}
-                        {p.entryType}
-                      </p>
-                      {p.invoiceId && <p>Invoice: {p.invoiceId}</p>}
-                    </div>
-                  ))}
-                {data.dataset.invoices
-                  .filter((i) => i.vendorId === exception.vendorId)
-                  .map((i) => (
-                    <div className="record" key={i.id}>
-                      <strong>{i.id}</strong>
-                      <p>
-                        {money(i.amountCents)} · {i.lineItems.join("; ")}
-                      </p>
-                      <p>{i.servicePeriod}</p>
-                    </div>
-                  ))}
-                {data.dataset.notes
-                  .filter((n) => n.vendorId === exception.vendorId)
-                  .map((n) => (
-                    <div className="record" key={n.id}>
-                      <strong>{n.id}</strong>
-                      <p>{n.text}</p>
-                    </div>
-                  ))}
-              </details>
-            </article>
-            );
-          })}
+          {data?.exceptions.map((exception) => (
+            <ReviewCard
+              key={`${data.generation}:${exception.id}`}
+              exception={exception}
+              dataset={data.dataset}
+              attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
+              busy={Boolean(busy) || Boolean(error)}
+              act={act}
+            />
+          ))}
         </div>
       </section>
       <footer>
