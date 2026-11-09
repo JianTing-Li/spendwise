@@ -2,6 +2,7 @@ import { DemoAction, MutationResponse } from "../../../contracts";
 import { getStore } from "../../../server/db/local";
 import { identify, authorize, boundedJson } from "../../../server/access";
 import { runPending } from "../../../server/investigation/run";
+import { logDemoUnavailable } from "../../../server/db/unavailable-log";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -14,7 +15,8 @@ export async function GET(request: Request) {
   if (denied) return denied;
   try {
     return reply(await (await getStore()).state());
-  } catch {
+  } catch (error) {
+    logDemoUnavailable(error);
     return reply({ error: "unavailable" }, 503);
   }
 }
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     return reply(MutationResponse.parse({ ok: true, ...result }));
   } catch (error) {
     if (error instanceof Error && error.message === "invalid_review") return reply({ error: "invalid_review" }, 409);
+    logDemoUnavailable(error);
     return reply({ error: "unavailable" }, 503);
   }
 }
