@@ -14,6 +14,6 @@ Date: 2026-11-04. Session owner: Jian Ting. Approved in the setup conversation a
 - v2 pasted prompt governs over the older fourth “Repository Setup Prompt” tab. In particular, no duplicated TASKS.md registry; 10 model requests; SDK retries zero; 60 seconds includes validation and persistence.
 - The PRD reserves semantic evidence review for humans; setup conservatively keeps all stub explanation support unverified. Valid IDs alone never yield a verified finding.
 
-Dependency validation found TypeScript 7 unsupported by the Next.js ESLint TypeScript integration. Use TypeScript 6.0.3 and ESLint 9.39.5 for compatible tooling; exact versions are in package.json and package-lock.json.
+Dependency validation found TypeScript 7 unsupported by the Next.js ESLint TypeScript integration. Use TypeScript 6.0.3 for compatible tooling. ESLint started at 9.39.5 and moved to a supported major release under OPS-01; exact versions are in package.json and package-lock.json.
 
 Use Next.js's supported webpack compiler for local development/build. Turbopack's CSS worker could not bind its internal port in this environment; webpack successfully built the same app.
