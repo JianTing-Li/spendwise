@@ -25,7 +25,7 @@ export function scopedDatabase(schema: string) {
   const db: Database = {
     dialect: "postgres",
     transaction: work => adapter.transaction(async (tx) => {
-      await tx.query("SELECT set_config('search_path', $1, true)", [schema + ",pg_catalog"]);
+      await tx.exec(`SET LOCAL search_path TO "${schema}",pg_catalog`);
       return work(tx);
     }),
     close: () => adapter.close(),

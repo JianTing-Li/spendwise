@@ -27,7 +27,7 @@ async function serve(configured, check) {
     await check();
   } finally { if(child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await once(child,'exit'); } }
 }
-async function cookie(sub) { return `${salt}=${await encode({token:{sub},salt,secret,maxAge:3600})}`; }
+async function cookie(sub) { return `${salt}=${await encode({token:{sub,signedInAt:Math.floor(Date.now()/1000)},salt,secret,maxAge:3600})}`; }
 async function api(body, cookie='', origin=canonical) {
   return fetch('http://127.0.0.1:3197/api/demo',{method:body ? 'POST':'GET',headers:{cookie,origin,'content-type':'application/json','x-spendwise-demo':'1'},...(body ? {body:JSON.stringify(body)}:{})});
 }

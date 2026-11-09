@@ -6,13 +6,12 @@ import { databaseConfig } from "./config";
 import { PgDatabase } from "./pg";
 import { assertReadOnly, assertApplication } from "./permissions";
 import { Store } from "./store";
+import { investigatorMode } from "../investigation/result";
 const globalStore = globalThis as typeof globalThis & {
   spendwiseStore?: Promise<Store>;
 };
 export function getStore() {
-  if (process.env.INVESTIGATOR_MODE &&
-    !["stub", "real"].includes(process.env.INVESTIGATOR_MODE))
-    throw new Error("Investigator mode unavailable");
+  investigatorMode();
   const config = databaseConfig();
   if (!globalStore.spendwiseStore)
     globalStore.spendwiseStore = (async () => {
@@ -22,22 +21,13 @@ export function getStore() {
         try {
           await readonly.transaction(assertReadOnly);
           await db.transaction(assertApplication);
-          const store = new Store(db);
+          const store = new Store(db, readonly);
           await store.assertVersion();
           return store;
         }
         catch (error) {
-          await db.close();
+          await Promise.allSettled([db.close(), readonly.close()]);
           throw error;
-        }
-        finally {
-          // Preflight-only pool: a close failure must not discard (and leak) the application pool.
-          try {
-            await readonly.close();
-          }
-          catch {
-            // Ignored: the preflight already passed or its error is rethrown above.
-          }
         }
       }
       const directory = resolve(process.env.PGLITE_DATA_DIR || ".data/spendwise");

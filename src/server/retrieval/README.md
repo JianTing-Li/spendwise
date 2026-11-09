@@ -2,7 +2,7 @@
 
 `databaseRetrieval({ application, reader }, { exceptionId, generation })` returns only
 `Retrieval`'s four existing methods. This is a server-only internal capability,
-not an HTTP endpoint or a SQL API. INT-01 must create it after application access
+not an HTTP endpoint or a SQL API. INT-01 creates it after application access
 checks authorize the run. Do not let the model choose its exception or generation.
 APP-02 authorization and agent integration are deliberately separate tasks.
 
@@ -15,14 +15,14 @@ model arguments can contain only the existing optional ID filters (maximum 50 ID
 1–120 characters each). No query text, columns, vendor, periods or generation can
 be supplied through a tool.
 
-The application transaction holds `demo_state`'s `FOR UPDATE` lock throughout the
-reader transaction. Store writes/reset take that same lock. Thus reset cannot
+The application transaction holds `demo_state`'s `FOR SHARE` lock throughout the
+reader transaction. Store reset/injection take an exclusive `FOR UPDATE` lock. Thus reset cannot
 replace stable IDs while evidence is being read, and a subsequent old-generation
 lookup fails. The restricted reader never receives SELECT on state, exceptions,
 runs or migration history. Two application transactions are not nested on one
 connection. PGlite's local-only path uses the same control transaction, then
-`SET LOCAL ROLE spendwise_retrieval_reader` after resolving scope. This fixed
-NOLOGIN role must already exist. Missing grants/role fail explicitly; runtime
+`SET LOCAL ROLE spendwise_retrieval_reader` after resolving scope. Local initialization installs/verifies this fixed
+NOLOGIN role before serving requests. Missing grants/role fail explicitly; runtime
 retrieval never creates users or changes grants. PostgreSQL requires a separate
 reader connection; it cannot silently take the PGlite path.
 
@@ -131,3 +131,15 @@ waiting for an in-flight evidence read followed by stale-generation rejection.
 Cleanup failure fails the command; inspect only these test-owned objects locally.
 For a server with preexisting objects of these names use a fresh disposable
 cluster; do not delete the existing objects to make the test run.
+
+## INT-01 runtime integration
+
+The runtime keeps both application and restricted reader pools alive. Evidence
+reads hold `FOR SHARE` on generation only for the short database work, allowing
+other readers concurrently; reset/injection still take `FOR UPDATE`. No model
+wait occurs inside either transaction. Local PGlite initialization installs and
+validates the fixed NOLOGIN reader role, including on an existing local database.
+PostgreSQL/Neon roles and grants remain operator supplied.
+
+See [INT-01 verification](../../../docs/int-01-verification.md) for the fake-model
+durable demo, deadlines, conservative counter reservations and user-led checks.

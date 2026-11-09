@@ -35,12 +35,12 @@ export async function POST(request: Request) {
     let result;
     if (action.action === "inject") {
       result = await store.inject(acceptedAt);
-      await runPending(store);
+      await runPending(store, { signal: request.signal });
     } else if (action.action === "reset") result = await store.reset();
     else result = await store.review(action.runId);
     return reply(MutationResponse.parse({ ok: true, ...result }));
   } catch (error) {
-    if (error instanceof Error && error.message === "invalid_review") return reply({ error: "forbidden" }, 403);
+    if (error instanceof Error && error.message === "invalid_review") return reply({ error: "invalid_review" }, 409);
     return reply({ error: "unavailable" }, 503);
   }
 }

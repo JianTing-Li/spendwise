@@ -8,11 +8,6 @@ export async function retrievalDemoDatabase() {
   const store = new Store(db);
   await store.initialize();
   await store.inject();
-  await db.exec(`CREATE ROLE spendwise_retrieval_reader NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-    REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;
-    GRANT USAGE ON SCHEMA public TO spendwise_retrieval_reader;
-    GRANT SELECT ON vendors,payments,invoices,vendor_notes,note_payments,note_invoices TO spendwise_retrieval_reader;`);
   const state = await store.state();
   return { db, store, state, retrieval: (exceptionId: string, generation = state.generation) =>
     databaseRetrieval({ application: db }, { exceptionId, generation }) };

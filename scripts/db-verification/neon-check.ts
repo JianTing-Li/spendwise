@@ -29,7 +29,7 @@ async function main() {
     await migration.transaction(tx => tx.exec(`CREATE SCHEMA "${schema}"`));
     created = true;
     const isolated: Database = { dialect: "postgres", close: async () => { }, transaction: work => migration.transaction(async (tx) => {
-        await tx.query("SELECT set_config('search_path',$1,true)", [schema + ",pg_catalog"]);
+        await tx.exec(`SET LOCAL search_path TO "${schema}",pg_catalog`);
         return work(tx);
       }) };
     await verifyIsolatedCompatibility(isolated);

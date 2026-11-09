@@ -3,7 +3,15 @@ test("INV-09/10: inject, inspect, review, persist and reset", async ({
   page,
   request,
 }) => {
+  // Cold dev-route compilation and PGlite startup precede any investigation.
+  // Assert the actual initial response rather than racing the 5s UI default.
+  const initialState = page.waitForResponse(
+    response => new URL(response.url()).pathname === "/api/demo" && response.request().method() === "GET",
+    { timeout: 20_000 },
+  );
   await page.goto("/");
+  const initialResponse = await initialState;
+  expect(initialResponse.status()).toBe(200);
   await expect(page.getByRole("button", { name: "Reset demo" })).toBeEnabled();
   await page.getByRole("button", { name: "Reset demo" }).click();
   await expect(page.getByText("Baseline ready")).toBeVisible();
