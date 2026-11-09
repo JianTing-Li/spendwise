@@ -2,6 +2,8 @@
 
 Owner: Elliot (`0x1Elliot`). [Issue #10](https://github.com/JianTing-Li/spendwise/issues/10).
 Branch: `int-01-durable-investigations`.
+Draft review: [PR #37](https://github.com/JianTing-Li/spendwise/pull/37).
+Implementation/check revision: `64cd81142ccd48bc79afbd263d63b639ebf8e95c`.
 Base: `5b6bcb689d216d0283de149f45f2c0b22e63844a`, freshly fetched origin/main.
 GitHub holds task/review status. This file records implementation evidence only.
 
