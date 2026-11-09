@@ -21,7 +21,7 @@
     "eval:real": "node --import tsx evals/real.ts",
     "eval:score-baseline": "node --import tsx evals/score-baseline.ts",
     "eval:feasibility": "node --import tsx evals/feasibility.ts",
-    "test:pg": "node --import tsx --test tests/pg-local.integration.ts",
+    "test:pg": "node --conditions=react-server --import tsx --test tests/pg-local.integration.ts",
     "db:migrate": "node --import tsx src/server/db/migrate-cli.ts",
     "test:e2e:retry": "playwright test --config playwright.retry.config.ts",
     "test:neon": "node --import tsx scripts/db-verification/neon-check.ts"

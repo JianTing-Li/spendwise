@@ -34,7 +34,7 @@ export function localRequestAllowed(
 }
 
 import { permits, type Permission, type Principal } from './access-policy';
-export { permits, permitsResource } from './access-policy';
+export { permits } from './access-policy';
 export type { Principal } from './access-policy';
 const localGrant: Principal = { subject: 'local:loopback', grant: { permissions: ['read', 'inject', 'reset', 'review', 'retry'] } };
 export type Access = { principal: Principal; denied?: never } | { principal?: never; denied: Response };

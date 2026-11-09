@@ -14,10 +14,3 @@ export function permits(principal: Principal, permission: Permission, runId?: st
     return !!runId && principal.grant.runIds.includes(runId);
   return true;
 }
-/** APP-03 must load scope from trusted application records, never tool arguments alone. */
-export function permitsResource(principal: Principal, scope: {
-  subject: string; generation: number; resourceIds: readonly string[];
-}, resourceId: string, currentGeneration: number): boolean {
-  return permits(principal, 'read') && scope.subject === principal.subject &&
-    scope.generation === currentGeneration && scope.resourceIds.includes(resourceId);
-}

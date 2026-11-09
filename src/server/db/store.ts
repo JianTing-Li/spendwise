@@ -3,7 +3,7 @@ import { investigatorMode, normalizeResult } from "../investigation/result";
 import type { Database, DatabaseTransaction } from "./database";
 import { initializeLocalReader } from "./local-reader";
 import { migrate } from "./migrate";
-import { Dataset, DemoState, Exception, Run, InvestigationResult, type InvestigationInput, } from "../../contracts";
+import { Dataset, DemoState, Exception, INVESTIGATION_LIMITS, Run, InvestigationResult, type InvestigationInput, } from "../../contracts";
 import { baseline, injectedDataset } from "../../fixtures/scenarios";
 import { detect, summarize, validateDataset } from "../../domain/finance";
 export class Store {
@@ -101,7 +101,7 @@ export class Store {
           run.id,
           exception.id,
           meta.generation,
-          new Date(acceptedAt + 60000).toISOString(),
+          new Date(acceptedAt + INVESTIGATION_LIMITS.runMs).toISOString(),
           encodeRun(run),
         ]);
       }
@@ -124,7 +124,7 @@ export class Store {
         exception: Exception.parse(row.exception),
         generation: run.generation,
         deadlineAt: new Date(deadline).toISOString(),
-        acceptedAt: new Date(deadline - 60000).toISOString(),
+        acceptedAt: new Date(deadline - INVESTIGATION_LIMITS.runMs).toISOString(),
       };
     });
   }
@@ -178,7 +178,7 @@ export class Store {
       if (latest.id !== previous.id || previous.attempt >= 3 || !["failed", "incomplete", "cancelled"].includes(previous.status))
         throw new Error("invalid_retry");
       const run = Run.parse({ ...decodeRun(previous), id: `run:${meta.generation}:${previous.exception_id}:attempt-${previous.attempt + 1}`, state: "pending", findings: [], error: null, reviewedAt: null, toolExecutions: 0, modelRequests: 0 });
-      await tx.query("INSERT INTO investigation_runs (id,exception_id,generation,status,deadline_at,payload,attempt,predecessor_id) VALUES ($1,$2,$3,'pending',$4,$5,$6,$7)", [run.id, run.exceptionId, run.generation, new Date(acceptedAt + 60000).toISOString(), encodeRun(run), previous.attempt + 1, predecessorId]);
+      await tx.query("INSERT INTO investigation_runs (id,exception_id,generation,status,deadline_at,payload,attempt,predecessor_id) VALUES ($1,$2,$3,'pending',$4,$5,$6,$7)", [run.id, run.exceptionId, run.generation, new Date(acceptedAt + INVESTIGATION_LIMITS.runMs).toISOString(), encodeRun(run), previous.attempt + 1, predecessorId]);
       return { generation: meta.generation, changed: true };
     });
   }
@@ -191,7 +191,7 @@ export class Store {
       const row = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2 AND status='running' AND deadline_at>clock_timestamp() FOR UPDATE", [id,generation])).rows[0];
       if (!row) throw new RunError("deadline");
       const run = decodeRun(row);
-      const limit = counter === "toolExecutions" ? 8 : 10;
+      const limit = INVESTIGATION_LIMITS[counter];
       if (run[counter] + amount > limit) throw new RunError(counter === "toolExecutions" ? "tool_limit" : "model_limit");
       run[counter] += amount;
       await tx.query("UPDATE investigation_runs SET payload=$2 WHERE id=$1", [id,encodeRun(run)]);

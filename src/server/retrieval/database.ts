@@ -17,6 +17,17 @@ const scopedPayments = `WITH scoped_payments AS (
    SELECT 1 FROM payments q WHERE q.vendor_id=$1 AND q.payment_date<$2::date
    AND q.id=ANY($4::text[]) AND q.reversal_reference=p.id)))`;
 
+/** Server-side diagnosis: error class and SQLSTATE only, never text, SQL, parameters or records. */
+function logUnavailable(error: unknown) {
+  const { sqlstate, code } = (error ?? {}) as { sqlstate?: unknown; code?: unknown };
+  const state = [sqlstate, code].find(value => typeof value === "string" && /^[0-9A-Z]{5}$/.test(value));
+  console.error({
+    name: "RetrievalUnavailable",
+    errorClass: error instanceof Error ? error.constructor.name : "NonError",
+    ...(state ? { code: state } : {}),
+  });
+}
+
 /** Server-owned capability, created only after APP-02 authorizes this run.
  * application shares the reset lock; reader is a distinct restricted login.
  * Local PGlite uses the same transaction with a fixed restricted role instead.
@@ -61,6 +72,7 @@ export function databaseRetrieval(
     } catch (error) {
       if (error instanceof RetrievalError) throw error;
       // SQL, driver diagnostics, credentials and record text never escape.
+      logUnavailable(error);
       throw new RetrievalError("unavailable");
     }
   }
@@ -71,7 +83,9 @@ export function databaseRetrieval(
       throw new RetrievalError("evidence_limit");
     return bounded(rows.map(r => r.payload));
   }
-  const projection = "CASE WHEN octet_length(payload::text)<=$6 THEN payload ELSE NULL END AS payload, octet_length(payload::text) AS bytes";
+  // The argument is the query's parameter position for retrievalLimits.recordBytes.
+  const projection = (recordBytes: number) =>
+    `CASE WHEN octet_length(payload::text)<=$${recordBytes} THEN payload ELSE NULL END AS payload, octet_length(payload::text) AS bytes`;
   function parameters(exception: Exception, ids?: string[]) {
     return [exception.vendorId, periods.endExclusive, duplicateLookbackStart(), exception.paymentIds,
       ids ?? null, retrievalLimits.recordBytes];
@@ -88,9 +102,9 @@ export function databaseRetrieval(
         if (!vendor) throw new RetrievalError("unavailable");
         // Include historical originals so domain validation can verify full reversals.
         // Fail on oversized histories rather than calculating misleading partial totals.
-        const payments = await records(tx, `SELECT ${projection.replaceAll("$6", "$3")} FROM payments WHERE vendor_id=$1 AND payment_date<$2::date ORDER BY id LIMIT 101`,
+        const payments = await records(tx, `SELECT ${projection(3)} FROM payments WHERE vendor_id=$1 AND payment_date<$2::date ORDER BY id LIMIT 101`,
           [exception.vendorId, periods.endExclusive, retrievalLimits.recordBytes]);
-        const invoices = await records(tx, `SELECT ${projection.replaceAll("$6", "$3")} FROM invoices WHERE vendor_id=$1 AND id IN
+        const invoices = await records(tx, `SELECT ${projection(3)} FROM invoices WHERE vendor_id=$1 AND id IN
           (SELECT invoice_id FROM payments WHERE vendor_id=$1 AND payment_date<$2::date) ORDER BY id LIMIT 101`,
           [exception.vendorId, periods.endExclusive, retrievalLimits.recordBytes]);
         const data = Dataset.parse({ vendors: [Vendor.parse(vendor.payload)], payments, invoices, notes: [] });
@@ -100,12 +114,12 @@ export function databaseRetrieval(
     async list_payments(input = {}) {
       const { paymentIds } = parse(ToolInputs.list_payments, input);
       return execute(async (tx, exception) => ToolOutputs.list_payments.parse(await records(tx,
-        `${scopedPayments} SELECT ${projection} FROM scoped_payments WHERE ($5::text[] IS NULL OR id=ANY($5::text[])) ORDER BY id LIMIT 101`, parameters(exception, paymentIds))));
+        `${scopedPayments} SELECT ${projection(6)} FROM scoped_payments WHERE ($5::text[] IS NULL OR id=ANY($5::text[])) ORDER BY id LIMIT 101`, parameters(exception, paymentIds))));
     },
     async get_invoices(input = {}) {
       const { invoiceIds } = parse(ToolInputs.get_invoices, input);
       return execute(async (tx, exception) => ToolOutputs.get_invoices.parse(await records(tx,
-        `${scopedPayments} SELECT ${projection} FROM invoices WHERE vendor_id=$1
+        `${scopedPayments} SELECT ${projection(6)} FROM invoices WHERE vendor_id=$1
          AND id IN (SELECT invoice_id FROM scoped_payments)
          AND ($5::text[] IS NULL OR id=ANY($5::text[])) ORDER BY id LIMIT 101`, parameters(exception, invoiceIds))));
     },
@@ -113,7 +127,7 @@ export function databaseRetrieval(
       const { noteIds } = parse(ToolInputs.get_vendor_notes, input);
       return execute(async (tx, exception) => {
         const rows = ToolOutputs.get_vendor_notes.parse(await records(tx,
-          `${scopedPayments} SELECT ${projection} FROM vendor_notes n WHERE vendor_id=$1 AND note_date<$2::date
+          `${scopedPayments} SELECT ${projection(6)} FROM vendor_notes n WHERE vendor_id=$1 AND note_date<$2::date
            AND (EXISTS (SELECT 1 FROM note_payments l JOIN scoped_payments p ON p.id=l.payment_id WHERE l.note_id=n.id)
              OR EXISTS (SELECT 1 FROM note_invoices l JOIN scoped_payments p ON p.invoice_id=l.invoice_id WHERE l.note_id=n.id))
            AND ($5::text[] IS NULL OR id=ANY($5::text[])) ORDER BY id LIMIT 101`, parameters(exception, noteIds)));
