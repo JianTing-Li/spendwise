@@ -1,7 +1,7 @@
 # DEPLOY-03 — Keep the connection error code in the unavailable log
 
 Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/43
-Branch: `deploy-03-connection-error-code`, from `origin/main` at `81664c2`. PR: PR_LINK
+Branch: `deploy-03-connection-error-code`, from `origin/main` at `81664c2`. PR: https://github.com/JianTing-Li/spendwise/pull/44
 
 ## Changes
 - `DatabaseUnavailable` takes an optional `driverCode`. `PgDatabase` sets it when acquiring a connection fails and when a query fails with a connection-class code.
