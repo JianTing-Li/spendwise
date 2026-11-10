@@ -44,6 +44,8 @@ export type Access = { principal: Principal; denied?: never } | { principal?: ne
 export function deny(status: 401 | 403) {
   return Response.json({ error: status === 401 ? 'unauthorized' : 'forbidden' }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
+/** Trusted loopback development: no hosting, Neon or hosted Auth.js settings. */
+const localMode = () => !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
 export async function identify(request: Request): Promise<Access> {
   // Origin failures have their own 403 semantics even if no cookie is present.
   // The only cross-site request allowed is a top-level navigation to the dashboard (OAuth return,
@@ -52,8 +54,7 @@ export async function identify(request: Request): Promise<Access> {
       !(request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate' &&
         request.headers.get('sec-fetch-dest') === 'document' && new URL(request.url).pathname === '/'))
     return { denied: deny(403) }; // Lax cookies permit top-level OAuth return navigation, never cross-site mutations.
-  const local = !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
-  if (local) {
+  if (localMode()) {
     if (localRequestAllowed(request)) return { principal: localGrant };
     return { denied: deny(403) };
   }
@@ -85,7 +86,7 @@ export async function identify(request: Request): Promise<Access> {
  * local loopback mode, or hosted authentication not fully configured (which stays fail-closed).
  */
 export async function canonicalRedirect(host: string | null, path = '/'): Promise<string | null> {
-  if (!process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL) return null;
+  if (localMode()) return null;
   const { hostedConfig } = await import('./authentication');
   const config = hostedConfig();
   if (!config || !host) return null;
