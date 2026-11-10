@@ -1,0 +1,732 @@
+{
+  "record": {
+    "issue": "DEMO-01 (https://github.com/JianTing-Li/spendwise/issues/15); evaluator from EVAL-01 (#12)",
+    "kind": "Paid held-out run, run once with --final after the prompt and validator were final: 4 cases, one run each. Nothing was tuned on these cases before or after. Small synthetic set; not a reliability or generalization claim.",
+    "date": "2026-11-10",
+    "commit": "fd51b00f952de8dee4c19f7caeba1924bb7c8a04",
+    "commitNote": "Branch demo-01 HEAD when the run started (main at 2ca6d6f plus README/worklog changes only).",
+    "command": "node --env-file=.env.local --import tsx evals/real.ts --allow-paid --split held-out --final",
+    "configuration": "See report.configuration (model claude-opus-5-5, effort medium, SDK retries 0, 60 s budget, 10 s validation reserve).",
+    "cost": "Printed worst-case estimate $2.16; list-price estimate from reported tokens $0.233 (report.usage). Billed cost is in the Console.",
+    "sanitization": "The report generator never includes credentials. The key was read server-side from the ignored .env.local. This file was scanned for keys, local paths, database URLs and personal data; nothing needed removing. All records are synthetic (INV-01).",
+    "report": "Verbatim JSON printed by the run, unchanged.",
+    "humanReview": {
+      "reviewer": "Jian Ting, 2026-11-10. Claude drafted a read for each row from a side-by-side of expected.cause and validatedFindings; Jian accepted them. The automatic scores are left as printed.",
+      "validatorFalsePositive": "lookalike: the model labelled Explained with the correct cause (distinct invoices FS-201 and FS-202). The validator's overclaim check matched 'Nothing in the records confirms the work was delivered or the payments were approved' because 'Nothing' is not on its negator list, set support to contradicted and downgraded the label to Needs Review. The automatic label failure stands. This is a conservative error (no unsupported Explained) and is recorded, not fixed against held-out data.",
+      "causeCorrectness": {
+        "lookalike": "correct: two separately invoiced payments, not one invoice paid twice; the label was downgraded by the validator (above).",
+        "annual-premium": "correct: annual invoice AI-1026 for $18,000 covers the $16,500 increase; the next step leaves accounting treatment to a person.",
+        "translation-lookalike": "correct: distinct invoices BT-31 and BT-32 for different work, each paid once.",
+        "undocumented-duplicate": "correct: no invoices or notes, duplication neither confirmed nor ruled out, request the invoices; sizes a possible excess as one payment."
+      },
+      "summary": "4 of 4 causes correct. 3 of 4 acceptable labels after validation versus 4 of 4 for the baseline; the difference is the validator false positive. 0 unsupported Explained for both."
+    }
+  },
+  "report": {
+    "version": "evaluator-v2",
+    "mode": "model-and-baseline",
+    "split": "held-out",
+    "versions": {
+      "groundTruth": "ground-truth-v2",
+      "prompt": "prompt-v1",
+      "baseline": "rules-v2",
+      "fixtures": [
+        "demo-v1",
+        "eval-heldout-v1 (eval-v1)"
+      ]
+    },
+    "configuration": {
+      "requestedModel": "claude-opus-5-5",
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "maxTokens": 8000,
+      "sdkRetries": 0,
+      "runBudgetMs": 60000,
+      "validationReserveMs": 10000,
+      "toolLimitCondition": 1
+    },
+    "usage": {
+      "modelRequests": 15,
+      "toolExecutions": 16,
+      "inputTokens": 37838,
+      "outputTokens": 4082,
+      "latencyMs": {
+        "median": 11875,
+        "max": 16501
+      },
+      "estimatedCostUsd": 0.233,
+      "costNote": "List-price estimate from reported tokens; check the Console for billed cost."
+    },
+    "summary": {
+      "model": {
+        "cases": 4,
+        "runStateMatches": 4,
+        "labelAcceptable": 3,
+        "verifiedExplanations": 2,
+        "unsupportedExplained": 0,
+        "overclaimsCaughtByValidation": 1,
+        "requiredEvidenceCited": {
+          "cited": 11,
+          "required": 11
+        },
+        "invalidReferences": 0,
+        "forbiddenClaimsMade": 0,
+        "forbiddenClaimsNeedReview": 0,
+        "failureCounts": {
+          "label_unacceptable": 1
+        },
+        "causeCorrectness": "requires_review"
+      },
+      "baseline": {
+        "cases": 4,
+        "runStateMatches": 4,
+        "labelAcceptable": 4,
+        "verifiedExplanations": 3,
+        "unsupportedExplained": 0,
+        "overclaimsCaughtByValidation": 0,
+        "requiredEvidenceCited": {
+          "cited": 11,
+          "required": 11
+        },
+        "invalidReferences": 0,
+        "forbiddenClaimsMade": 0,
+        "forbiddenClaimsNeedReview": 0,
+        "failureCounts": {},
+        "causeCorrectness": "requires_review"
+      }
+    },
+    "model": [
+      {
+        "caseId": "lookalike",
+        "condition": "none",
+        "fixture": "demo-v1",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "Two $1,500 payments match distinct invoices FS-201 and FS-202 for different services; similarity alone does not establish duplication."
+        },
+        "state": "completed",
+        "error": null,
+        "servedModels": [
+          "claude-opus-5-5"
+        ],
+        "toolExecutions": 4,
+        "modelRequests": 4,
+        "totalMsIncludingValidation": 16501,
+        "stopReasons": [
+          "tool_use",
+          "tool_use",
+          "tool_use",
+          "tool_use"
+        ],
+        "requestLatencyMs": [
+          2341,
+          2418,
+          2694,
+          9042
+        ],
+        "inputTokens": 10122,
+        "outputTokens": 1162,
+        "estimatedCostUsd": 0.0637,
+        "modelFindings": [
+          {
+            "label": "Explained",
+            "explanation": "Possible duplicate flagged for two payments to vendor-lookalike. The records point to two separate invoices, not one invoice paid twice. pay-design-a (2026-10-14, 150000 cents, status completed, outgoing, no reversal reference) is linked to invoice inv-design-a: number FS-201, dated 2026-10-10, 150000 cents, line item 'Website illustrations'. pay-design-b (2026-10-16, 150000 cents, status completed, outgoing, no reversal reference) is linked to invoice inv-design-b: number FS-202, dated 2026-10-12, 150000 cents, line item 'Event poster design'. The two payments have the same amount and are close in date, but they have different invoice numbers and different line items. The application summary shows currentCents 300000 against priorCents 0 for the 2026-10 period. That 300000 is the total of two separately invoiced payments. It is not an excess payment. Neither payment has reversal evidence, and none would be expected if they are not duplicates. Gaps: neither invoice gives a service period. No vendor notes were returned. Nothing in the records confirms the work was delivered or the payments were approved. The vendor ID 'vendor-lookalike' does not by itself show a vendor-identity problem, and no record suggested one. This finding does not determine accounting treatment, expense recognition or whether the payments were properly approved.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-design-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-design-b"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-design-a"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-design-b"
+              }
+            ],
+            "nextStep": "Analyst: confirm with the requester or project owner that FS-201 (website illustrations) and FS-202 (event poster design) were separate deliverables that were both received. Check the approvals for both payments. Confirm that vendor-lookalike is the correct vendor in the vendor master file. If all of this checks out, close the duplicate exception.",
+            "exceptionId": "duplicate:pay-design-a:pay-design-b",
+            "referenceStatus": "unchecked",
+            "supportStatus": "unverified"
+          }
+        ],
+        "validatedFindings": [
+          {
+            "exceptionId": "duplicate:pay-design-a:pay-design-b",
+            "label": "Needs Review",
+            "explanation": "Possible duplicate flagged for two payments to vendor-lookalike. The records point to two separate invoices, not one invoice paid twice. pay-design-a (2026-10-14, 150000 cents, status completed, outgoing, no reversal reference) is linked to invoice inv-design-a: number FS-201, dated 2026-10-10, 150000 cents, line item 'Website illustrations'. pay-design-b (2026-10-16, 150000 cents, status completed, outgoing, no reversal reference) is linked to invoice inv-design-b: number FS-202, dated 2026-10-12, 150000 cents, line item 'Event poster design'. The two payments have the same amount and are close in date, but they have different invoice numbers and different line items. The application summary shows currentCents 300000 against priorCents 0 for the 2026-10 period. That 300000 is the total of two separately invoiced payments. It is not an excess payment. Neither payment has reversal evidence, and none would be expected if they are not duplicates. Gaps: neither invoice gives a service period. No vendor notes were returned. Nothing in the records confirms the work was delivered or the payments were approved. The vendor ID 'vendor-lookalike' does not by itself show a vendor-identity problem, and no record suggested one. This finding does not determine accounting treatment, expense recognition or whether the payments were properly approved.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-design-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-design-b"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-design-a"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-design-b"
+              }
+            ],
+            "nextStep": "Analyst: confirm with the requester or project owner that FS-201 (website illustrations) and FS-202 (event poster design) were separate deliverables that were both received. Check the approvals for both payments. Confirm that vendor-lookalike is the correct vendor in the vendor master file. If all of this checks out, close the duplicate exception.",
+            "referenceStatus": "valid",
+            "supportStatus": "contradicted"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": false,
+          "verifiedExplanation": false,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 1,
+          "requiredEvidence": {
+            "required": 4,
+            "cited": 4,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [
+            "label_unacceptable"
+          ],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "annual-premium",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "A switch from a $1,500 monthly premium to an $18,000 annual premium (invoice AI-1026, note) explains the $16,500 cash increase. Expense recognition is undetermined."
+        },
+        "state": "completed",
+        "error": null,
+        "servedModels": [
+          "claude-opus-5-5"
+        ],
+        "toolExecutions": 4,
+        "modelRequests": 4,
+        "totalMsIncludingValidation": 11885,
+        "stopReasons": [
+          "tool_use",
+          "tool_use",
+          "tool_use",
+          "tool_use"
+        ],
+        "requestLatencyMs": [
+          1729,
+          1418,
+          1264,
+          7473
+        ],
+        "inputTokens": 10336,
+        "outputTokens": 1047,
+        "estimatedCostUsd": 0.0623,
+        "modelFindings": [
+          {
+            "label": "Explained",
+            "explanation": "The application summary reports prior-period (Sep 2026) payments of 150000 cents and current-period (Oct 2026) payments of 1800000 cents, a difference of 1650000 cents (+1100%). The cited records support a billing-frequency change: pay-insure-sep (2026-09-05, 150000 cents, completed, no reversal reference) pays invoice inv-insure-sep (AI-0926, 'September policy premium', service period 2026-09-01 to 2026-09-30). pay-insure-annual (2026-10-04, 1800000 cents, completed, no reversal reference) pays invoice inv-insure-annual (AI-1026, 'Annual policy premium', service period 2026-10-01 to 2027-09-30). Note note-insure (2026-10-01) states billing changed from monthly premiums to a single annual premium of $18,000 covering October 2026 through September 2027, and links to pay-insure-annual and inv-insure-annual. No duplication indicated: the two payments reference different invoices with different numbers, amounts and non-overlapping service periods, and neither payment shows a reversal reference. This explains the increase as a business matter only; it does not establish correct accounting treatment (e.g., prepaid vs. expense recognition across the 12-month coverage), nor that the payment was properly approved.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-insure-sep"
+              },
+              {
+                "type": "payment",
+                "id": "pay-insure-annual"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-insure-sep"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-insure-annual"
+              },
+              {
+                "type": "note",
+                "id": "note-insure"
+              }
+            ],
+            "nextStep": "Analyst to confirm the annual billing change with the policy/contract documentation and payment approval, have accounting decide on treatment of the 12-month premium (Oct 2026\u2013Sep 2027), and check in later periods that no further monthly premiums are paid for coverage already prepaid. Remaining gap: no contract or approval record was available in the scoped tools.",
+            "exceptionId": "increase:vendor-prepay:2026-10",
+            "referenceStatus": "unchecked",
+            "supportStatus": "unverified"
+          }
+        ],
+        "validatedFindings": [
+          {
+            "exceptionId": "increase:vendor-prepay:2026-10",
+            "label": "Explained",
+            "explanation": "Application check: completed October 2026 payments of $18,000 (pay-insure-annual) pay invoice \"AI-1026\" for $18,000, whose line items read \"Annual policy premium\" exactly once and in full, and cover the $16,500 increase over September 2026. Linked notes state no other amount and no dispute. Whether the business reason is legitimate remains a human judgment.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-insure-sep"
+              },
+              {
+                "type": "payment",
+                "id": "pay-insure-annual"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-insure-sep"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-insure-annual"
+              },
+              {
+                "type": "note",
+                "id": "note-insure"
+              }
+            ],
+            "nextStep": "Analyst to confirm the annual billing change with the policy/contract documentation and payment approval, have accounting decide on treatment of the 12-month premium (Oct 2026\u2013Sep 2027), and check in later periods that no further monthly premiums are paid for coverage already prepaid. Remaining gap: no contract or approval record was available in the scoped tools.",
+            "referenceStatus": "valid",
+            "supportStatus": "supported"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": true,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 3,
+            "cited": 3,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "translation-lookalike",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "Two $2,200 payments match distinct invoices BT-31 and BT-32 for different translation work; similarity alone does not establish duplication."
+        },
+        "state": "completed",
+        "error": null,
+        "servedModels": [
+          "claude-opus-5-5"
+        ],
+        "toolExecutions": 4,
+        "modelRequests": 4,
+        "totalMsIncludingValidation": 11875,
+        "stopReasons": [
+          "tool_use",
+          "tool_use",
+          "tool_use",
+          "tool_use"
+        ],
+        "requestLatencyMs": [
+          1726,
+          1221,
+          1538,
+          7389
+        ],
+        "inputTokens": 10129,
+        "outputTokens": 1027,
+        "estimatedCostUsd": 0.0611,
+        "modelFindings": [
+          {
+            "label": "Explained",
+            "explanation": "The application flagged two completed outgoing USD payments to vendor-translate, made 4 days apart and each for 220000 cents: pay-translate-a on 2026-10-22 and pay-translate-b on 2026-10-26. Neither payment has a reversal reference. The records show that each payment pays a different invoice. pay-translate-a pays inv-translate-a (number BT-31, dated 2026-10-19, 220000 cents, line item 'Contract translation into Spanish'). pay-translate-b pays inv-translate-b (number BT-32, dated 2026-10-21, 220000 cents, line item 'Website localization into French'). The invoice numbers, dates and services are all different, and each payment matches its own invoice amount. The cited records therefore do not support duplication: the two payments only look similar because they have the same amount and close dates. Because the payments pay separate invoices, the records do not suggest any excess payment. The application calculated currentCents 440000 and priorCents 0 for the periods 2026-09-01 to 2026-11-01. Those figures are the total for the two payments, not an excess-payment amount. No vendor notes were found for these records. Remaining gaps: neither invoice gives a service period, and the records do not show whether either service was delivered. This finding does not cover payment approval, expense recognition or accounting treatment.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-translate-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-translate-b"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-translate-a"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-translate-b"
+              }
+            ],
+            "nextStep": "An analyst should confirm that invoices BT-31 and BT-32 are separate, valid vendor invoices and that both services were delivered (for example, from the purchase order or receipt records). Then the exception can be closed as not a duplicate, subject to human review.",
+            "exceptionId": "duplicate:pay-translate-a:pay-translate-b",
+            "referenceStatus": "unchecked",
+            "supportStatus": "unverified"
+          }
+        ],
+        "validatedFindings": [
+          {
+            "exceptionId": "duplicate:pay-translate-a:pay-translate-b",
+            "label": "Explained",
+            "explanation": "Application check: payment pay-translate-a ($2,200) pays invoice \"BT-31\" for $2,200, whose line items read \"Contract translation into Spanish\"; payment pay-translate-b ($2,200) pays invoice \"BT-32\" for $2,200, whose line items read \"Website localization into French\". Each invoice is paid exactly once and in full, the invoice numbers and line items differ, and linked notes state no other amount and no dispute. Whether the business reason is legitimate remains a human judgment.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-translate-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-translate-b"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-translate-a"
+              },
+              {
+                "type": "invoice",
+                "id": "inv-translate-b"
+              }
+            ],
+            "nextStep": "An analyst should confirm that invoices BT-31 and BT-32 are separate, valid vendor invoices and that both services were delivered (for example, from the purchase order or receipt records). Then the exception can be closed as not a duplicate, subject to human review.",
+            "referenceStatus": "valid",
+            "supportStatus": "supported"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": true,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 4,
+            "cited": 4,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "undocumented-duplicate",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Insufficient Evidence",
+            "Needs Review"
+          ],
+          "cause": "Two $1,250 payments four days apart with no invoices or notes. Duplication can be neither confirmed nor ruled out; recommend requesting the invoices."
+        },
+        "state": "completed",
+        "error": null,
+        "servedModels": [
+          "claude-opus-5-5"
+        ],
+        "toolExecutions": 4,
+        "modelRequests": 3,
+        "totalMsIncludingValidation": 10943,
+        "stopReasons": [
+          "tool_use",
+          "tool_use",
+          "tool_use"
+        ],
+        "requestLatencyMs": [
+          2180,
+          2308,
+          6454
+        ],
+        "inputTokens": 7251,
+        "outputTokens": 846,
+        "estimatedCostUsd": 0.0459,
+        "modelFindings": [
+          {
+            "label": "Insufficient Evidence",
+            "explanation": "The application flagged a possible duplicate for vendor-cleaning. pay-cleaning-a (2026-10-02) and pay-cleaning-b (2026-10-06) are both completed outgoing payments of 125000 USD cents. They are 4 days apart, which is within the 7-day duplicate window. Neither payment has a reversal reference. Neither payment links to an invoice (invoiceId is null on both), and the invoice and note lookups returned no records. So there is no invoice reference, service period or vendor note that shows whether these are two separate charges or the same charge paid twice. Matching amounts and close dates alone do not confirm a duplicate. If it were a duplicate, the possible excess would be one payment's amount, not the two added together. The application reports 250000 cents for the current period (2026-10-01 to 2026-11-01) against 0 cents for the prior period (2026-09-01 to 2026-10-01). Those figures are shown as reported and were not recalculated. They are below the 500000-cent minimum increase setting, so the duplicate concern is the issue here, not the spending increase.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-cleaning-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-cleaning-b"
+              }
+            ],
+            "nextStep": "A person should get the invoices or remittance details behind pay-cleaning-a and pay-cleaning-b from the vendor or the accounts payable system, and check whether they relate to different invoices or service periods. They should also check the vendor's statement for any credit or refund. Recovery or reversal should only be considered after a person confirms a duplicate, and this draft does not approve or change any payment or accounting record.",
+            "exceptionId": "duplicate:pay-cleaning-a:pay-cleaning-b",
+            "referenceStatus": "unchecked",
+            "supportStatus": "unverified"
+          }
+        ],
+        "validatedFindings": [
+          {
+            "exceptionId": "duplicate:pay-cleaning-a:pay-cleaning-b",
+            "label": "Insufficient Evidence",
+            "explanation": "The application flagged a possible duplicate for vendor-cleaning. pay-cleaning-a (2026-10-02) and pay-cleaning-b (2026-10-06) are both completed outgoing payments of 125000 USD cents. They are 4 days apart, which is within the 7-day duplicate window. Neither payment has a reversal reference. Neither payment links to an invoice (invoiceId is null on both), and the invoice and note lookups returned no records. So there is no invoice reference, service period or vendor note that shows whether these are two separate charges or the same charge paid twice. Matching amounts and close dates alone do not confirm a duplicate. If it were a duplicate, the possible excess would be one payment's amount, not the two added together. The application reports 250000 cents for the current period (2026-10-01 to 2026-11-01) against 0 cents for the prior period (2026-09-01 to 2026-10-01). Those figures are shown as reported and were not recalculated. They are below the 500000-cent minimum increase setting, so the duplicate concern is the issue here, not the spending increase.",
+            "evidence": [
+              {
+                "type": "payment",
+                "id": "pay-cleaning-a"
+              },
+              {
+                "type": "payment",
+                "id": "pay-cleaning-b"
+              }
+            ],
+            "nextStep": "A person should get the invoices or remittance details behind pay-cleaning-a and pay-cleaning-b from the vendor or the accounts payable system, and check whether they relate to different invoices or service periods. They should also check the vendor's statement for any credit or refund. Recovery or reversal should only be considered after a person confirms a duplicate, and this draft does not approve or change any payment or accounting record.",
+            "referenceStatus": "valid",
+            "supportStatus": "unverified"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": false,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 0,
+            "cited": 0,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      }
+    ],
+    "baseline": [
+      {
+        "caseId": "lookalike",
+        "condition": "none",
+        "fixture": "demo-v1",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "Two $1,500 payments match distinct invoices FS-201 and FS-202 for different services; similarity alone does not establish duplication."
+        },
+        "state": "completed",
+        "label": "Explained",
+        "explanation": "Application check: payment pay-design-a ($1,500) pays invoice \"FS-201\" for $1,500, whose line items read \"Website illustrations\"; payment pay-design-b ($1,500) pays invoice \"FS-202\" for $1,500, whose line items read \"Event poster design\". Each invoice is paid exactly once and in full, the invoice numbers and line items differ, and linked notes state no other amount and no dispute. Whether the business reason is legitimate remains a human judgment.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-design-a"
+          },
+          {
+            "type": "payment",
+            "id": "pay-design-b"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-design-a"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-design-b"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": true,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 4,
+            "cited": 4,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "annual-premium",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "A switch from a $1,500 monthly premium to an $18,000 annual premium (invoice AI-1026, note) explains the $16,500 cash increase. Expense recognition is undetermined."
+        },
+        "state": "completed",
+        "label": "Explained",
+        "explanation": "Application check: completed October 2026 payments of $18,000 (pay-insure-annual) pay invoice \"AI-1026\" for $18,000, whose line items read \"Annual policy premium\" exactly once and in full, and cover the $16,500 increase over September 2026. Linked notes state no other amount and no dispute. Whether the business reason is legitimate remains a human judgment.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-insure-annual"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-insure-annual"
+          },
+          {
+            "type": "note",
+            "id": "note-insure"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": true,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 3,
+            "cited": 3,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "translation-lookalike",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Explained"
+          ],
+          "cause": "Two $2,200 payments match distinct invoices BT-31 and BT-32 for different translation work; similarity alone does not establish duplication."
+        },
+        "state": "completed",
+        "label": "Explained",
+        "explanation": "Application check: payment pay-translate-a ($2,200) pays invoice \"BT-31\" for $2,200, whose line items read \"Contract translation into Spanish\"; payment pay-translate-b ($2,200) pays invoice \"BT-32\" for $2,200, whose line items read \"Website localization into French\". Each invoice is paid exactly once and in full, the invoice numbers and line items differ, and linked notes state no other amount and no dispute. Whether the business reason is legitimate remains a human judgment.",
+        "evidence": [
+          {
+            "type": "payment",
+            "id": "pay-translate-a"
+          },
+          {
+            "type": "payment",
+            "id": "pay-translate-b"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-translate-a"
+          },
+          {
+            "type": "invoice",
+            "id": "inv-translate-b"
+          }
+        ],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": true,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 4,
+            "cited": 4,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      },
+      {
+        "caseId": "undocumented-duplicate",
+        "condition": "none",
+        "fixture": "eval-heldout-v1 (eval-v1)",
+        "expected": {
+          "runState": "completed",
+          "acceptableLabels": [
+            "Insufficient Evidence",
+            "Needs Review"
+          ],
+          "cause": "Two $1,250 payments four days apart with no invoices or notes. Duplication can be neither confirmed nor ruled out; recommend requesting the invoices."
+        },
+        "state": "completed",
+        "label": "Insufficient Evidence",
+        "explanation": "No invoice or note is linked to the payments behind this exception.",
+        "evidence": [],
+        "score": {
+          "runStateMatches": true,
+          "labelAcceptable": true,
+          "verifiedExplanation": false,
+          "unsupportedExplained": 0,
+          "overclaimsCaughtByValidation": 0,
+          "requiredEvidence": {
+            "required": 0,
+            "cited": 0,
+            "missing": []
+          },
+          "invalidReferences": 0,
+          "forbiddenClaimsMade": [],
+          "forbiddenClaimsNeedReview": [],
+          "forbiddenClaimNote": "Literal text match; a reworded claim needs human review.",
+          "causeCorrectness": "requires_review",
+          "failures": [],
+          "needsReview": []
+        }
+      }
+    ],
+    "reviewTime": {
+      "status": "unavailable",
+      "note": "No analyst has been timed. See the review-time protocol in evals/README.md; no improvement is claimed."
+    },
+    "hosting": "Unverified: runs use local fixture retrieval; no deployment exists yet (DEPLOY-01).",
+    "note": "One run per case on a small synthetic set; not a reliability or generalization claim."
+  }
+}
