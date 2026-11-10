@@ -25,6 +25,14 @@ Date: 2026-11-06. Owner: Jian Ting ([EVAL-01](https://github.com/JianTing-Li/spe
   - Usage: 33 model requests, 35 retrievals, at most 4 requests and 6 retrievals per case. Median 11.8 s and maximum 14.4 s per case including validation. List-price estimate $0.53 for all 9 cases; billed cost is in the Console.
 - So on development cases the model matches the baseline on every automatic metric. Its possible added value is in explanations and next steps (for example, sizing a possible duplicate as one payment rather than the combined amount, and flagging the hostile note for escalation), which people judge. Held-out cases are the real comparison and have not been scored for either method.
 
+- **Held-out run, 2026-11-10** (DEMO-01, [`evals/reports/eval-01-held-out-2026-11-10.json`](../../evals/reports/eval-01-held-out-2026-11-10.json), commit `fd51b00`, `claude-opus-5-5`, effort medium, one run per case, run once with `--final`):
+  - Model: 4 of 4 run states, 3 of 4 labels acceptable, 2 verified explanations, **0 unsupported `Explained`**, 1 overclaim caught by validation, 11 of 11 required evidence cited, 0 invalid references, no forbidden claims.
+  - Baseline on the same records: 4 of 4 labels acceptable, 3 verified explanations, 0 unsupported `Explained`, 11 of 11 evidence.
+  - The one label miss (`lookalike`) is a validator false positive. The model's `Explained` finding had the right cause, but the overclaim check matched "Nothing in the records confirms … the payments were approved" because "Nothing" is not on its negator list, so support became `contradicted` and the label `Needs Review`. The error is conservative. It is recorded and not fixed against held-out data; any fix needs new cases to measure it.
+  - Cause correctness, human review (Jian Ting, 2026-11-10, accepting reads Claude drafted; [#15](https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6761214393)): 4 of 4 correct.
+  - Usage: 15 model requests, 16 retrievals, median 11.9 s and maximum 16.5 s per case including validation. List-price estimate $0.23; billed cost is in the Console.
+- So across both splits the model makes no unsupported `Explained` claims, as the baseline also doesn't. It doesn't beat the baseline on automatic labels, and on held-out it is one label behind because of the validator. Its explanations and next steps add context people judge useful; 13 synthetic cases establish no generalization.
+
 ## Open
-- After the prompt and validator are final: one held-out run with `--split held-out --final`.
-- Hosting is unverified (DEPLOY-01, [#14](https://github.com/JianTing-Li/spendwise/issues/14)).
+- The overclaim negation gap: "Nothing … confirms" and similar quantifier negations. Needs new development cases before a change.
+- Review time is unmeasured.

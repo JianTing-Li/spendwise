@@ -16,16 +16,16 @@ Rules flag unusual vendor payments. One Claude agent investigates each flag usin
 - **Repeatable demo:** persistent data; injection and reset are idempotent, and reset stops stale runs from saving.
 
 ## Results so far
-Development evaluation (9 synthetic cases, one run each, `claude-opus-5-5`; [decision 004](docs/decisions/004-evaluation.md)):
+Evaluation on 13 synthetic cases, one run each, `claude-opus-5-5`, scored by the same evaluator for both methods ([decision 004](docs/decisions/004-evaluation.md)):
 
-| | Claude investigator | Rule-based baseline |
-| --- | --- | --- |
-| Acceptable run state and label | 9 / 9 | 9 / 9 |
-| Unsupported "Explained" findings | 0 | 0 |
-| Required evidence cited | 18 / 18 | 18 / 18 |
-| Causes correct (human review) | 8 correct, 1 partly | states no causes |
+| | Claude, development (9) | Baseline, development | Claude, held-out (4) | Baseline, held-out |
+| --- | --- | --- | --- | --- |
+| Unsupported "Explained" findings | **0** | 0 | **0** | 0 |
+| Acceptable label after validation | 9 / 9 | 9 / 9 | 3 / 4 | 4 / 4 |
+| Required evidence cited | 18 / 18 | 18 / 18 | 11 / 11 | 11 / 11 |
+| Causes correct (human review) | 8 correct, 1 partly | states no causes | 4 / 4 | states no causes |
 
-On these cases the model matches the baseline on every automatic metric; its added value is in the explanations and next steps, which people judge. The validator was tuned on these cases, so they don't show generalization. Analyst review time has not been measured. No savings, customers or production reliability are claimed.
+The held-out label miss is the validator rejecting a correct, cautiously worded answer: a conservative error, recorded rather than tuned away. The model doesn't beat the rule-based baseline on automatic labels; what it adds is explanations and next steps, which people judge. Held-out cases were run once, after the prompt and validator were final. 13 small cases establish no generalization, analyst review time has not been measured, and no savings, customers or production reliability are claimed.
 
 ## Stack
 Next.js · React · TypeScript · Tailwind · Zod · Claude (Anthropic SDK) · Neon Postgres · Vercel · Auth.js (GitHub) · PGlite locally · Vitest · Playwright.
