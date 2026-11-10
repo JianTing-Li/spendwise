@@ -44,6 +44,8 @@ export type Access = { principal: Principal; denied?: never } | { principal?: ne
 export function deny(status: 401 | 403) {
   return Response.json({ error: status === 401 ? 'unauthorized' : 'forbidden' }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
+/** Trusted loopback development: no hosting, Neon or hosted Auth.js settings. */
+const localMode = () => !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
 export async function identify(request: Request): Promise<Access> {
   // Origin failures have their own 403 semantics even if no cookie is present.
   // The only cross-site request allowed is a top-level navigation to the dashboard (OAuth return,
@@ -52,8 +54,7 @@ export async function identify(request: Request): Promise<Access> {
       !(request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate' &&
         request.headers.get('sec-fetch-dest') === 'document' && new URL(request.url).pathname === '/'))
     return { denied: deny(403) }; // Lax cookies permit top-level OAuth return navigation, never cross-site mutations.
-  const local = !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
-  if (local) {
+  if (localMode()) {
     if (localRequestAllowed(request)) return { principal: localGrant };
     return { denied: deny(403) };
   }
@@ -77,6 +78,25 @@ export async function identify(request: Request): Promise<Access> {
   }
   if (publicGet) return { principal: { subject: PUBLIC_SUBJECT, grant: { permissions: ['read'] } } };
   return { denied: deny(401) };
+}
+/**
+ * Hosted pages served on another host (a Vercel deployment-specific URL) would render a sign-in
+ * form that posts to AUTH_URL from a different origin, which the sign-in route rejects. Returns
+ * the same path on the canonical origin, or null when no redirect is needed: already canonical,
+ * local loopback mode, or hosted authentication not fully configured (which stays fail-closed).
+ */
+export async function canonicalRedirect(host: string | null, path = '/'): Promise<string | null> {
+  if (localMode()) return null;
+  const { hostedConfig } = await import('./authentication');
+  const config = hostedConfig();
+  if (!config || !host) return null;
+  const canonical = new URL(config.origin);
+  if (host.toLowerCase() === canonical.host) return null;
+  // Resolve, then require the canonical origin: URL parsing treats a backslash as a slash, so
+  // prefix checks alone could let a path like "/<backslash>evil.example" leave the production domain.
+  let target: URL;
+  try { target = new URL(path, canonical); } catch { return canonical.origin + '/'; }
+  return target.origin === canonical.origin ? target.toString() : canonical.origin + '/';
 }
 export function authorize(principal: Principal, permission: Permission, runId?: string) {
   return permits(principal, permission, runId) ? null : deny(403);

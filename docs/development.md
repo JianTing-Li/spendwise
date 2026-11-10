@@ -103,6 +103,7 @@ Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PAS
 Three consecutive real-mode cycles passed on the live site on 2026-11-10. Locally, `npm run test:e2e` covers the stub flow and uses intercepted responses to check failure states and how the UI handles late responses after Reset. `npm run test:e2e:retry` covers failed retries and attempt history in real mode with no API key. The investigation integration tests use a synthetic model client to exercise successful retry after failure, retry eligibility after expiry, and Reset during a running investigation. See the [DEMO-01 worklog](../worklog/jian/DEMO-01.md).
 
 ### Operating notes
+- Pages opened on any other host, such as a Vercel deployment-specific URL from the **Visit** button, redirect to the `AUTH_URL` domain (APP-06). Without it, signing in there failed with `{"error":"forbidden"}` because the sign-in form posts to `AUTH_URL` from a different origin.
 - Changing a variable needs a new Production deployment. For a secret, **Edit** opens an inline form whose **Save** is below the value box. Saves and redeploys don't happen if Vercel's identity prompt is dismissed; confirm "Updated just now" and a new Production deployment.
 - When `/api/demo` returns `unavailable`, search the Vercel runtime logs for `DemoUnavailable`. `reason` names a startup check (for example `Invalid database configuration`), and `driverCode` names a connection failure (for example `28P01`, a rejected password).
 

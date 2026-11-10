@@ -1,10 +1,14 @@
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import Dashboard from './dashboard';
-import { identify, authorize, PUBLIC_SUBJECT } from '../server/access';
+import { identify, authorize, canonicalRedirect, PUBLIC_SUBJECT } from '../server/access';
 export const dynamic = 'force-dynamic';
 export default async function Page() {
   const incoming = await headers();
   const host = incoming.get('host') ?? 'invalid';
+  // Deployment-specific URLs would break sign-in (APP-06); send visitors to the production domain.
+  const canonical = await canonicalRedirect(incoming.get('host'));
+  if (canonical) redirect(canonical);
   const request = new Request(`http://${host}/`, { headers: incoming });
   const access = await identify(request);
   if (access.denied || authorize(access.principal, 'read'))
