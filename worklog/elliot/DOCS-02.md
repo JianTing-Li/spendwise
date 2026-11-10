@@ -1,6 +1,6 @@
 # DOCS-02 — Deployed investigation screenshot
 
-Owner: Elliot. Issue: [#53](https://github.com/JianTing-Li/spendwise/issues/53).
+Owner: Elliot. Issue: [#53](https://github.com/JianTing-Li/spendwise/issues/53). PR: [#54](https://github.com/JianTing-Li/spendwise/pull/54).
 
 ## Change
 - Captured https://spendwise-olive-theta.vercel.app/ on 2026-11-10 through its public, synthetic, read-only dashboard. Existing real-model completed findings were visible; no sign-in, mutation, new investigation or model request was made.
@@ -12,6 +12,8 @@ Owner: Elliot. Issue: [#53](https://github.com/JianTing-Li/spendwise/issues/53).
 - Visually inspected the deployed dashboard and saved PNG: flagged vendor payments, cited evidence, `Mark reviewed` and `Inspect source records` are visible. Review is acknowledgment only; it does not approve payment or verify the model explanation.
 - Checked PNG signature, all chunk checksums, dimensions, target existence, exact alt text, and placement before `Results so far`; passed.
 - Confirmed the README differs only by the image and caption. This documentation-only change does not require application tests.
+- Opened the [GitHub feature-branch page](https://github.com/JianTing-Li/spendwise/tree/docs-02-investigation-screenshot) and visually confirmed the image renders inside the README. The browser reported `complete: true`, natural dimensions 1152 × 2004, and a source pointing to this branch's `docs/screenshot.png`.
+- `git diff --check` passed. Reviewed the four-file diff for unrelated changes; none found.
 - Relevant invariants: INV-01, INV-05, INV-06, INV-12.
 
 ## Handoff
