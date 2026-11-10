@@ -61,7 +61,7 @@ export function LearningCenter() {
       <p>{aboutContent.tagline}</p><p>{aboutContent.problem}</p>
       <p>Application rules calculate and detect; one read-only Claude investigator gathers evidence; application validation checks support; a human decides follow-up.</p>
       <p>Synthetic USD records only. No payment execution or accounting decisions. Analyst review time and relative usefulness of model-written next steps remain unmeasured.</p>
-      <p className="fine">Based on Jian’s README and the approved product requirements on main (revision 180871a). The repository documents the prototype’s scope and evaluation limits.</p>
+      <p className="fine">Based on the README and the approved product requirements on main. The repository documents the prototype’s scope and evaluation limits.</p>
       <p><a href={aboutContent.source} target="_blank" rel="noreferrer">Read the source README</a> · <a href={aboutContent.prd} target="_blank" rel="noreferrer">Product requirements</a></p>
     </dialog>
   </>;

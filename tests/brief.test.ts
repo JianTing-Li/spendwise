@@ -19,7 +19,7 @@ describe("UI-03 honest short reading view", () => {
   it("keeps the displayed About excerpts anchored to the authoritative checked-in README", () => {
     const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
     for (const text of [aboutContent.tagline, aboutContent.problem, aboutContent.limitation]) expect(readme).toContain(text);
-    expect(aboutContent.source).toContain("/blob/180871a94094fe6092399a56dbd4809a39f5f9d4/README.md");
+    expect(aboutContent.source).toContain("/blob/main/README.md");
     expect(readFileSync(new URL("../docs/prd.md", import.meta.url), "utf8")).toContain("The scale of the pain is not yet validated");
   });
 });
