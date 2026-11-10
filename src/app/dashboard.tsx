@@ -39,6 +39,7 @@ export default function Dashboard({
   const findingCount = latestRuns.reduce((n, r) => n + r.findings.length, 0) || (data?.exceptions.length ?? 0);
   const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || (data?.exceptions.length ?? 0) > 0);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
+  const displayBusinessName = businessName.replace(/^Example\s+/i, "").replace(/\s*\(fictional\)$/i, "");
   return (
     <main>
       <header>
@@ -57,7 +58,7 @@ export default function Dashboard({
       </header>
       <section className="intro">
         <div>
-          <p className="eyebrow">{businessName} · Synthetic data</p>
+          <p className="eyebrow">{displayBusinessName}</p>
           <h1>Vendor payment exceptions · October 2026</h1>
         </div>
         <div className="controls">
@@ -250,10 +251,6 @@ export default function Dashboard({
         </div>
       </section>
       </div>
-      <footer>
-        SpendWise · Portfolio prototype{" "}
-        <span>Read-only investigation · No financial execution</span>
-      </footer>
     </main>
   );
 }

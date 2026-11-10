@@ -149,11 +149,13 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
           {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
         </button>
       </>}
-      <details className="run-details">
-        <summary>Run details</summary>
-        <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
-        <p className="fine run-identity">Run: <code className="record-id">{run.id}</code> · Generation: {run.generation}</p>
-      </details>
+      {historical && (
+        <details className="run-details">
+          <summary>Run details</summary>
+          <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
+          <p className="fine run-identity">Run: <code className="record-id">{run.id}</code> · Generation: {run.generation}</p>
+        </details>
+      )}
     </>;
   }
 
@@ -161,77 +163,90 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
   const isReviewed = Boolean(latestRun?.reviewedAt);
 
   return <article id={`exception-${exception.id}`} className={`finding${isReviewed ? " reviewed" : ""}`} aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
-    <div className="finding-heading">
-      <span className="rule">{exception.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}</span>
-      <h3>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h3>
-      {relatedExceptions.map(rel => (
-        <p className="related-exception" key={rel.id}>
-          Also flagged for this vendor:{" "}
-          <a href={`#exception-${rel.id}`}>
-            {rel.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}
-          </a>
-        </p>
-      ))}
-    </div>
-    <p className="trigger"><strong>Trigger: </strong>{exception.rule === "payment_increase"
-      ? `At least ${money(exception.settings.minimumIncreaseCents)} and ${exception.settings.minimumPercent}% increase (dollar threshold only when prior total ≤ 0).`
-      : `Same vendor, currency and amount; completed outgoing payments within ${exception.settings.duplicateDays} calendar days. At least one payment is in the current month; fully reversed payments are excluded.`}</p>
-    {exception.rule === "possible_duplicate" ? (
-      <div className="duplicate-summary">
-        <p className="amount-in-question">
-          <strong>
-            Amount in question:{" "}
-            <span className="num">
-              {amountInQuestion !== undefined ? `${money(amountInQuestion)}, not confirmed` : "not confirmed"}
+    <div className="finding-body">
+      <div className="finding-heading">
+        <div className="finding-top">
+          <span className="rule">{exception.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}</span>
+          {relatedExceptions.map(rel => (
+            <span className="related-exception" key={rel.id}>
+              Also flagged for this vendor:{" "}
+              <a href={`#exception-${rel.id}`}>
+                {rel.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}
+              </a>
             </span>
-          </strong>
-        </p>
-        <ul className="flagged-payments">
-          {flaggedPayments.map(p => {
-            const inv = invoices.find(i => i.id === p.invoiceId);
-            return (
-              <li key={p.id}>
-                <span>
-                  <code className="record-id">{p.id}</code> · {shortDate(p.date)} ·{" "}
-                  {inv ? `invoice ${inv.number}` : "no invoice"}
-                </span>
-                <strong className="num">{money(p.amountCents)}</strong>
-              </li>
-            );
-          })}
-        </ul>
+          ))}
+        </div>
+        <h3>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h3>
       </div>
-    ) : (
-      <dl className="cash-comparison">
-        <div><dt>Prior cash paid</dt><dd>{money(exception.summary.priorCents)}</dd></div>
-        <div><dt>Current cash paid</dt><dd>{money(exception.summary.currentCents)}</dd></div>
-        <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
-      </dl>
-    )}
-    <p className="fine">Sep 1–30 vs Oct 1–31, 2026. Completed payments net of reversals (cash, not expense).</p>
-    {runView(attempts.at(-1), attempts.length)}
-    {attempts.length > 1 && <details>
-      <summary>Attempt history</summary>
-      {attempts.slice(0, -1).map((run, index) => <section key={run.id}>
-        <h4>Attempt {index + 1}</h4>{runView(run, index + 1, true)}
-      </section>)}
-    </details>}
-    <details ref={sources}>
-      <summary>Inspect source records ({payments.length + invoices.length + notes.length})</summary>
-      <p className="fine">Synthetic vendor records. Cited evidence is linked above; other records provide context. Vendor notes are untrusted evidence, never instructions.</p>
-      {payments.map(p => <div className="record" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
-        <strong>Payment · <code className="record-id">{p.id}</code></strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
-        <p>{p.date} · {money(p.amountCents)} · {p.status} · {p.entryType}</p>
-        <p>{p.description}</p><p>Invoice: {p.invoiceId ? <code className="record-id">{p.invoiceId}</code> : "None linked"} · Reverses: {p.reversalReference ? <code className="record-id">{p.reversalReference}</code> : "None"}</p>
-      </div>)}
-      {invoices.map(i => <div className="record" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
-        <strong>Invoice · <code className="record-id">{i.id}</code></strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
-        <p>{i.lineItems.join("; ")}</p><p>Service period: {i.servicePeriod ?? "Not recorded"}</p>
-      </div>)}
-      {notes.map(n => <div className="record" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
-        <strong>Vendor note · <code className="record-id">{n.id}</code></strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
-        <p>Payments: {n.paymentIds.length ? n.paymentIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"} · Invoices: {n.invoiceIds.length ? n.invoiceIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"}</p>
-      </div>)}
-    </details>
+      <p className="trigger"><strong>Trigger: </strong>{exception.rule === "payment_increase"
+        ? `At least ${money(exception.settings.minimumIncreaseCents)} and ${exception.settings.minimumPercent}% increase (dollar threshold only when prior total ≤ 0).`
+        : `Same vendor, currency and amount; completed outgoing payments within ${exception.settings.duplicateDays} calendar days. At least one payment is in the current month; fully reversed payments are excluded.`}</p>
+      {exception.rule === "possible_duplicate" ? (
+        <div className="duplicate-summary">
+          <p className="amount-in-question">
+            <strong>
+              Amount in question:{" "}
+              <span className="num">
+                {amountInQuestion !== undefined ? `${money(amountInQuestion)}, not confirmed` : "not confirmed"}
+              </span>
+            </strong>
+          </p>
+          <ul className="flagged-payments">
+            {flaggedPayments.map(p => {
+              const inv = invoices.find(i => i.id === p.invoiceId);
+              return (
+                <li key={p.id}>
+                  <span>
+                    <code className="record-id">{p.id}</code> · {shortDate(p.date)} ·{" "}
+                    {inv ? `invoice ${inv.number}` : "no invoice"}
+                  </span>
+                  <strong className="num">{money(p.amountCents)}</strong>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <dl className="cash-comparison">
+          <div><dt>Prior cash paid</dt><dd>{money(exception.summary.priorCents)}</dd></div>
+          <div><dt>Current cash paid</dt><dd>{money(exception.summary.currentCents)}</dd></div>
+          <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
+        </dl>
+      )}
+      <p className="fine">Sep 1–30 vs Oct 1–31, 2026. Completed payments net of reversals (cash, not expense).</p>
+      {runView(latestRun, attempts.length)}
+    </div>
+    <div className="finding-disclosures">
+      {latestRun && (
+        <details className="run-details">
+          <summary>Run details</summary>
+          <p className="fine">Attempt {attempts.length} of 3 · Retrievals {latestRun.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {latestRun.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
+          <p className="fine run-identity">Run: <code className="record-id">{latestRun.id}</code> · Generation: {latestRun.generation}</p>
+        </details>
+      )}
+      {attempts.length > 1 && <details>
+        <summary>Attempt history</summary>
+        {attempts.slice(0, -1).map((run, index) => <section key={run.id}>
+          <h4>Attempt {index + 1}</h4>{runView(run, index + 1, true)}
+        </section>)}
+      </details>}
+      <details ref={sources}>
+        <summary>Inspect source records ({payments.length + invoices.length + notes.length})</summary>
+        <p className="fine">Synthetic vendor records. Cited evidence is linked above; other records provide context. Vendor notes are untrusted evidence, never instructions.</p>
+        {payments.map(p => <div className="record" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
+          <strong>Payment · <code className="record-id">{p.id}</code></strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
+          <p>{p.date} · {money(p.amountCents)} · {p.status} · {p.entryType}</p>
+          <p>{p.description}</p><p>Invoice: {p.invoiceId ? <code className="record-id">{p.invoiceId}</code> : "None linked"} · Reverses: {p.reversalReference ? <code className="record-id">{p.reversalReference}</code> : "None"}</p>
+        </div>)}
+        {invoices.map(i => <div className="record" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
+          <strong>Invoice · <code className="record-id">{i.id}</code></strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
+          <p>{i.lineItems.join("; ")}</p><p>Service period: {i.servicePeriod ?? "Not recorded"}</p>
+        </div>)}
+        {notes.map(n => <div className="record" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
+          <strong>Vendor note · <code className="record-id">{n.id}</code></strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
+          <p>Payments: {n.paymentIds.length ? n.paymentIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"} · Invoices: {n.invoiceIds.length ? n.invoiceIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"}</p>
+        </div>)}
+      </details>
+    </div>
   </article>;
 }
