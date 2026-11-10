@@ -48,7 +48,7 @@ Enter future credentials locally or through hosting secret settings, never chat 
 Evidence validation (`src/agent/validation.ts`) checks existence and scope, strips self-asserted support, flags human-only conclusions and unknown amounts, and keeps `Explained` only when the exception's claim category is objectively supported by the records. A completed run means the investigation finished with valid references, not that it was verified; see [decision 002](decisions/002-evidence-validation.md). Ground truth stays in `evals/ground-truth/`, outside all runtime imports.
 
 ## Hosted deployment (Vercel + Neon)
-Free tiers only, synthetic data only. Setup and verification evidence are in DEPLOY-01 (#14) and `worklog/jian/DEPLOY-01.md`.
+Free tiers only, synthetic data only. Setup and verification evidence are in DEPLOY-01 (#14) and `worklog/jian/DEPLOY-01.md`; demo validation in DEMO-01 (#15).
 
 - **Vercel:** team Calm Forge (Hobby), project `spendwise`, Git import of `main` (each merge deploys to Production). Next.js preset with the repository's own `npm run build`. Function region `iad1`, Fluid Compute on, Node.js 24.x to match `.nvmrc` (the project defaulted to 26.x; set it under Build and Deployment).
 - **Neon:** project `spendwise`, AWS `us-east-1`, database `neondb`. The function region matches the database region.
@@ -92,6 +92,15 @@ Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PAS
 - Simulate, Reset, Retry and Mark reviewed still need a signed-in, granted GitHub account. Signed-out POSTs return 401. Cross-site requests return 403, except a top-level link to the dashboard page. Visitors see a "Sign in with GitHub to run investigations" prompt and disabled buttons. When a signed-in session ends, the next 401 switches an open dashboard to that view.
 - A signed-in account without a grant sees the same read-only dashboard, with a note that it is not authorized to run investigations; its POSTs return 403.
 - Visitors see whatever state the last signed-in user left, including real-mode findings, and each page load or poll reads the database. Reset before sharing the link if the state should be the baseline.
+
+### Running the live demo
+1. Sign in with a GitHub account listed in `SPENDWISE_ACCESS_GRANTS`, shortly before the demo (sessions last one hour).
+2. Confirm the investigation queue shows **Baseline ready**. If the dashboard shows **Scenario injected**, select **Reset demo** and wait for **Baseline ready** before proceeding.
+3. **Simulate new payments**: four exceptions are detected and four bounded investigations run. In real mode each Simulate costs model calls (about 16 requests, roughly $0.25 at list price, 2026-11-10); stub mode costs nothing.
+4. Open a finding, follow its cited records, and **Mark reviewed** to record a human acknowledgment.
+5. **Reset demo** at the end so public visitors see the baseline.
+
+Three consecutive real-mode cycles passed on the live site on 2026-11-10. Locally, `npm run test:e2e` covers the stub flow and uses intercepted responses to check failure states and how the UI handles late responses after Reset. `npm run test:e2e:retry` covers failed retries and attempt history in real mode with no API key. The investigation integration tests use a synthetic model client to exercise successful retry after failure, retry eligibility after expiry, and Reset during a running investigation. See the [DEMO-01 worklog](../worklog/jian/DEMO-01.md).
 
 ### Operating notes
 - Changing a variable needs a new Production deployment. For a secret, **Edit** opens an inline form whose **Save** is below the value box. Saves and redeploys don't happen if Vercel's identity prompt is dismissed; confirm "Updated just now" and a new Production deployment.
