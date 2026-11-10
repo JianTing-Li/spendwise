@@ -1,6 +1,6 @@
 # SpendWise AI
 
-**An AI investigator that helps finance analysts tell a duplicate vendor payment from an expected contract change — and can't claim an explanation the records don't support.**
+**An AI investigator that helps finance analysts tell a duplicate vendor payment from an expected contract change. It can't claim an explanation the records don't support.**
 
 **Live demo:** [spendwise-olive-theta.vercel.app](https://spendwise-olive-theta.vercel.app) *(anyone can view; running investigations needs an authorized GitHub sign-in; all data is synthetic)* · Built by **Jian Ting Li & Elliot Watson**
 
@@ -11,7 +11,7 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 **Example:** Two $3,000 payments reference the same invoice → SpendWise flags a possible duplicate → Claude pulls the related payments, invoices, and vendor notes → the analyst reviews the cited records and decides whether to follow up.
 
 - **Code does the math, not the AI.** Every dollar figure and flag is calculated by application code; the model never computes totals.
-- **No unsupported answers.** A finding is marked "Explained" only when the cited records actually cover the cash change — 0 unsupported "Explained" findings across 13 test cases.
+- **No unsupported answers.** A finding is marked "Explained" only when the cited records actually cover the cash change. Across 13 test cases, it produced 0 unsupported "Explained" findings.
 - **The analyst stays in control.** The AI only reads records. It never approves, pays, refunds, or edits anything.
 
 **Who built what**
@@ -25,7 +25,7 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 1. **Application code** calculates net cash paid (integer USD cents, entry-date cash basis, explicit reversals) and flags payment increases (`≥ $5,000` and `≥ 20%`) and possible duplicate payments (same vendor and amount within 7 days).
 2. **Claude (`claude-opus-5-5`)** investigates each exception through 4 scoped, read-only tools (`get_payment_summary`, `list_payments`, `get_invoices`, `get_vendor_notes`) under hard per-run limits: `≤ 8` tool calls, `≤ 10` model calls, `60s`.
 3. **Application validation** checks every cited ID, screens for overclaims and unsupported dollar figures, and marks a finding **Explained** only when the cited invoices and notes cover the cash change.
-4. **A finance analyst** inspects the linked source records and clicks **Mark reviewed** — an acknowledgment, never a payment approval.
+4. **A finance analyst** inspects the linked source records and clicks **Mark reviewed**. That's an acknowledgment, never a payment approval.
 
 ## Design choices
 
@@ -36,21 +36,21 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 
 ## Demo scenarios
 
-The live demo has three fictional companies — a coffee shop, a software business unit and a warehousing business unit — each with independent data and the same three patterns: an annual renewal, a repeated invoice, and lookalike separate projects. The dashboard also charts monthly vendor cash, lets you filter the review queue by vendor, and offers a short guided tour.
+The live demo has three fictional companies: a coffee shop, a software business unit and a warehousing business unit. Each has its own data and the same three patterns: an annual renewal, a repeated invoice, and lookalike separate projects. The dashboard also charts monthly vendor cash, lets you filter the review queue by vendor, and offers a short guided tour.
 
 The default company, *Roast & Co. Coffee* (October 2026 close):
 
 | Vendor | Sep → Oct cash | What triggered it | Evidence and expected pattern |
 | --- | --- | --- | --- |
-| **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Explained** — normal $1,000 terminal usage plus a $12,000 annual platform subscription (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
-| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs review** — both payments reference the same $3,000 Q3 sales-tax invoice (`HA-101`): $3,000 in question, not confirmed. |
-| **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Lookalike** — the payments cover two different invoices (`FS-201` coffee-bag artwork, `FS-202` menu boards). Explained in the baseline; *Needs review* when Claude hedges cautiously. |
+| **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Explained.** Normal $1,000 terminal usage plus a $12,000 annual platform subscription (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
+| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs review.** Both payments reference the same $3,000 Q3 sales-tax invoice (`HA-101`): $3,000 in question, not confirmed. |
+| **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Lookalike.** The payments cover two different invoices (`FS-201` coffee-bag artwork, `FS-202` menu boards). Explained in the baseline; *Needs review* when Claude hedges cautiously. |
 
 Local `stub` mode returns unverified placeholder drafts without calling the model.
 
 ## Evaluation
 
-The goal is an investigator that never overclaims: across 13 synthetic cases (9 development, 4 held out — [decision 004](docs/decisions/004-evaluation.md)), Claude produced **zero unsupported "Explained" findings** and cited every required record.
+The goal is an investigator that never overclaims: across 13 synthetic cases (9 development, 4 held out; see [decision 004](docs/decisions/004-evaluation.md)), Claude produced **zero unsupported "Explained" findings** and cited every required record.
 
 | Metric | Claude (dev, 9) | Baseline (dev) | Claude (held-out, 4) | Baseline (held-out) |
 | --- | --- | --- | --- | --- |
@@ -59,7 +59,7 @@ The goal is an investigator that never overclaims: across 13 synthetic cases (9 
 | Required evidence cited | 18 / 18 | 18 / 18 | 11 / 11 | 11 / 11 |
 | Causes correct (human review) | 8 correct, 1 partly | Not human-scored | 4 / 4 | Not human-scored |
 
-Three consecutive live cycles on the deployed site (inject → detect → investigate → validate → review → reset) all completed within limits — see the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
+Three consecutive live cycles on the deployed site (inject → detect → investigate → validate → review → reset) all completed within limits. See the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
 
 ## Limitations
 
@@ -80,6 +80,6 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000**. It runs offline out of the box with local PGlite and stub mode — no API keys required.
+Open **http://127.0.0.1:3000**. It runs offline out of the box with local PGlite and stub mode, with no API keys required.
 
 [Developer setup](docs/development.md) · [Product requirements](docs/prd.md) · [Architecture decisions](docs/decisions/) · [Working agreement](AGENTS.md)
