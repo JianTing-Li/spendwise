@@ -14,9 +14,9 @@ No URLs with credentials, passwords or keys appear here.
 - Local, on `demo-01` (Node 24.18.0), zero model calls: `npm run test:e2e` 8 of 8 passed (inject, review, persist and reset; reset during execution rejects late responses; incomplete, cancelled and failed states; 401/403 handling). `npm run test:e2e:retry` 1 of 1 passed (real mode with no key: failed runs, retry history, three-attempt limit, stale retry after reset returns 409).
 - Live site, signed out, after APP-05 (#45, deploy of `2ca6d6f`): recorded at https://github.com/JianTing-Li/spendwise/issues/45#issuecomment-6760758557. The live state is still the DEPLOY-01 real-mode run (generation 2, 4 real runs).
 
-- Held-out evaluation, run once (2026-11-10, approved by Jian, $0.23 list price): `evals/reports/eval-01-held-out-2026-11-10.json`, results in decision 004. Human cause review accepted at https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6761214393.
+- Held-out evaluation, run once (2026-11-10, approval: https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6761337409, $0.23 list price): `evals/reports/eval-01-held-out-2026-11-10.json`, results in decision 004. Human cause review accepted at https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6761214393.
 
-- **Three consecutive live real-mode cycles** (2026-11-10, approved by Jian; deploy of `2ca6d6f`, `INVESTIGATOR_MODE=real`, `claude-opus-5-5`). Driven from Jian's signed-in Chrome session with the same requests the dashboard buttons send (`POST /api/demo` with the CSRF header), checking `GET /api/demo` after every step. A baseline Reset first cleared the DEPLOY-01 state (generation 2 → 3).
+- **Three consecutive live real-mode cycles** (2026-11-10, approval: https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6761337409; deploy of `2ca6d6f`, `INVESTIGATOR_MODE=real`, `claude-opus-5-5`). Driven from Jian's signed-in Chrome session with the same requests the dashboard buttons send (`POST /api/demo` with the CSRF header), checking `GET /api/demo` after every step. A baseline Reset first cleared the DEPLOY-01 state (generation 2 → 3).
 
   | Cycle | Inject | Runs | Model requests / retrievals | Inject again | Review | After Reset |
   | --- | --- | --- | --- | --- | --- | --- |

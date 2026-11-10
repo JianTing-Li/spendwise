@@ -28,7 +28,7 @@ Evaluation on 13 synthetic cases, one run each, `claude-opus-5-5`, scored by the
 The held-out label miss is the validator rejecting a correct, cautiously worded answer: a conservative error, recorded rather than tuned away. The model doesn't beat the rule-based baseline on automatic labels; what it adds is explanations and next steps, which people judge. Held-out cases were run once, after the prompt and validator were final. 13 small cases establish no generalization, analyst review time has not been measured, and no savings, customers or production reliability are claimed.
 
 ## Demo reliability
-Three consecutive real-mode cycles on the live site (inject → detect → investigate → validate → review → reset, 2026-11-10): every run completed within its limits (4 of 10 model requests, 6 of 8 retrievals), repeat injection created nothing new, and each reset removed every scenario record, finding and review. Failure, retry and reset-during-run recovery are covered by local end-to-end tests with no model calls, not on the live site.
+Three consecutive real-mode cycles on the live site (inject → detect → investigate → validate → review → reset, 2026-11-10): every run completed within its limits (4 of 10 model requests, 6 of 8 retrievals), repeat injection created nothing new, and each reset removed every scenario record, finding and review. Failure, retry and reset-during-run recovery are covered by local end-to-end tests with no model calls, not on the live site. Evidence: [DEMO-01 worklog](worklog/jian/DEMO-01.md).
 
 ## Stack
 Next.js · React · TypeScript · Tailwind · Zod · Claude (Anthropic SDK) · Neon Postgres · Vercel · Auth.js (GitHub) · PGlite locally · Vitest · Playwright.
