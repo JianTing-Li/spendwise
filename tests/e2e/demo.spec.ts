@@ -14,6 +14,11 @@ test("INV-09/10: inject, inspect, review, persist and reset", async ({
   expect(initialResponse.status()).toBe(200);
   await expect(page.getByRole("button", { name: "Reset demo" })).toBeEnabled();
   await page.getByRole("button", { name: "Reset demo" }).click();
+  await expect(page.getByRole("button", { name: "Confirm reset" })).toBeFocused();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Reset demo" })).toBeFocused();
+  await page.getByRole("button", { name: "Reset demo" }).click();
+  await page.getByRole("button", { name: "Confirm reset" }).click();
   await expect(page.getByText("Baseline ready")).toBeVisible();
   await page.getByRole("button", { name: "Simulate new payments" }).click();
   await expect(page.getByText("Stub · no AI call")).toHaveCount(4);

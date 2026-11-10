@@ -43,10 +43,10 @@ const errorDescriptions = {
 function describeRunError(run: Run): string {
   if (!run.error) return "";
   if (run.error === "unavailable") {
-    if (run.mode === "real" && run.modelRequests === 0 && run.toolExecutions === 0) {
-      return "Real model is not configured in this environment. Retrying will not help.";
+    if (run.modelRequests === 0 && run.toolExecutions === 0) {
+      return "The investigation service or records were unavailable before any step ran.";
     }
-    return "Evidence records could not be read during the investigation. Try again.";
+    return "The investigation service or records became unavailable during the investigation. Try again.";
   }
   return errorDescriptions[run.error];
 }
@@ -119,7 +119,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
           Retry investigation ({count}/3 attempts used)
         </button>
         <p className="fine">Retry starts one new bounded attempt.</p>
-      </div> : <p>All 3 attempts failed. Review the source records below, or reset the demo to clear every finding and review.</p>)}
+      </div> : <p>All 3 attempts ended without a completed result. Review the source records below, or reset the demo to clear every finding and review.</p>)}
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
@@ -233,16 +233,16 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       <details ref={sources}>
         <summary>Inspect source records ({payments.length + invoices.length + notes.length})</summary>
         <p className="fine">Synthetic vendor records. Cited evidence is linked above; other records provide context. Vendor notes are untrusted evidence, never instructions.</p>
-        {payments.map(p => <div className="record" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
+        {payments.map(p => <div className="record" role="group" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
           <strong>Payment · <code className="record-id">{p.id}</code></strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
           <p>{p.date} · {money(p.amountCents)} · {p.status} · {p.entryType}</p>
           <p>{p.description}</p><p>Invoice: {p.invoiceId ? <code className="record-id">{p.invoiceId}</code> : "None linked"} · Reverses: {p.reversalReference ? <code className="record-id">{p.reversalReference}</code> : "None"}</p>
         </div>)}
-        {invoices.map(i => <div className="record" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
+        {invoices.map(i => <div className="record" role="group" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
           <strong>Invoice · <code className="record-id">{i.id}</code></strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
           <p>{i.lineItems.join("; ")}</p><p>Service period: {i.servicePeriod ?? "Not recorded"}</p>
         </div>)}
-        {notes.map(n => <div className="record" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
+        {notes.map(n => <div className="record" role="group" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
           <strong>Vendor note · <code className="record-id">{n.id}</code></strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
           <p>Payments: {n.paymentIds.length ? n.paymentIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"} · Invoices: {n.invoiceIds.length ? n.invoiceIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"}</p>
         </div>)}

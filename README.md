@@ -1,6 +1,6 @@
 # SpendWise AI
 
-**AI-assisted vendor payment exception review — deterministic financial math, scoped evidence retrieval, and human-in-the-loop verification.**
+**AI-assisted vendor payment exception review — deterministic financial math, scoped evidence retrieval, and human-in-the-loop review.**
 
 Built by **Elliot Watson & Jian Ting Li** · **Live demo:** [spendwise-olive-theta.vercel.app](https://spendwise-olive-theta.vercel.app) *(public read-only view; GitHub sign-in required to run or reset investigations)*
 
@@ -10,24 +10,26 @@ Built by **Elliot Watson & Jian Ting Li** · **Live demo:** [spendwise-olive-the
 
 ## 30-Second Overview
 
-Finance teams lose hours every month-end cross-checking payment runs against invoices and FP&A notes to figure out whether a cash spike is a real duplicate payment or an expected contract change.
+When reviewing monthly vendor payments, finance analysts have to cross-check payment runs against invoices and FP&A notes to tell whether an unusual outflow is a possible duplicate payment or an expected contract change.
 
 **SpendWise AI** pairs **deterministic application rules** with **one read-only Claude investigator**:
 
 1. **Application code** calculates net cash paid (integer USD cents, entry-date cash basis, explicit reversals) and flags payment increases (`≥ $5,000` and `≥ 20%`) and possible duplicate payments (`same vendor & amount within 7 days`).
 2. **Claude (`claude-opus-5-5`)** investigates each exception through 4 scoped, read-only tools (`get_payment_summary`, `list_payments`, `get_invoices`, `get_vendor_notes`) under strict runtime budgets (`≤ 8` tool calls, `≤ 10` model calls, `60s` timeout).
 3. **Application validation** checks every cited ID, screens for overclaims or unsupported dollar figures, and only marks a finding **`Explained`** when the cited invoices and notes mathematically cover the cash change.
-4. **A finance analyst** inspects the linked source records and records human acknowledgment (**Mark reviewed** — never autonomous payment execution).
+4. **A finance analyst** inspects the linked source records and records human acknowledgment (**Mark reviewed** — acknowledgment only, never payment approval or autonomous execution).
 
 ---
 
 ## Demo Scenarios — *Roast & Co. Coffee* (October 2026 Close)
 
-| Vendor | Sep → Oct Cash | What Triggered It | What SpendWise AI Finds |
+| Vendor | Sep → Oct Cash | What Triggered It | Scenario Evidence & Expected Pattern |
 | --- | --- | --- | --- |
-| **Northstar POS Cloud** *(Point-of-Sale & SaaS)* | `$1,000` → `$13,000` (`+1,200.0%`) | `$12,000` increase (`≥ $5,000` & `20%`) | **`Explained`** — `$1,000` monthly cafe terminal usage billed as usual on Oct 15, plus a `$12,000` annual enterprise platform renewal (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
-| **Harbor Tax & Advisory** *(Quarterly Tax & Audit)* | `$0` → `$6,000` | Two `$3,000` payments 2 days apart + `$6,000` increase | **`Needs Review`** — Two `$3,000` ACH batch payments (`Oct 8` & `Oct 10`) reference the **same** `$3,000` Q3 sales-tax invoice (`HA-101`). Flags **`$3,000.00` in question, not confirmed**. |
-| **Fieldwork Creative Studio** *(Packaging & Store Design)* | `$0` → `$3,000` | Two `$1,500` payments 2 days apart | **`Explained`** — Looks like a duplicate by amount and date, but `pay-design-a` pays `Invoice FS-201` (*holiday coffee bag artwork*) and `pay-design-b` pays `Invoice FS-202` (*winter cafe menu boards*). |
+| **Northstar POS Cloud** *(Point-of-Sale & SaaS)* | `$1,000` → `$13,000` (`+1,200.0%`) | `$12,000` increase (`≥ $5,000` & `20%`) | **Example `Explained` pattern** — `$1,000` monthly terminal usage billed on Oct 15, plus a `$12,000` annual enterprise platform subscription (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
+| **Harbor Tax & Advisory** *(Quarterly Tax & Audit)* | `$0` → `$6,000` | Two `$3,000` payments 2 days apart + `$6,000` increase | **Example `Needs Review` pattern** — Two `$3,000` payments (`Oct 8` & `Oct 10`) reference the **same** `$3,000` Q3 sales-tax invoice (`HA-101`). Flags **`$3,000.00` in question, not confirmed**. |
+| **Fieldwork Creative Studio** *(Packaging & Store Design)* | `$0` → `$3,000` | Two `$1,500` payments 2 days apart | **Lookalike pattern (`Explained` in baseline; `Needs Review` when cautiously hedged)** — `pay-design-a` pays `Invoice FS-201` (*holiday coffee bag artwork*) and `pay-design-b` pays `Invoice FS-202` (*winter cafe menu boards*). |
+
+*Note on live vs. local outcomes:* The table and walkthrough above illustrate the underlying scenario evidence. In live `claude-opus-5-5` runs, verified `Explained` counts vary with model phrasing (2, 1, and 2 verified explanations across three consecutive live runs in [DEMO-01](worklog/jian/DEMO-01.md)). Local `stub` mode returns unverified placeholder drafts without calling the model.
 
 ---
 
@@ -51,7 +53,7 @@ Evaluated across **13 synthetic cases** (9 development + 4 held-out, [decision 0
 | Required evidence cited | **18 / 18** | 18 / 18 | **11 / 11** | 11 / 11 |
 | Causes correct (human review) | **8 correct, 1 partly** | Not human-scored | **4 / 4** | Not human-scored |
 
-*Note:* The single held-out label miss came from the validator conservatively downgrading a correct, cautiously phrased model explanation.
+*Note:* The single held-out label miss came from the validator rejecting a correct, cautiously worded answer on the lookalike case. The baseline matched or exceeded Claude's automatic label scores where its record checks passed, while analyst review time and relative usefulness of model-written next steps remain unmeasured ([decision 004](docs/decisions/004-evaluation.md)).
 
 ---
 

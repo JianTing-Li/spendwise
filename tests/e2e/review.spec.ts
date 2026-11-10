@@ -144,7 +144,7 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await page.keyboard.press("Space");
     await expect(card.getByText("Failed", { exact: true })).toBeVisible();
     await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
-    await expect(card.getByText(/All 3 attempts failed\. Review the source records below/)).toBeVisible();
+    await expect(card.getByText(/All 3 attempts ended without a completed result\. Review the source records below/)).toBeVisible();
     await expect(card.getByRole("button", { name: /Retry investigation/ })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Mark reviewed" })).toHaveCount(0);
     expect(retries).toBe(2);

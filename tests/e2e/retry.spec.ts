@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 test('retry persists history, stops at three, rejects stale predecessor after reset', async ({ page, request }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Reset demo' }).click();
+  await page.getByRole('button', { name: 'Confirm reset' }).click();
   await expect(page.getByText('Baseline ready')).toBeVisible();
   await page.getByRole('button', { name: 'Simulate new payments' }).click();
   await expect(page.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' })).toHaveCount(4);
@@ -17,9 +18,9 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   await card.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' }).click();
   await expect(card.getByRole('button', { name: 'Retry investigation (2/3 attempts used)' })).toBeVisible();
   await card.getByRole('button', { name: 'Retry investigation (2/3 attempts used)' }).click();
-  await expect(card.getByText(/All 3 attempts failed\. Review the source records below/)).toBeVisible();
+  await expect(card.getByText(/All 3 attempts ended without a completed result\. Review the source records below/)).toBeVisible();
   await page.reload();
-  await expect(card.getByText(/All 3 attempts failed\. Review the source records below/)).toBeVisible();
+  await expect(card.getByText(/All 3 attempts ended without a completed result\. Review the source records below/)).toBeVisible();
   await card.getByText('Attempt history').click();
   await expect(card.getByRole('heading', { name: 'Attempt 2', exact: true })).toBeVisible();
   const after = await (await request.get('/api/demo')).json();
@@ -31,7 +32,7 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   }) => r.modelRequests === 0)).toBe(true);
   await page.screenshot({ path: 'test-results/retry-history.png', fullPage: true });
   await page.getByRole('button', { name: 'Reset demo' }).click();
-  await expect(page.getByText('Clear 4 findings and 0 reviews?')).toBeVisible();
+  await expect(page.getByText('Clear 4 exceptions and 0 reviews?')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm reset' }).click();
   await expect(page.getByText('Baseline ready')).toBeVisible();
   const stale = await request.post('/api/demo/retry', { headers: { Origin: 'http://127.0.0.1:3100', 'X-Spendwise-Demo': '1' }, data: { predecessorId } });

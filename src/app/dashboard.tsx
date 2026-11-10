@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
@@ -19,9 +19,17 @@ export default function Dashboard({
 }) {
   const { data, busy, error, load, act, active } = useDemo(permissions);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmingReset) {
+      confirmButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [confirmingReset]);
   const can = (permission: Permission) => permissions.includes(permission);
+  const currentRuns = data?.runs.filter((run) => run.generation === data.generation) ?? [];
   const latestRuns = data?.exceptions.flatMap((exception) =>
-    data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
+    currentRuns.filter((run) => run.exceptionId === exception.id).slice(-1),
   ) ?? [];
   const sortedExceptions = [...(data?.exceptions ?? [])].sort((a, b) => {
     if (b.summary.differenceCents !== a.summary.differenceCents) {
@@ -35,9 +43,9 @@ export default function Dashboard({
   const reviewableRuns = latestRuns.filter(run => run.state === "completed");
   const failedRuns = latestRuns.filter(run => run.state === "failed");
   const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
-  const reviewTarget = reviewableRuns.length > 0 ? reviewableRuns.length : failedRuns.length;
-  const findingCount = latestRuns.reduce((n, r) => n + r.findings.length, 0) || (data?.exceptions.length ?? 0);
-  const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || (data?.exceptions.length ?? 0) > 0);
+  const savedFindings = currentRuns.reduce((n, r) => n + r.findings.length, 0);
+  const exceptionCount = data?.exceptions.length ?? 0;
+  const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || exceptionCount > 0);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
   const displayBusinessName = businessName.replace(/^Example\s+/i, "").replace(/\s*\(fictional\)$/i, "");
   return (
@@ -75,13 +83,18 @@ export default function Dashboard({
                 ? "Payments added"
                 : "Simulate new payments"}
           </button>
-          {confirmingReset && hasScenarioState ? (
+          {confirmingReset ? (
             <div className="reset-confirm" role="group" aria-label="Confirm reset">
               <p className="confirm-prompt">
-                Clear {findingCount} {findingCount === 1 ? "finding" : "findings"} and {reviewed} {reviewed === 1 ? "review" : "reviews"}?
+                {!hasScenarioState
+                  ? "Reset to baseline?"
+                  : savedFindings > 0
+                    ? `Clear ${savedFindings} ${savedFindings === 1 ? "finding" : "findings"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`
+                    : `Clear ${exceptionCount} ${exceptionCount === 1 ? "exception" : "exceptions"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`}
               </p>
               <div className="confirm-actions">
                 <button
+                  ref={confirmButtonRef}
                   type="button"
                   className="danger"
                   disabled={!can("reset") || busy === "reset"}
@@ -95,7 +108,12 @@ export default function Dashboard({
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => setConfirmingReset(false)}
+                  onClick={() => {
+                    setConfirmingReset(false);
+                    requestAnimationFrame(() => {
+                      resetButtonRef.current?.focus({ preventScroll: true });
+                    });
+                  }}
                 >
                   Cancel
                 </button>
@@ -103,15 +121,10 @@ export default function Dashboard({
             </div>
           ) : (
             <button
+              ref={resetButtonRef}
               className="secondary"
               disabled={!can("reset") || busy === "reset" || (!data && !busy)}
-              onClick={() => {
-                if (!hasScenarioState) {
-                  void act({ action: "reset" });
-                } else {
-                  setConfirmingReset(true);
-                }
-              }}
+              onClick={() => setConfirmingReset(true)}
             >
               {busy === "reset" ? "Resetting…" : "Reset demo"}
             </button>
@@ -166,10 +179,16 @@ export default function Dashboard({
             <p>Human review</p>
             <strong>
               {data ? (
-                <>
-                  {reviewed} of {reviewTarget} reviewed
-                  {failedRuns.length > 0 && <span> · {failedRuns.length} failed</span>}
-                </>
+                reviewableRuns.length === 0 && failedRuns.length > 0 ? (
+                  <>
+                    {reviewed} reviewed · {failedRuns.length} failed
+                  </>
+                ) : (
+                  <>
+                    {reviewed} of {reviewableRuns.length} reviewed
+                    {failedRuns.length > 0 && <span> · {failedRuns.length} failed</span>}
+                  </>
+                )
               ) : (
                 "—"
               )}

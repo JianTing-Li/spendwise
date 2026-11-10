@@ -56,7 +56,7 @@ export const baseline = Dataset.parse({
       "2026-09-15",
       100000,
       null,
-      "Monthly cafe POS terminal usage — September (10 locations)",
+      "Monthly cafe POS terminal usage — September",
     ),
     payment(
       "pay-renewal-oct",
@@ -64,7 +64,7 @@ export const baseline = Dataset.parse({
       "2026-10-15",
       100000,
       null,
-      "Monthly cafe POS terminal usage — October (10 locations)",
+      "Monthly cafe POS terminal usage — October",
     ),
   ],
 });
@@ -79,7 +79,7 @@ export const scenario = Dataset.parse({
       amountCents: 1200000,
       currency: "USD",
       lineItems: [
-        "Annual enterprise POS platform subscription (Oct 2026 – Sep 2027)",
+        "Annual enterprise POS platform subscription",
       ],
       servicePeriod: "2026-10-01 / 2027-09-30",
     },
@@ -115,7 +115,7 @@ export const scenario = Dataset.parse({
       amountCents: 150000,
       currency: "USD",
       lineItems: [
-        "Winter cafe menu boards & window signage (10 locations)",
+        "Winter cafe menu boards & window signage",
       ],
       servicePeriod: null,
     },
@@ -127,7 +127,7 @@ export const scenario = Dataset.parse({
       "2026-10-20",
       1200000,
       "inv-renewal",
-      "Annual enterprise POS platform renewal — Invoice NS-2026",
+      "Annual enterprise POS platform subscription",
     ),
     payment(
       "pay-advisory-a",
@@ -135,7 +135,7 @@ export const scenario = Dataset.parse({
       "2026-10-08",
       300000,
       "inv-advisory",
-      "ACH Batch #402 — Q3 sales tax filing (Invoice HA-101)",
+      "Tax advisory payment",
     ),
     payment(
       "pay-advisory-b",
@@ -143,7 +143,7 @@ export const scenario = Dataset.parse({
       "2026-10-10",
       300000,
       "inv-advisory",
-      "ACH Batch #405 — Q3 sales tax filing (Invoice HA-101)",
+      "Tax advisory payment",
     ),
     payment(
       "pay-design-a",
@@ -151,7 +151,7 @@ export const scenario = Dataset.parse({
       "2026-10-14",
       150000,
       "inv-design-a",
-      "Holiday roast packaging artwork — Invoice FS-201",
+      "Studio design payment",
     ),
     payment(
       "pay-design-b",
@@ -159,7 +159,7 @@ export const scenario = Dataset.parse({
       "2026-10-16",
       150000,
       "inv-design-b",
-      "Winter cafe menu boards & window signage — Invoice FS-202",
+      "Studio design payment",
     ),
   ],
   notes: [
@@ -167,7 +167,7 @@ export const scenario = Dataset.parse({
       id: "note-renewal",
       vendorId: "vendor-renewal",
       date: "2026-10-01",
-      text: "Finance note (M. Chen, FP&A): Annual POS platform renewal of $12,000 on invoice NS-2026 covers October 2026 through September 2027. Monthly cafe terminal usage of $1,000 continues to bill separately on the 15th.",
+      text: "Finance note (M. Chen, FP&A): Annual POS platform subscription renewal of $12,000, covering October 2026 through September 2027.",
       paymentIds: ["pay-renewal-annual"],
       invoiceIds: ["inv-renewal"],
     },

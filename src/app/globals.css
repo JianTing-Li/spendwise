@@ -714,6 +714,9 @@ footer {
   }
 }
 @media (max-width: 640px) {
+  .status-strip {
+    min-height: 60px;
+  }
   .table-scroll {
     overflow-x: visible;
   }
