@@ -78,6 +78,21 @@ export async function identify(request: Request): Promise<Access> {
   if (publicGet) return { principal: { subject: PUBLIC_SUBJECT, grant: { permissions: ['read'] } } };
   return { denied: deny(401) };
 }
+/**
+ * Hosted pages served on another host (a Vercel deployment-specific URL) would render a sign-in
+ * form that posts to AUTH_URL from a different origin, which the sign-in route rejects. Returns
+ * the same path on the canonical origin, or null when no redirect is needed: already canonical,
+ * local loopback mode, or hosted authentication not fully configured (which stays fail-closed).
+ */
+export async function canonicalRedirect(host: string | null, path = '/'): Promise<string | null> {
+  if (!process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL) return null;
+  const { hostedConfig } = await import('./authentication');
+  const config = hostedConfig();
+  if (!config || !host) return null;
+  const canonical = new URL(config.origin);
+  if (host.toLowerCase() === canonical.host) return null;
+  return new URL(path.startsWith('/') && !path.startsWith('//') ? path : '/', canonical).toString();
+}
 export function authorize(principal: Principal, permission: Permission, runId?: string) {
   return permits(principal, permission, runId) ? null : deny(403);
 }
