@@ -47,10 +47,46 @@ Enter future credentials locally or through hosting secret settings, never chat 
 
 Evidence validation (`src/agent/validation.ts`) checks existence and scope, strips self-asserted support, flags human-only conclusions and unknown amounts, and keeps `Explained` only when the exception's claim category is objectively supported by the records. A completed run means the investigation finished with valid references, not that it was verified; see [decision 002](decisions/002-evidence-validation.md). Ground truth stays in `evals/ground-truth/`, outside all runtime imports.
 
-## Deployment prerequisites — not exercised
-Free tiers only; the deployment lead and projects are tracked in DEPLOY-01 (#14). Before deployment: configure authentication, Neon pooled `pg` connection, separate read-only retrieval role, SQL compatibility tests and connection/statement timeouts. No production database credentials or live connections are used during setup.
+## Hosted deployment (Vercel + Neon)
+Free tiers only, synthetic data only. Setup and verification evidence are in DEPLOY-01 (#14) and `worklog/jian/DEPLOY-01.md`.
 
-Vercel Fluid Compute documents a 300-second Hobby maximum. The route's proposed 90-second host duration leaves room around the application's **60-second total** investigation deadline; the application does not receive a larger investigation budget. Verify actual project settings and current free-tier limits before deployment. PGlite is local-only and is not a deployed persistence fallback.
+- **Vercel:** team Calm Forge (Hobby), project `spendwise`, Git import of `main` (each merge deploys to Production). Next.js preset with the repository's own `npm run build`. Function region `iad1`, Fluid Compute on, Node.js 24.x to match `.nvmrc` (the project defaulted to 26.x; set it under Build and Deployment).
+- **Neon:** project `spendwise`, AWS `us-east-1`, database `neondb`. The function region matches the database region.
+- **Duration:** the demo routes request `maxDuration = 90`. The deployed functions show `/api/demo` and `/api/demo/retry` at a 90-second maximum (other functions 300 seconds; deployment Resources tab, 2026-11-10), leaving 30 seconds after the deadline for validation and persistence. The application keeps its own **60-second total** investigation deadline. PGlite is local-only and is never a hosted fallback.
+
+### Database logins
+| Login | Used by | Where its URL lives |
+| --- | --- | --- |
+| `neondb_owner` (Neon's default owner) | `npm run db:migrate` and `npm run test:neon` | Private CLI file only, as `DATABASE_MIGRATION_URL`; never in Vercel |
+| `spendwise_app` | Application runtime | Vercel `DATABASE_URL` (pooled host) |
+| `spendwise_retrieval_reader` | Scoped retrieval | Vercel `DATABASE_READONLY_URL` (pooled host) |
+
+Create the runtime logins in SQL so they don't join `neon_superuser`, then run the migrations, then grant table access (the tables must exist first):
+
+```sql
+-- Before migrating; set each password privately.
+CREATE ROLE spendwise_app LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+CREATE ROLE spendwise_retrieval_reader LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO spendwise_app, spendwise_retrieval_reader;
+-- After npm run db:migrate.
+GRANT SELECT ON schema_migrations TO spendwise_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON demo_state, vendors, invoices, payments, vendor_notes, note_payments, note_invoices, exceptions, investigation_runs TO spendwise_app;
+GRANT SELECT ON vendors, invoices, payments, vendor_notes, note_payments, note_invoices TO spendwise_retrieval_reader;
+```
+
+Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PASSWORD` as the owner or use **Reset password** in Neon's Connect dialog, then update every place that URL is stored.
+
+### Vercel environment variables (Production scope only)
+- Config: `DATABASE_MODE=neon`, `DATABASE_MIGRATION_ROLE=neondb_owner`, `INVESTIGATOR_MODE` (`stub` or `real`), `AUTH_URL` (the production origin, no trailing slash), `AUTH_GITHUB_ID`, `SPENDWISE_ACCESS_GRANTS`.
+- Secret: `DATABASE_URL`, `DATABASE_READONLY_URL`, `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, `ANTHROPIC_API_KEY`. `ANTHROPIC_MODEL` is optional.
+- Database URLs must end at `/neondb`: the app rejects Neon's `?sslmode=...` suffix and enforces verified TLS itself.
+- GitHub OAuth app callback: `<AUTH_URL>/api/auth/callback/github`. Sessions last at most one hour from sign-in, so sign in shortly before a demo.
+
+### Operating notes
+- Changing a variable needs a new Production deployment. For a secret, **Edit** opens an inline form whose **Save** is below the value box. Saves and redeploys don't happen if Vercel's identity prompt is dismissed; confirm "Updated just now" and a new Production deployment.
+- When `/api/demo` returns `unavailable`, search the Vercel runtime logs for `DemoUnavailable`. `reason` names a startup check (for example `Invalid database configuration`), and `driverCode` names a connection failure (for example `28P01`, a rejected password).
 
 Sources checked 2026-11-04: [Next.js](https://nextjs.org/docs/app/getting-started/installation), [PGlite](https://pglite.dev/docs/filesystems), [Neon pooling](https://neon.com/docs/connect/connection-pooling), [Vercel limits](https://vercel.com/docs/functions/limitations).
 
@@ -65,13 +101,13 @@ Routine `npm test` uses local PGlite/fake pools. `npm run test:pg` requires expl
 
 `npm run test:e2e:retry` uses an isolated local PGlite directory and the intentionally unavailable real investigator entry point: failures/retries/history are exercised with zero model calls. Stop any process owning that directory before testing. Its explicitly empty key keeps this fixture unavailable after INT-01 wiring; it cannot call a model.
 
-`npm run test:neon` is separate and **must not run without specific human authorization**. It requires `DATABASE_MODE=neon`, private CLI credentials, existing roles, and `NEON_CHECK_ALLOW_REMOTE=1`. It creates/drops one random isolated test schema, compares synthetic fixture totals, verifies migration replay/version and injection idempotency, and checks the configured read-only login. It does not provision projects, databases or roles, call models, or modify application records. Live Neon TLS/connectivity/permissions remain unverified until this opted-in check is authorized. Never paste URLs or driver errors into worklogs.
+`npm run test:neon` is separate and **must not run without specific human authorization**. It requires `DATABASE_MODE=neon`, private CLI credentials, existing roles, and `NEON_CHECK_ALLOW_REMOTE=1`. It creates/drops one random isolated test schema, compares synthetic fixture totals, verifies migration replay/version and injection idempotency, and checks the configured read-only login. It does not provision projects, databases or roles, call models, or modify application records. Never paste URLs or driver errors into worklogs.
 
 ### Reproducible offline backend demonstration
 
 Run `node --import tsx scripts/backend-demo.ts` from the repository root. It uses a new in-memory PGlite instance, upgrades a populated immutable 001 database, then asserts three cycles of injection/idempotency, four detections, explicit stub claims/completion, review persistence through migration replay, and reset/generation advancement. Expected output: `{"cycles":3,"exceptionsPerCycle":4,"modelRequests":0}`. It imports the stub directly; environment investigator settings cannot select a model. All data is disposable and synthetic. The identical compatibility procedure is regression-tested with PGlite and local PostgreSQL.
 
-### Future authorized Neon procedure (not executed)
+### Authorized Neon procedure
 
 1. Obtain explicit authorization for remote connections and creation/drop of an isolated test schema. A human must identify an existing synthetic-only Neon database, validate its data classification, supply three existing distinct logins, and arrange the grants documented above. No app command provisions projects, databases, users or grants. Keep URLs/passwords in private CLI environment only; do not paste them into chat, logs or command arguments.
 2. With the application stopped, load the private CLI environment: `DATABASE_MODE=neon`, `DATABASE_URL` (pooled app endpoint), `DATABASE_READONLY_URL`, `DATABASE_MIGRATION_URL`, and `DATABASE_MIGRATION_ROLE`. The existing application schema must already be migrated by a separately authorized `npm run db:migrate` and have human-configured grants. The compatibility check does not initialize or alter application records. The migration login must be able to create/drop the isolated schema; any additional permission is a human prerequisite.
