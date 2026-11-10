@@ -1,12 +1,24 @@
-# SpendWise AI
+# SpendWise
 
 **Vendor-payment exceptions. Traceable evidence. Human judgment.**
+
+## The problem
+
+Finance teams reviewing vendor payments face rule-based flags for possible duplicate invoices, unusual amounts, and unfamiliar payees. Not every flag signals a real problem, but each can send an analyst tracing payments, invoices, and vendor notes by hand. Manual review takes time away from higher-risk investigations, while overlooked duplicate payments can cause unnecessary cash outflow.
+
+**Real-world time context:** In a 2020 [Shared Services & Outsourcing Network (SSON) / Kofax survey](https://www.tungstenautomation.com/-/media/Files/Reports/EN/rp_sson-ap-automation-survey_en.pdf), **35% of respondents reported spending 10–30 minutes processing one invoice** (p. 5). This measures *overall invoice processing*, **not the time to investigate an exception**. SpendWise has not yet measured analyst review time or claimed time savings.
+
+## The solution
+
+SpendWise investigates flagged vendor-payment exceptions with a read-only Claude agent that cites payment, invoice, and vendor-note records. Application validation checks the evidence, and a human reviewer decides whether to accept or reject the finding and what to do next.
+
+**Example:** Two $3,000 payments reference the same invoice → SpendWise flags a possible duplicate → the agent checks the supporting evidence → the analyst determines whether follow-up is necessary.
+
+Built as a portfolio project for an **AI Deployment Strategist** role, demonstrating AI-assisted investigation while keeping human judgment in control. The current MVP detects unusual vendor-payment increases and possible duplicates; new-payee detection is not implemented.
 
 Finance workflow portfolio · **Elliot Watson & Jian Ting Li**.
 
 **Live demo:** https://spendwise-olive-theta.vercel.app. Anyone can view it read-only; running investigations needs an authorized GitHub sign-in. All records are synthetic.
-
-Rules flag unusual vendor payments. One Claude agent investigates each flag using read-only, scoped tools over the payments, invoices and vendor notes. The application checks citation scope, screens for specific overclaims and unsupported amounts, and requires cited records to support an `Explained` finding. A person reviews the result, including model-written next steps.
 
 ![SpendWise investigation view](docs/screenshot.png)
 
