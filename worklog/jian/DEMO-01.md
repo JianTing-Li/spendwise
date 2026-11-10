@@ -1,7 +1,7 @@
 # DEMO-01 — Validate three demo cycles and publish an honest handoff
 
 Owner: Jian Ting (moved from Elliot on 2026-11-10, https://github.com/JianTing-Li/spendwise/issues/15#issuecomment-6760735751). Issue: https://github.com/JianTing-Li/spendwise/issues/15
-Branch: `demo-01`, from `origin/main` at `2ca6d6f`. PR: (added when opened)
+Branch: `demo-01`, from `origin/main` at `2ca6d6f`. PR: https://github.com/JianTing-Li/spendwise/pull/49
 
 No URLs with credentials, passwords or keys appear here.
 
