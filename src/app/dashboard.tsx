@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
-import { money } from "./format";
+import { money, percent } from "./format";
 import { INVESTIGATION_LIMITS } from "../contracts";
 import type { Permission } from "../server/access-policy";
 
@@ -158,9 +158,9 @@ export default function Dashboard({
             <thead>
               <tr>
                 <th scope="col">Vendor</th>
-                <th scope="col">September</th>
-                <th scope="col">October</th>
-                <th scope="col">Change</th>
+                <th scope="col" className="num">September</th>
+                <th scope="col" className="num">October</th>
+                <th scope="col" className="num">Change</th>
               </tr>
             </thead>
             <tbody>
@@ -180,15 +180,13 @@ export default function Dashboard({
                       }
                     </small>
                   </td>
-                  <td data-label="September">{money(s.priorCents)}</td>
-                  <td data-label="October">{money(s.currentCents)}</td>
-                  <td data-label="Change">
-                    {money(s.differenceCents)}
-                    <small>
-                      {s.percentChange === null
-                        ? "Percentage unavailable"
-                        : `${s.percentChange.toFixed(1)}%`}
-                    </small>
+                  <td className="num" data-label="September">{money(s.priorCents)}</td>
+                  <td className="num" data-label="October">{money(s.currentCents)}</td>
+                  <td className="num" data-label="Change">
+                    <span className="num-value">
+                      {money(s.differenceCents)}
+                      <small>{percent(s.percentChange)}</small>
+                    </span>
                   </td>
                 </tr>
               ))}

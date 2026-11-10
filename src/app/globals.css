@@ -179,6 +179,7 @@ a:focus-visible {
   font-size: 32px;
   letter-spacing: -1px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 .metrics strong span {
   color: var(--muted);
@@ -187,6 +188,7 @@ a:focus-visible {
 small {
   display: block;
   font-size: 12px;
+  font-weight: 400;
   color: var(--muted);
   margin-top: 5px;
 }
@@ -231,6 +233,16 @@ th {
   background: #edf1e9;
   color: var(--muted);
   padding: 14px 22px;
+}
+th.num,
+td.num,
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.num-value {
+  display: inline-block;
+  text-align: right;
 }
 td {
   padding: 18px 22px;
@@ -390,6 +402,11 @@ footer {
   gap: 16px 24px;
   padding: 14px 0;
   border-block: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.cash-comparison > div {
+  flex: 1 1 110px;
+  text-align: right;
 }
 .cash-comparison dt {
   color: var(--muted);
@@ -398,6 +415,7 @@ footer {
 .cash-comparison dd {
   margin: 4px 0 0;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .finding-detail {
   margin: 20px 0;

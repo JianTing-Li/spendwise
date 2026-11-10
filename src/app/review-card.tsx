@@ -2,7 +2,7 @@
 
 import { useId, useRef } from "react";
 import { INVESTIGATION_LIMITS, type Dataset, type Exception, type Run } from "../contracts";
-import { money } from "./format";
+import { money, percent } from "./format";
 
 const stateLabels: Record<Run["state"], string> = {
   pending: "Pending",
@@ -132,7 +132,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     <dl className="cash-comparison">
       <div><dt>Prior cash paid</dt><dd>{money(exception.summary.priorCents)}</dd></div>
       <div><dt>Current cash paid</dt><dd>{money(exception.summary.currentCents)}</dd></div>
-      <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{exception.summary.percentChange === null ? "Percentage unavailable" : `${exception.summary.percentChange.toFixed(1)}%`}</small></dd></div>
+      <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
     </dl>
     <p className="fine">Prior: {exception.summary.periods.priorStart} to {exception.summary.periods.currentStart} · Current: {exception.summary.periods.currentStart} to {exception.summary.periods.endExclusive} (end exclusive, UTC). Net completed cash, not accounting expense.</p>
     {runView(attempts.at(-1), attempts.length)}
