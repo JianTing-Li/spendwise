@@ -11,6 +11,7 @@ No URLs with credentials, passwords or keys appear here.
 3. Paid, each needing Jian's approval: three consecutive real-mode cycles on the live site (inject → detect → investigate → validate → review → reset); live failure recovery and reset during a run; the one-time held-out evaluation (`--split held-out --final`).
 
 ## Checks
+- Documentation review fixes (2026-11-10): `npm run check` passed (typecheck, lint, 244 tests, and build). `npm run test:e2e` passed 8 of 8 and `npm run test:e2e:retry` passed 1 of 1 with loopback access and zero model calls. `git diff --check` passed.
 - Local, on `demo-01` (Node 24.18.0), zero model calls: `npm run test:e2e` 8 of 8 passed (inject, review, persist and reset; reset during execution rejects late responses; incomplete, cancelled and failed states; 401/403 handling). `npm run test:e2e:retry` 1 of 1 passed (real mode with no key: failed runs, retry history, three-attempt limit, stale retry after reset returns 409).
 - Live site, signed out, after APP-05 (#45, deploy of `2ca6d6f`): recorded at https://github.com/JianTing-Li/spendwise/issues/45#issuecomment-6760758557. The live state is still the DEPLOY-01 real-mode run (generation 2, 4 real runs).
 
@@ -34,7 +35,7 @@ No URLs with credentials, passwords or keys appear here.
 - README rewritten for recruiters: live link, what the agent may and may not do, development results with their limits, no savings or reliability claims.
 
 ## Not verified live
-- Failure, incomplete and retry recovery, and Reset during a running investigation, were not exercised on the live site: forcing a failure needs a Vercel configuration change, and each attempt costs model calls. Local evidence, zero model calls: `npm run test:e2e:retry` (real mode without a key: failed runs, retry history, three-attempt limit, stale retry after Reset returns 409) and `tests/e2e/review.spec.ts` (Reset during execution rejects late read and mutation responses; incomplete, cancelled and failed states).
+- Failure and incomplete recovery, retry, and Reset during a running investigation were checked locally. `tests/e2e/review.spec.ts` intercepts responses to check incomplete, cancelled and failed states and verifies that the UI ignores late responses after Reset. `npm run test:e2e:retry` checks failure history, the three-attempt limit, and rejection of stale retries in real mode with no key. `tests/investigation-integration.test.ts` uses a synthetic model client to check successful retry after failure, retry eligibility after expiry, and cancellation and stale-result rejection on Reset.
 - Analyst review time: not measured (protocol in `evals/README.md`).
 
 ## Continuity and unresolved risks

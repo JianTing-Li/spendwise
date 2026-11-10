@@ -95,12 +95,12 @@ Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PAS
 
 ### Running the live demo
 1. Sign in with a GitHub account listed in `SPENDWISE_ACCESS_GRANTS`, shortly before the demo (sessions last one hour).
-2. If findings are showing, **Reset demo** to return to the baseline.
+2. Confirm the investigation queue shows **Baseline ready**. If the dashboard shows **Scenario injected**, select **Reset demo** and wait for **Baseline ready** before proceeding.
 3. **Simulate new payments**: four exceptions are detected and four bounded investigations run. In real mode each Simulate costs model calls (about 16 requests, roughly $0.25 at list price, 2026-11-10); stub mode costs nothing.
 4. Open a finding, follow its cited records, and **Mark reviewed** to record a human acknowledgment.
 5. **Reset demo** at the end so public visitors see the baseline.
 
-Three consecutive real-mode cycles passed on the live site on 2026-11-10 (DEMO-01, `worklog/jian/DEMO-01.md`). Locally, `npm run test:e2e` and `npm run test:e2e:retry` cover the same flow plus failures, retries and Reset during a run, with no model calls.
+Three consecutive real-mode cycles passed on the live site on 2026-11-10. Locally, `npm run test:e2e` covers the stub flow and uses intercepted responses to check failure states and how the UI handles late responses after Reset. `npm run test:e2e:retry` covers failed retries and attempt history in real mode with no API key. The investigation integration tests use a synthetic model client to exercise successful retry after failure, retry eligibility after expiry, and Reset during a running investigation. See the [DEMO-01 worklog](../worklog/jian/DEMO-01.md).
 
 ### Operating notes
 - Changing a variable needs a new Production deployment. For a secret, **Edit** opens an inline form whose **Save** is below the value box. Saves and redeploys don't happen if Vercel's identity prompt is dismissed; confirm "Updated just now" and a new Production deployment.
