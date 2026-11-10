@@ -36,5 +36,5 @@ Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Ne
 - `npm run test:e2e` and `npm run test:pg` were not run locally for this branch.
 
 ## Next action
-- Decide whether to exercise a hosted failure and retry before closing #14.
+- Hosted state checks: decision recorded at https://github.com/JianTing-Li/spendwise/issues/14#issuecomment-6760278675.
 - PRs #42 and #44 change Elliot's paths (`src/app/api/demo/route.ts`, `src/server/db/`); review history is on those PRs.
