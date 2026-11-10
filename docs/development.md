@@ -89,7 +89,7 @@ Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PAS
 
 - Only the exact value `1` turns it on. Unset, `0`, `true` or a typo keeps sign-in required.
 - It needs fully valid hosted authentication (`AUTH_*` and `SPENDWISE_ACCESS_GRANTS`); otherwise every request still returns 401.
-- Simulate, Reset, Retry and Mark reviewed still need a signed-in, granted GitHub account. Signed-out POSTs return 401 and cross-site requests 403. Visitors see a "Sign in with GitHub to run investigations" prompt and disabled buttons.
+- Simulate, Reset, Retry and Mark reviewed still need a signed-in, granted GitHub account. Signed-out POSTs return 401. Cross-site requests return 403, except a top-level link to the dashboard page. Visitors see a "Sign in with GitHub to run investigations" prompt and disabled buttons. When a signed-in session ends, the next 401 switches an open dashboard to that view.
 - A signed-in account without a grant sees the same read-only dashboard, with a note that it is not authorized to run investigations; its POSTs return 403.
 - Visitors see whatever state the last signed-in user left, including real-mode findings, and each page load or poll reads the database. Reset before sharing the link if the state should be the baseline.
 

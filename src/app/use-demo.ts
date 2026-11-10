@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DemoState, MutationResponse } from "../contracts";
 import type { Permission } from "../server/access-policy";
 
@@ -26,10 +27,14 @@ export function useDemo(permissions: readonly Permission[]) {
   const generation = useRef(-1);
   const mutation = useRef<{ kind: string; controller: AbortController } | null>(null);
 
+  const router = useRouter();
   const report = useCallback((cause: unknown, source: "read" | "mutation" = "read") => {
     if (cause instanceof DemoError && (cause.status === 401 || (source === "read" && cause.status === 403))) setData(null);
     setError(cause instanceof DemoError ? cause.message : "Connection lost. Reload to check the current state before trying again.");
-  }, []);
+    // A 401 means the session ended. Re-render the server page so its permissions follow: the
+    // read-only view with the sign-in prompt, or the locked page. Client state is kept.
+    if (cause instanceof DemoError && cause.status === 401) router.refresh();
+  }, [router]);
 
   const load = useCallback(async (signal?: AbortSignal, expectedEpoch = epoch.current, timeoutMs = 5000) => {
     const id = ++requestId.current;

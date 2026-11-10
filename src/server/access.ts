@@ -46,8 +46,11 @@ export function deny(status: 401 | 403) {
 }
 export async function identify(request: Request): Promise<Access> {
   // Origin failures have their own 403 semantics even if no cookie is present.
+  // The only cross-site request allowed is a top-level navigation to the dashboard (OAuth return,
+  // portfolio links). Never an API route, iframe or subresource, so public reads stay same-site.
   if (request.headers.get('sec-fetch-site') === 'cross-site' &&
-      !(request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate'))
+      !(request.method === 'GET' && request.headers.get('sec-fetch-mode') === 'navigate' &&
+        request.headers.get('sec-fetch-dest') === 'document' && new URL(request.url).pathname === '/'))
     return { denied: deny(403) }; // Lax cookies permit top-level OAuth return navigation, never cross-site mutations.
   const local = !process.env.VERCEL && process.env.DATABASE_MODE !== 'neon' && !process.env.AUTH_URL;
   if (local) {

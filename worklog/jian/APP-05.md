@@ -18,10 +18,16 @@ Decision record: `docs/decisions/005-public-read-only.md`. Operator notes: `docs
 ## Checks
 - `npm run check` on the branch (Node 24.18.0): passed — typecheck, lint, 244 tests in 24 files (18 in `tests/access.test.ts`), build.
 - Local production build (`next start`, loopback, disposable PGlite, stub mode, offline Auth.js settings, `SPENDWISE_PUBLIC_READ=1`), zero model calls: signed-out `GET /api/demo` 200 with four stub runs seeded by an offline signed-in session; signed-out POST inject, reset, review and retry all 401; cross-origin GET and POST 403. The page showed the dashboard with the sign-in prompt, no Sign out, and Simulate, Reset and all four Mark reviewed buttons disabled.
-- Not run: `npm run test:e2e`, `npm run test:pg`, `npm run test:neon`. The disabled Retry button was not seen in a browser (no failed run in the stub state); it uses the same permission check. No check of the live site yet: that follows the merge and the Vercel change.
+- After the second review: `npm run check` passed (244 tests in 24 files, build); `npx playwright test tests/e2e/review.spec.ts` passed 7 of 7, including the 401 and 403 dashboard test. The refresh-on-401 switch to the read-only view was not seen in a browser: it needs hosted Auth.js and an expiring session.
+- Not run: the rest of `npm run test:e2e`, `npm run test:pg`, `npm run test:neon`. The disabled Retry button was not seen in a browser (no failed run in the stub state); it uses the same permission check. No check of the live site yet: that follows the merge and the Vercel change.
 
 ## Code review (2026-11-10, medium)
-Findings are on the PR. Fixed: tests now pin the setting off. Fixed after Jian's decision: accounts without a grant keep the read-only view. Accepted: an expired session keeps enabled controls until a page reload; public reads have no rate limit; `HEAD /api/demo` stays 401; per-run grants and read-only copy are not reflected in the buttons.
+Findings are on the PR. Fixed: tests now pin the setting off. Fixed after Jian's decision: accounts without a grant keep the read-only view. Accepted: public reads have no rate limit; `HEAD /api/demo` stays 401; per-run grants and read-only copy are not reflected in the buttons.
+
+## Second review (Codex, 2026-11-10)
+Two P2 findings, both fixed:
+- Expired session kept enabled controls: a 401 now calls `router.refresh()`, so the page re-renders with the new permissions (also finding 2 of the first review).
+- The Fetch Metadata exemption let any cross-site `GET` navigation through, so a cross-site link or frame to `/api/demo` got the public payload. It now covers only a top-level `document` navigation to `/`. This tightens pre-existing behaviour; the old access test used `/api/demo` and was updated to the dashboard path.
 
 ## Next action
 - After merge Jian sets `SPENDWISE_PUBLIC_READ=1` in Vercel (Config, Production only), redeploys, and the live site is checked signed out.

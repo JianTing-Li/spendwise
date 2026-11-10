@@ -91,8 +91,14 @@ it('rejects cross-origin and missing CSRF capability, including direct API bypas
     expect((await POST(req({action:'reset'},c,extra))).status).toBe(403);
   expect((await GET(req(undefined,c,{origin:'https://evil.example'}))).status).toBe(403);
   expect(store.reset).not.toHaveBeenCalled();
-  // A top-level GET after OAuth may retain cross-site navigation metadata.
-  expect((await identify(req(undefined,c,{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate'}))).principal?.subject).toBe('github:123');
+  // A top-level dashboard GET after OAuth may retain cross-site navigation metadata.
+  const nav = {'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  const dashboard = (extra: Record<string,string>) => new Request(`${origin}/`, { headers: { host: 'demo.example', cookie: c, ...extra } });
+  expect((await identify(dashboard(nav))).principal?.subject).toBe('github:123');
+  // Not for API routes, frames or headers missing the document destination.
+  expect((await identify(req(undefined,c,nav))).denied?.status).toBe(403);
+  expect((await identify(dashboard({...nav,'sec-fetch-dest':'iframe'}))).denied?.status).toBe(403);
+  expect((await identify(dashboard({'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate'}))).denied?.status).toBe(403);
 });
 it('fails closed for missing/invalid config with redacted responses and no provider calls', async () => {
   for (const [key,value] of [['AUTH_SECRET',''],['AUTH_URL',''],['AUTH_URL','http://demo.example'],['AUTH_GITHUB_ID',''],['AUTH_GITHUB_SECRET',''],['SPENDWISE_ACCESS_GRANTS','{invalid']]) {
@@ -206,6 +212,12 @@ it('keeps cross-site and missing-CSRF requests at 403 when public reading is on'
   vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
   expect((await GET(req(undefined,'',{origin:'https://evil.example'}))).status).toBe(403);
   expect((await GET(req(undefined,'',{'sec-fetch-site':'cross-site'}))).status).toBe(403);
+  // A cross-site link or iframe to the read API gets 403, not the public payload.
+  for (const dest of ['document','iframe'])
+    expect((await GET(req(undefined,'',{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':dest}))).status).toBe(403);
+  // A portfolio link to the dashboard still opens it read-only.
+  const link = new Request(`${origin}/`, { headers: { host: 'demo.example', 'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document' } });
+  expect((await identify(link)).principal?.subject).toBe('public:anonymous');
   for (const extra of [{origin:'https://evil.example'}, {origin:''}, {'x-spendwise-demo':''}, {'sec-fetch-site':'cross-site'}] as Record<string,string>[]) {
     expect((await POST(req({action:'reset'},'',extra))).status).toBe(403);
     expect((await retry(req({predecessorId:'r'},'',extra))).status).toBe(403);
