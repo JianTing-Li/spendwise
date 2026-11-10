@@ -73,8 +73,9 @@ persist results or call a model.
 ## Read-only grants
 
 These are reviewable **operator templates**, not an automatic migration. They
-preserve the APP-01 schema and privilege split. Do not run them against Neon as
-part of this task. An owner must adapt the role/database names for an explicitly
+preserve the APP-01 schema and privilege split. For the hosted Neon database,
+use the LOGIN roles and grants in `docs/development.md` ("Hosted deployment").
+An owner must adapt the role/database names for an explicitly
 authorized synthetic database; use private credentials, never source literals.
 The existing migration owner owns tables and alone runs migrations.
 

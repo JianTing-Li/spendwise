@@ -50,9 +50,9 @@ Evidence validation (`src/agent/validation.ts`) checks existence and scope, stri
 ## Hosted deployment (Vercel + Neon)
 Free tiers only, synthetic data only. Setup and verification evidence are in DEPLOY-01 (#14) and `worklog/jian/DEPLOY-01.md`.
 
-- **Vercel:** team Calm Forge (Hobby), project `spendwise`, Git import of `main` (each merge deploys to Production). Next.js preset with the repository's own `npm run build`. Function region `iad1`, Fluid Compute on, Node.js 24.x to match `.nvmrc` (Vercel defaulted to 26.x and does not read `.nvmrc`).
+- **Vercel:** team Calm Forge (Hobby), project `spendwise`, Git import of `main` (each merge deploys to Production). Next.js preset with the repository's own `npm run build`. Function region `iad1`, Fluid Compute on, Node.js 24.x to match `.nvmrc` (the project defaulted to 26.x; set it under Build and Deployment).
 - **Neon:** project `spendwise`, AWS `us-east-1`, database `neondb`. The function region matches the database region.
-- **Duration:** the demo routes request `maxDuration = 90`. The Hobby Fluid Compute limit is documented as 300 seconds; the application keeps its own **60-second total** investigation deadline. PGlite is local-only and is never a hosted fallback.
+- **Duration:** the demo routes request `maxDuration = 90`. Vercel documents a 300-second Hobby Fluid Compute maximum; this project's own limit was not read from its settings, and live real runs finished well within it. The application keeps its own **60-second total** investigation deadline. PGlite is local-only and is never a hosted fallback.
 
 ### Database logins
 | Login | Used by | Where its URL lives |

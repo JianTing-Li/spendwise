@@ -9,7 +9,7 @@ Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Ne
 - Neon project `spendwise` (free, AWS `us-east-1`, database `neondb`). Runtime logins `spendwise_app` and `spendwise_retrieval_reader` created in SQL; `neondb_owner` is the migration owner. Grants applied after `db:migrate`.
 - Vercel project `spendwise` in team Calm Forge (Hobby): Git import of `main`, region `iad1`, Fluid Compute on, Node.js 24.x. Production URL https://spendwise-olive-theta.vercel.app.
 - GitHub OAuth app "SpendWise" with the production callback. `SPENDWISE_ACCESS_GRANTS` lists Jian (`github:43770333`) and Elliot (`github:301371041`) with all five permissions.
-- Eleven Production-only variables; database URLs, auth secrets and the API key stored as Vercel secrets. `DATABASE_MIGRATION_URL` stays in the git-ignored local `.env.neon.local`.
+- Twelve Production-only variables: six Config values, and the database URLs, auth secrets, API key and optional `ANTHROPIC_MODEL` as Vercel secrets. `DATABASE_MIGRATION_URL` stays in the git-ignored local `.env.neon.local`.
 
 ## Checks
 - Local, on `deploy-01` (Node 24.18.0): `npm run check` passed — typecheck, lint, 238 tests in 24 files, build.
@@ -32,8 +32,9 @@ Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Ne
 
 ## Not done
 - Hosted failure, incomplete and retry states were not exercised on the live site; they need a deliberately failing configuration. `npm run test:e2e:retry` covers them locally with zero model calls.
+- The project's actual function duration limit was not read from Vercel settings; the docs cite Vercel's documented Hobby maximum.
 - `npm run test:e2e` and `npm run test:pg` were not run locally for this branch.
 
 ## Next action
 - Decide whether to exercise a hosted failure and retry before closing #14.
-- PRs #42 and #44 merged without Elliot's review; Elliot to review them after the fact.
+- PRs #42 and #44 change Elliot's paths (`src/app/api/demo/route.ts`, `src/server/db/`); review history is on those PRs.
