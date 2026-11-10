@@ -13,7 +13,8 @@ export default async function Page() {
       <main>
         <header>
           <Link className="brand" href="/">
-            S<span>SpendWise</span>
+            <span className="brand-mark" aria-hidden="true">S</span>
+            <span>SpendWise</span>
           </Link>
           <div className="header-actions">
             <span className="environment">SYNTHETIC DEMO</span>

@@ -114,9 +114,9 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await opened(page);
     await page.getByRole("button", { name: "Simulate new payments" }).click();
     const card = page.getByRole("article");
-    await expect(card.getByText("pending", { exact: true })).toBeVisible();
+    await expect(card.getByText("Pending", { exact: true })).toBeVisible();
     Object.assign(state.runs[0], { state: "running", toolExecutions: 2, modelRequests: 1 });
-    await expect(card.getByText("running", { exact: true })).toBeVisible();
+    await expect(card.getByText("Running", { exact: true })).toBeVisible();
     await expect(card.getByText(/Retrievals 2\/8 · Model requests 1\/10/)).toBeVisible();
     readStatus = 503;
     await expect(page.getByText("Progress updates are unavailable. Reload to check current run states.")).toBeVisible();
@@ -127,21 +127,21 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     expect(injections).toBe(1);
     Object.assign(state.runs[0], { state: "incomplete", error: "tool_limit" });
     injection.release();
-    await expect(card.getByText("incomplete", { exact: true })).toBeVisible();
+    await expect(card.getByText("Incomplete", { exact: true })).toBeVisible();
     const retryButton = card.getByRole("button", { name: "Retry investigation (1/3 attempts used)" });
     await expect(retryButton).toBeEnabled();
     await retryButton.focus();
     // Two clicks in one task exercise the ref guard before a disabled render.
     await retryButton.evaluate(button => { button.dispatchEvent(new MouseEvent("click", { bubbles: true })); button.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    await expect(card.getByText("running", { exact: true })).toBeVisible();
+    await expect(card.getByText("Running", { exact: true })).toBeVisible();
     await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     expect(retries).toBe(1);
     retry.release();
-    await expect(card.getByText("cancelled", { exact: true })).toBeVisible();
+    await expect(card.getByText("Cancelled", { exact: true })).toBeVisible();
     await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     await card.getByRole("button", { name: "Retry investigation (2/3 attempts used)" }).focus();
     await page.keyboard.press("Space");
-    await expect(card.getByText("failed", { exact: true })).toBeVisible();
+    await expect(card.getByText("Failed", { exact: true })).toBeVisible();
     await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
     await expect(card.getByText("Three attempts used. Reset the demo to start again.")).toBeVisible();
     await expect(card.getByRole("button", { name: /Retry investigation/ })).toHaveCount(0);
@@ -150,8 +150,8 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await page.reload();
     await card.getByText("Attempt history", { exact: true }).focus();
     await page.keyboard.press("Enter");
-    await expect(card.getByText("incomplete", { exact: true })).toBeVisible();
-    await expect(card.getByText("cancelled", { exact: true })).toBeVisible();
+    await expect(card.getByText("Incomplete", { exact: true })).toBeVisible();
+    await expect(card.getByText("Cancelled", { exact: true })).toBeVisible();
     await page.screenshot({ path: "test-results/ui01-recovery.png", fullPage: true });
   } finally { injection.release(); retry.release(); }
 });
@@ -284,7 +284,8 @@ test("human review includes only completed latest runs and stub states describe 
   await expect(metric).toContainText("Completed runs only");
   await expect(page.getByText("Human acknowledgment recorded", { exact: true })).toHaveCount(1);
   for (const status of states.slice(1)) {
-    const card = page.getByRole("article").filter({ has: page.getByText(status, { exact: true }) });
+    const label = `${status[0].toUpperCase()}${status.slice(1)}`;
+    const card = page.getByRole("article").filter({ has: page.getByText(label, { exact: true }) });
     await expect(card.getByText("Draft · awaiting human review", { exact: true })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Mark reviewed", exact: true })).toHaveCount(0);
   }
@@ -323,7 +324,7 @@ test("a stalled progress read times out without cancelling execution and can be 
     holdRead = false;
     await page.getByRole("button", { name: "Reload", exact: true }).click();
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
-    await expect(page.getByRole("article").getByText("running", { exact: true })).toBeVisible();
+    await expect(page.getByRole("article").getByText("Running", { exact: true })).toBeVisible();
     state.runs[0].state = "completed";
     injection.release();
     stalledRead.release();

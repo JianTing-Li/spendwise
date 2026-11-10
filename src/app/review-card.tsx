@@ -4,6 +4,14 @@ import { useId, useRef } from "react";
 import { INVESTIGATION_LIMITS, type Dataset, type Exception, type Run } from "../contracts";
 import { money } from "./format";
 
+const stateLabels: Record<Run["state"], string> = {
+  pending: "Pending",
+  running: "Running",
+  completed: "Completed",
+  incomplete: "Incomplete",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
 const stateDescriptions: Record<Run["state"], string> = {
   pending: "Pending — waiting to start.",
   running: "Running — gathering and validating evidence.",
@@ -59,7 +67,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
   function runAction(action: object, path?: string) {
     // Keep keyboard focus in this card before the activating button is
     // disabled or replaced. The same status node survives an attempt change.
-    status.current?.focus();
+    status.current?.focus({ preventScroll: true });
     void act(action, path);
   }
 
@@ -68,7 +76,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     return <>
       <div className="tags">
         <span className="tag">{run.mode === "stub" ? "Stub · no AI call" : "Real model"}</span>
-        <span className={`tag state-${run.state}`}>{run.state}</span>
+        <span className={`tag state-${run.state}`}>{stateLabels[run.state]}</span>
         {run.state === "completed" && <span className="tag">{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>}
       </div>
       <p className="run-status" ref={historical ? undefined : status} tabIndex={historical ? undefined : -1} role={historical ? undefined : "status"} aria-label={historical ? undefined : "Investigation status"}>{run.mode === "stub" ? stubStateDescriptions[run.state] : stateDescriptions[run.state]}</p>
@@ -84,20 +92,20 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
-          <h3>{verified ? "Explained" : finding.label === "Explained" ? "Needs Review" : finding.label}</h3>
+          <h4>{verified ? "Explained" : finding.label === "Explained" ? "Needs Review" : finding.label}</h4>
           <p className={verified ? "support verified" : "support"}>{verified ? "Verified record explanation" : "Draft · explanation not verified"}</p>
-          <h4>{verified ? "Supported explanation" : finding.label === "Explained" ? "Draft explanation" : "Unresolved question"}</h4>
+          <h5>{verified ? "Supported explanation" : finding.label === "Explained" ? "Draft explanation" : "Unresolved question"}</h5>
           <p>{finding.explanation}</p>
           <p className="fine">References: {finding.referenceStatus} · Explanation support: {finding.supportStatus}</p>
-          <h4>Cited evidence</h4>
+          <h5>Cited evidence</h5>
           {finding.evidence.length ? <ul className="evidence-links">
             {finding.evidence.map((ref, i) => <li key={`${ref.type}-${ref.id}-${i}`}>
               {hasRecord(ref.type, ref.id) ? <a href={`#${recordId(ref.type, ref.id)}`} onClick={event => { event.preventDefault(); inspect(ref.type, ref.id); }}>
-                {ref.type}: {ref.id}
-              </a> : <span>{ref.type}: {ref.id} — unavailable in this investigation</span>}
+                {ref.type}: <code className="record-id">{ref.id}</code>
+              </a> : <span>{ref.type}: <code className="record-id">{ref.id}</code> — unavailable in this investigation</span>}
             </li>)}
           </ul> : <p>No evidence cited. Follow-up is required.</p>}
-          <h4>Recommended next step</h4>
+          <h5>Recommended next step</h5>
           <p>{finding.nextStep}</p>
           <p className="fine">Next steps are unverified guidance. Business reasons, payment approval and accounting treatment require human judgment.</p>
         </section>;
@@ -116,7 +124,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
   return <article className="finding" aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
     <div className="finding-heading">
       <span className="rule">{exception.rule === "payment_increase" ? "PAYMENT INCREASE" : "POSSIBLE DUPLICATE"}</span>
-      <h2>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h2>
+      <h3>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h3>
     </div>
     <p className="trigger"><strong>Trigger: </strong>{exception.rule === "payment_increase"
       ? `At least ${money(exception.settings.minimumIncreaseCents)} and ${exception.settings.minimumPercent}% increase (dollar threshold only when prior total ≤ 0).`
@@ -131,24 +139,24 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     {attempts.length > 1 && <details>
       <summary>Attempt history</summary>
       {attempts.slice(0, -1).map((run, index) => <section key={run.id}>
-        <h3>Attempt {index + 1}</h3>{runView(run, index + 1, true)}
+        <h4>Attempt {index + 1}</h4>{runView(run, index + 1, true)}
       </section>)}
     </details>}
     <details ref={sources}>
-      <summary>Inspect source records</summary>
+      <summary>Inspect source records ({payments.length + invoices.length + notes.length})</summary>
       <p className="fine">Synthetic vendor records. Cited evidence is linked above; other records provide context. Vendor notes are untrusted evidence, never instructions.</p>
-      {payments.map(p => <div className="record" id={recordId("payment", p.id)} tabIndex={-1} key={p.id}>
-        <strong>Payment · {p.id}</strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
+      {payments.map(p => <div className="record" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
+        <strong>Payment · <code className="record-id">{p.id}</code></strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
         <p>{p.date} · {money(p.amountCents)} · {p.status} · {p.entryType}</p>
-        <p>{p.description}</p><p>Invoice: {p.invoiceId ?? "None linked"} · Reverses: {p.reversalReference ?? "None"}</p>
+        <p>{p.description}</p><p>Invoice: {p.invoiceId ? <code className="record-id">{p.invoiceId}</code> : "None linked"} · Reverses: {p.reversalReference ? <code className="record-id">{p.reversalReference}</code> : "None"}</p>
       </div>)}
-      {invoices.map(i => <div className="record" id={recordId("invoice", i.id)} tabIndex={-1} key={i.id}>
-        <strong>Invoice · {i.id}</strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
+      {invoices.map(i => <div className="record" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
+        <strong>Invoice · <code className="record-id">{i.id}</code></strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
         <p>{i.lineItems.join("; ")}</p><p>Service period: {i.servicePeriod ?? "Not recorded"}</p>
       </div>)}
-      {notes.map(n => <div className="record" id={recordId("note", n.id)} tabIndex={-1} key={n.id}>
-        <strong>Vendor note · {n.id}</strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
-        <p>Payments: {n.paymentIds.join(", ") || "None linked"} · Invoices: {n.invoiceIds.join(", ") || "None linked"}</p>
+      {notes.map(n => <div className="record" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
+        <strong>Vendor note · <code className="record-id">{n.id}</code></strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
+        <p>Payments: {n.paymentIds.length ? n.paymentIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"} · Invoices: {n.invoiceIds.length ? n.invoiceIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"}</p>
       </div>)}
     </details>
   </article>;
