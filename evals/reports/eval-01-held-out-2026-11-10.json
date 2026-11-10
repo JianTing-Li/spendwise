@@ -11,7 +11,7 @@
     "sanitization": "The report generator never includes credentials. The key was read server-side from the ignored .env.local. This file was scanned for keys, local paths, database URLs and personal data; nothing needed removing. All records are synthetic (INV-01).",
     "report": "Verbatim JSON printed by the run, unchanged.",
     "humanReview": {
-      "reviewer": "Jian Ting, 2026-11-10. Claude drafted a read for each row from a side-by-side of expected.cause and validatedFindings; Jian accepted them. The automatic scores are left as printed.",
+      "reviewer": "Jian Ting, 2026-11-10. Claude drafted a read for each row from a side-by-side of expected.cause and validatedFindings; Jian's acceptance is recorded on issue #15. The automatic scores are left as printed.",
       "validatorFalsePositive": "lookalike: the model labelled Explained with the correct cause (distinct invoices FS-201 and FS-202). The validator's overclaim check matched 'Nothing in the records confirms the work was delivered or the payments were approved' because 'Nothing' is not on its negator list, set support to contradicted and downgraded the label to Needs Review. The automatic label failure stands. This is a conservative error (no unsupported Explained) and is recorded, not fixed against held-out data.",
       "causeCorrectness": {
         "lookalike": "correct: two separately invoiced payments, not one invoice paid twice; the label was downgraded by the validator (above).",
