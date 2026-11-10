@@ -8,6 +8,10 @@ Finance workflow portfolio · **Elliot Watson & Jian Ting Li**.
 
 Rules flag unusual vendor payments. One Claude agent investigates each flag using read-only, scoped tools over the payments, invoices and vendor notes. The application checks citation scope, screens for specific overclaims and unsupported amounts, and requires cited records to support an `Explained` finding. A person reviews the result, including model-written next steps.
 
+![SpendWise investigation view](docs/screenshot.png)
+
+*Captured from the deployed synthetic demo in public read-only mode. Review controls require an authorized GitHub sign-in.*
+
 **Flow:** Simulate payments → detect exceptions → investigate → validate evidence → human review → reset.
 
 - **Accurate calculations:** integer USD cents, cash by entry date, explicit reversals. Calculation and detection live in application code, never in the model.

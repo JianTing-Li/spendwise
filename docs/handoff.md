@@ -20,6 +20,7 @@ GitHub Issues hold every task's specification, owner (the assignee), milestone a
 | DEMO-01 | [Validate three demo cycles and publish an honest handoff](https://github.com/JianTing-Li/spendwise/issues/15) |
 | DOCS-01 | [Port task assignment notes onto main](https://github.com/JianTing-Li/spendwise/issues/16) |
 | OPS-02 | [Restore and harden the issue workflow](https://github.com/JianTing-Li/spendwise/issues/18) |
+| DOCS-02 | [Add an authentic deployed investigation screenshot](https://github.com/JianTing-Li/spendwise/issues/53) |
 
 Views: [open issues by milestone](https://github.com/JianTing-Li/spendwise/milestones) · [all open issues](https://github.com/JianTing-Li/spendwise/issues)
 
