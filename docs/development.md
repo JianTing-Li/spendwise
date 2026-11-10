@@ -52,7 +52,7 @@ Free tiers only, synthetic data only. Setup and verification evidence are in DEP
 
 - **Vercel:** team Calm Forge (Hobby), project `spendwise`, Git import of `main` (each merge deploys to Production). Next.js preset with the repository's own `npm run build`. Function region `iad1`, Fluid Compute on, Node.js 24.x to match `.nvmrc` (the project defaulted to 26.x; set it under Build and Deployment).
 - **Neon:** project `spendwise`, AWS `us-east-1`, database `neondb`. The function region matches the database region.
-- **Duration:** the demo routes request `maxDuration = 90`. Vercel documents a 300-second Hobby Fluid Compute maximum; this project's own limit was not read from its settings, and live real runs finished well within it. The application keeps its own **60-second total** investigation deadline. PGlite is local-only and is never a hosted fallback.
+- **Duration:** the demo routes request `maxDuration = 90`. The deployed functions show `/api/demo` and `/api/demo/retry` at a 90-second maximum (other functions 300 seconds; deployment Resources tab, 2026-11-10), leaving 30 seconds after the deadline for validation and persistence. The application keeps its own **60-second total** investigation deadline. PGlite is local-only and is never a hosted fallback.
 
 ### Database logins
 | Login | Used by | Where its URL lives |

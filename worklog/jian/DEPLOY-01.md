@@ -15,6 +15,7 @@ Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Ne
 - Local, on `deploy-01` (Node 24.18.0): `npm run check` passed — typecheck, lint, 238 tests in 24 files, build.
 - `npm run db:migrate` (owner login): applied.
 - `npm run test:neon` (authorized): passed — runtime-login preflight, isolated migration replay and three-cycle fixture check; zero model calls.
+- Deployed function limits (Resources tab): `/api/demo` and `/api/demo/retry` at most 90 seconds, other functions 300 seconds; all `iad1`, Node.js 24.x.
 - Signed out: `/` shows the sign-in page; `GET /api/demo` 401; `POST /api/demo` and `/api/demo/retry` 403. `/api/auth/providers` lists GitHub with the production callback.
 - Browser bundle scan: no database passwords, Neon host, `sk-ant-` pattern or secret variable names in the five public scripts.
 - Signed in, stub mode: load 200; Simulate created 4 exceptions and 4 runs, all `completed`, labelled "Stub · no AI call", 0/10 model requests; reload kept them; Reset cleared them and advanced the generation from 0 to 1, and a reload did not bring them back.
@@ -31,8 +32,7 @@ Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Ne
 - Several Vercel saves and redeploys silently didn't happen because the inline Save sat below the fold or the identity prompt was dismissed. Recorded under "Operating notes" in `docs/development.md`.
 
 ## Not done
-- Hosted failure, incomplete and retry states were not exercised on the live site; they need a deliberately failing configuration. `npm run test:e2e:retry` covers them locally with zero model calls.
-- The project's actual function duration limit was not read from Vercel settings; the docs cite Vercel's documented Hobby maximum.
+- Hosted failed, incomplete and retry states were not exercised on the live site. Locally, `npm run test:e2e:retry` covers retry history, the three-attempt limit and stale retries after reset (zero model calls); `tests/e2e/review.spec.ts` shows incomplete, cancelled and failed runs from mocked state; unit tests in `agent`, `store` and `investigation-integration` produce incomplete results. An invalid `ANTHROPIC_MODEL` produces a hosted `failed` run (`src/agent/loop.ts`); incomplete comes only from the deadline, budget, tool limit or invalid evidence, which configuration can't force.
 - `npm run test:e2e` and `npm run test:pg` were not run locally for this branch.
 
 ## Next action
