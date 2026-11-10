@@ -13,7 +13,7 @@ const directory = await mkdtemp(join(tmpdir(),'spendwise-access-'));
 async function serve(configured, check) {
   const child = spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3197'],{
     env:{...process.env,VERCEL:'',DATABASE_MODE:'local',PGLITE_DATA_DIR:directory,INVESTIGATOR_MODE:'stub',ANTHROPIC_API_KEY:'',
-      AUTH_URL:canonical,AUTH_SECRET:configured ? secret : '',AUTH_GITHUB_ID:'offline-id',AUTH_GITHUB_SECRET:'offline-secret',
+      AUTH_URL:canonical,AUTH_SECRET:configured ? secret : '',AUTH_GITHUB_ID:'offline-id',AUTH_GITHUB_SECRET:'offline-secret',SPENDWISE_PUBLIC_READ:'',
       SPENDWISE_ACCESS_GRANTS:JSON.stringify({'github:123':{permissions:['read','inject','reset','review','retry']},'github:456':{permissions:['read']}})},
     stdio:['ignore','pipe','pipe']});
   try {

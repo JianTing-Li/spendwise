@@ -20,6 +20,9 @@ Decision record: `docs/decisions/005-public-read-only.md`. Operator notes: `docs
 - Local production build (`next start`, loopback, disposable PGlite, stub mode, offline Auth.js settings, `SPENDWISE_PUBLIC_READ=1`), zero model calls: signed-out `GET /api/demo` 200 with four stub runs seeded by an offline signed-in session; signed-out POST inject, reset, review and retry all 401; cross-origin GET and POST 403. The page showed the dashboard with the sign-in prompt, no Sign out, and Simulate, Reset and all four Mark reviewed buttons disabled.
 - Not run: `npm run test:e2e`, `npm run test:pg`, `npm run test:neon`. The disabled Retry button was not seen in a browser (no failed run in the stub state); it uses the same permission check. No check of the live site yet: that follows the merge and the Vercel change.
 
+## Code review (2026-11-10, medium)
+Findings are on the PR. Fixed: tests now pin the setting off. Left for a decision or accepted: the sign-in prompt leads accounts without a grant to the locked page; an expired session keeps enabled controls until a page reload; public reads have no rate limit; `HEAD /api/demo` stays 401; per-run grants and read-only copy are not reflected in the buttons.
+
 ## Next action
-- Review and merge need Jian's go-ahead. After merge Jian sets `SPENDWISE_PUBLIC_READ=1` in Vercel (Config, Production only), redeploys, and the live site is checked signed out.
+- After merge Jian sets `SPENDWISE_PUBLIC_READ=1` in Vercel (Config, Production only), redeploys, and the live site is checked signed out.
 - Tell Elliot about the INV-12 change.

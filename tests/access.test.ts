@@ -22,6 +22,7 @@ beforeEach(() => {
   vi.stubEnv('VERCEL', '1'); vi.stubEnv('AUTH_URL', origin); vi.stubEnv('AUTH_SECRET', secret);
   vi.stubEnv('AUTH_GITHUB_ID', 'offline-id'); vi.stubEnv('AUTH_GITHUB_SECRET', 'offline-provider-secret');
   vi.stubEnv('SPENDWISE_ACCESS_GRANTS', JSON.stringify(grants));
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', ''); // Off unless a test turns it on, whatever the shell exports.
   store.state.mockResolvedValue({ synthetic: true });
   for (const action of ['inject','reset','review','retry'] as const) store[action].mockResolvedValue({ generation: 1, changed: true });
 });

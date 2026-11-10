@@ -1,6 +1,6 @@
 # 005 — Optional public read-only viewing
 
-Date: 2026-11-10. Owner: Jian Ting ([APP-05](https://github.com/JianTing-Li/spendwise/issues/45)). Changes INV-12 wording in `AGENTS.md` and code in Elliot's paths (`src/server/access.ts`, `src/app/`); Jian authorized the change as owner and informs Elliot, whose review is on the PR.
+Date: 2026-11-10. Owner: Jian Ting ([APP-05](https://github.com/JianTing-Li/spendwise/issues/45)). Changes INV-12 wording in `AGENTS.md` and code in Elliot's paths (`src/server/access.ts`, `src/app/`); authorization and review are on [PR #47](https://github.com/JianTing-Li/spendwise/pull/47).
 
 ## Why
 SpendWise is a portfolio prototype. The hosted site showed only "SpendWise access required" to anyone outside `SPENDWISE_ACCESS_GRANTS`, so recruiters and other visitors couldn't see it.
