@@ -6,7 +6,15 @@ import { money } from "./format";
 import { INVESTIGATION_LIMITS } from "../contracts";
 import type { Permission } from "../server/access-policy";
 
-export default function Dashboard({ permissions, signedOut }: { permissions: readonly Permission[]; signedOut: boolean }) {
+export default function Dashboard({
+  permissions,
+  signedOut,
+  canSignOut = false,
+}: {
+  permissions: readonly Permission[];
+  signedOut: boolean;
+  canSignOut?: boolean;
+}) {
   const { data, busy, error, load, act, active } = useDemo(permissions);
   const can = (permission: Permission) => permissions.includes(permission);
   const latestRuns = data?.exceptions.flatMap((exception) =>
@@ -21,7 +29,14 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
         <Link className="brand" href="/">
           S<span>SpendWise</span>
         </Link>
-        <span className="environment">SYNTHETIC DEMO</span>
+        <div className="header-actions">
+          <span className="environment">SYNTHETIC DEMO</span>
+          {canSignOut && (
+            <form action="/api/auth/signout" method="get">
+              <button type="submit" className="secondary">Sign out</button>
+            </form>
+          )}
+        </div>
       </header>
       <section className="intro">
         <div>
@@ -102,55 +117,7 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
           <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
         </div>
       </section>
-      <section className="panel">
-        <div className="section-title">
-          <h2>Vendor payments</h2>
-          <span>Two complete calendar months</span>
-        </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Vendor</th>
-                <th>September</th>
-                <th>October</th>
-                <th>Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.summaries.map((s) => (
-                <tr key={s.vendorId}>
-                  <td>
-                    <strong>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.name
-                      }
-                    </strong>
-                    <small>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.category
-                      }
-                    </small>
-                  </td>
-                  <td>{money(s.priorCents)}</td>
-                  <td>{money(s.currentCents)}</td>
-                  <td>
-                    {money(s.differenceCents)}
-                    <small>
-                      {s.percentChange === null
-                        ? "Percentage unavailable"
-                        : `${s.percentChange.toFixed(1)}%`}
-                    </small>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section>
+      <section className="queue-section">
         <div className="section-title">
           <h2>Investigation queue</h2>
           <span>Evidence first. Human judgment always.</span>
@@ -178,6 +145,54 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
               act={act}
             />
           ))}
+        </div>
+      </section>
+      <section className="panel">
+        <div className="section-title">
+          <h2>Vendor payments</h2>
+          <span>Two complete calendar months</span>
+        </div>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Vendor</th>
+                <th>September</th>
+                <th>October</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.summaries.map((s) => (
+                <tr key={s.vendorId}>
+                  <td className="vendor-cell">
+                    <strong>
+                      {
+                        data.dataset.vendors.find((v) => v.id === s.vendorId)
+                          ?.name
+                      }
+                    </strong>
+                    <small>
+                      {
+                        data.dataset.vendors.find((v) => v.id === s.vendorId)
+                          ?.category
+                      }
+                    </small>
+                  </td>
+                  <td data-label="September">{money(s.priorCents)}</td>
+                  <td data-label="October">{money(s.currentCents)}</td>
+                  <td data-label="Change">
+                    {money(s.differenceCents)}
+                    <small>
+                      {s.percentChange === null
+                        ? "Percentage unavailable"
+                        : `${s.percentChange.toFixed(1)}%`}
+                    </small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
       <footer>
