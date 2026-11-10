@@ -11,3 +11,6 @@ Rewrote `README.md` so the opening reads in about 30 seconds: a one-line pitch, 
 
 ## Decisions / next action
 Supersedes DOCS-02 (#53) and PR #54 by agreement between Jian and Elliot. Elliot should confirm that the who-built-what lines are accurate. The "Who built what" split was drawn from the worklogs and issue assignments.
+
+## Update after UI-03 (#56) merged
+Merged main into the branch and kept both the UI-03 and DOCS-03 rows in `docs/handoff.md`. The README now mentions the three fictional demo companies and the vendor-cash chart, queue filter and guided tour. It does not name HubSpot or GXO. UI-03's About dialog quotes the README verbatim, and its parity test failed once the old tagline was removed. `src/app/about-content.ts` now quotes the new README lines and links to the README on `main`. The About fine print no longer names revision 180871a. `tests/brief.test.ts` and `tests/e2e/insights.spec.ts` follow the new link. Elliot should review these UI-03 file changes. Checks run: `npm run typecheck`, `npm run lint`, `npm test` (27 files, 259 tests passed) and the About Playwright test (1 passed). The full Playwright suite was not run.

@@ -34,7 +34,11 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 - **Untrusted input and hard limits.** Retrieved vendor notes are passed to the model as data, not instructions (capped at 4,000 characters), and SDK retries are set to `0` under the per-run limits.
 - **Safe resets.** Resetting the demo advances a database generation inside a transaction, so an in-flight run can never save results over a fresh reset.
 
-## Demo scenarios — *Roast & Co. Coffee*, October 2026 close
+## Demo scenarios
+
+The live demo has three fictional companies — a coffee shop, a software business unit and a warehousing business unit — each with independent data and the same three patterns: an annual renewal, a repeated invoice, and lookalike separate projects. The dashboard also charts monthly vendor cash, lets you filter the review queue by vendor, and offers a short guided tour.
+
+The default company, *Roast & Co. Coffee* (October 2026 close):
 
 | Vendor | Sep → Oct cash | What triggered it | Evidence and expected pattern |
 | --- | --- | --- | --- |
@@ -61,7 +65,7 @@ Three consecutive live cycles on the deployed site (inject → detect → invest
 
 - **The rule-based baseline matched or beat Claude's automatic label scores.** The one held-out miss was the validator rejecting a correct but cautiously worded answer on the lookalike case.
 - **Live results vary with model phrasing:** three consecutive live runs produced 2, 1, and 2 verified explanations.
-- **Analyst review time and time savings are not measured**, and neither is the relative usefulness of model-written next steps.
+- **Analyst review time, time savings, and the relative usefulness of model-written next steps remain unmeasured.**
 - **13 synthetic cases is a small sample**, and each case ran once.
 - **New-payee detection is not implemented**; the MVP detects payment increases and possible duplicates only.
 

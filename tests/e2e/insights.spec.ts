@@ -91,7 +91,7 @@ test("Help FAQ, tour, About and popover support keyboard, focus return and zero 
   await expect(page.getByRole("region", { name: "Vendor payment insights" })).toBeFocused();
   await page.getByRole("button", { name: "About", exact: true }).click();
   const about = page.getByRole("dialog", { name: "About SpendWise" });
-  await expect(about.getByRole("link", { name: "Read the source README" })).toHaveAttribute("href", /180871a.*README.md/);
+  await expect(about.getByRole("link", { name: "Read the source README" })).toHaveAttribute("href", /blob\/main\/README\.md/);
   await expect(about).toContainText("remain unmeasured");
   await page.keyboard.press("Escape");
   await expect(about).toBeHidden();
