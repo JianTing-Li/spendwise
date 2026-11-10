@@ -6,7 +6,13 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   await page.getByRole('button', { name: 'Simulate new payments' }).click();
   await expect(page.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' })).toHaveCount(4);
   const initial = await (await request.get('/api/demo')).json();
-  const predecessorId = initial.runs[0].id;
+  const firstException = [...initial.exceptions].sort(
+    (a: { summary: { differenceCents: number } }, b: { summary: { differenceCents: number } }) =>
+      b.summary.differenceCents - a.summary.differenceCents,
+  )[0];
+  const predecessorId = initial.runs.find(
+    (r: { exceptionId: string }) => r.exceptionId === firstException.id,
+  ).id;
   const card = page.locator('article.finding').first();
   await card.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' }).click();
   await expect(card.getByRole('button', { name: 'Retry investigation (2/3 attempts used)' })).toBeVisible();
@@ -19,7 +25,7 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   const after = await (await request.get('/api/demo')).json();
   expect(after.runs.filter((r: {
     exceptionId: string;
-  }) => r.exceptionId === initial.runs[0].exceptionId)).toHaveLength(3);
+  }) => r.exceptionId === firstException.id)).toHaveLength(3);
   expect(after.runs.every((r: {
     modelRequests: number;
   }) => r.modelRequests === 0)).toBe(true);

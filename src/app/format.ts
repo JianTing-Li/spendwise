@@ -10,3 +10,9 @@ export const percent = (value: number | null) =>
         signDisplay: "exceptZero",
       }).format(value)}%`;
 
+export const shortDate = (isoDate: string) =>
+  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
+    new Date(`${isoDate}T00:00:00.000Z`),
+  );
+
+

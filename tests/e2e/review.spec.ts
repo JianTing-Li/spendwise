@@ -117,6 +117,7 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await expect(card.getByText("Pending", { exact: true })).toBeVisible();
     Object.assign(state.runs[0], { state: "running", toolExecutions: 2, modelRequests: 1 });
     await expect(card.getByText("Running", { exact: true })).toBeVisible();
+    await card.getByText("Run details").click();
     await expect(card.getByText(/Retrievals 2\/8 · Model requests 1\/10/)).toBeVisible();
     readStatus = 503;
     await expect(page.getByText("Progress updates are unavailable. Reload to check current run states.")).toBeVisible();

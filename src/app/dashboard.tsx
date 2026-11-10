@@ -20,6 +20,15 @@ export default function Dashboard({
   const latestRuns = data?.exceptions.flatMap((exception) =>
     data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
   ) ?? [];
+  const sortedExceptions = [...(data?.exceptions ?? [])].sort((a, b) => {
+    if (b.summary.differenceCents !== a.summary.differenceCents) {
+      return b.summary.differenceCents - a.summary.differenceCents;
+    }
+    if (a.rule !== b.rule) {
+      return a.rule === "payment_increase" ? -1 : 1;
+    }
+    return a.id.localeCompare(b.id);
+  });
   const reviewableRuns = latestRuns.filter(run => run.state === "completed");
   const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
@@ -134,10 +143,11 @@ export default function Dashboard({
           </div>
         )}
         <div className="queue">
-          {data?.exceptions.map((exception) => (
+          {data && sortedExceptions.map((exception) => (
             <ReviewCard
               key={`${data.generation}:${exception.id}`}
               exception={exception}
+              relatedExceptions={sortedExceptions.filter(e => e.vendorId === exception.vendorId && e.id !== exception.id)}
               dataset={data.dataset}
               attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
               busy={Boolean(busy) || Boolean(error)}

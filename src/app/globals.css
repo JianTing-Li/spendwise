@@ -316,9 +316,54 @@ h3 {
   border-radius: 4px;
   padding: 4px 8px;
 }
-.reviewed {
+.tag.reviewed {
   background: #e4f0e7;
   color: var(--green);
+}
+article.finding.reviewed {
+  background: #f2f5f0;
+  border-color: #c8d3c9;
+}
+.related-exception {
+  margin: 6px 0 0 !important;
+  font-size: 12px !important;
+}
+.related-exception a {
+  color: var(--green);
+  text-underline-offset: 2px;
+}
+.duplicate-summary {
+  padding: 12px 0;
+  border-block: 1px solid var(--line);
+}
+.amount-in-question {
+  margin: 0 0 10px !important;
+  color: var(--ink) !important;
+}
+.flagged-payments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.flagged-payments li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.flagged-payments li + li {
+  border-top: 1px dashed var(--line);
+}
+.flagged-payments strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.citation-context {
+  color: var(--muted);
+  font-size: 12px;
 }
 .fine {
   font-size: 12px !important;

@@ -2,7 +2,7 @@
 
 import { useId, useRef } from "react";
 import { INVESTIGATION_LIMITS, type Dataset, type Exception, type Run } from "../contracts";
-import { money, percent } from "./format";
+import { money, percent, shortDate } from "./format";
 
 const stateLabels: Record<Run["state"], string> = {
   pending: "Pending",
@@ -40,8 +40,9 @@ const errorDescriptions = {
   internal: "The investigation encountered an internal error.",
 };
 
-export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canReview, act }: {
+export function ReviewCard({ exception, relatedExceptions = [], dataset, attempts, busy, canRetry, canReview, act }: {
   exception: Exception;
+  relatedExceptions?: Exception[];
   dataset: Dataset;
   attempts: Run[];
   busy: boolean;
@@ -55,9 +56,29 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
   const payments = dataset.payments.filter(p => p.vendorId === exception.vendorId);
   const invoices = dataset.invoices.filter(i => i.vendorId === exception.vendorId);
   const notes = dataset.notes.filter(n => n.vendorId === exception.vendorId);
+  const flaggedPayments = exception.paymentIds
+    .map(id => payments.find(p => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p));
+  const amountInQuestion = flaggedPayments[0]?.amountCents;
   const hasRecord = (type: string, id: string) =>
     (type === "payment" ? payments : type === "invoice" ? invoices : notes).some(r => r.id === id);
   const recordId = (type: string, id: string) => `${prefix}-${type}-${id}`;
+  function citationContext(type: string, id: string): string {
+    if (type === "payment") {
+      const p = payments.find(r => r.id === id);
+      if (!p) return "";
+      const inv = invoices.find(i => i.id === p.invoiceId);
+      return `${shortDate(p.date)} · ${money(p.amountCents)} · ${inv ? `invoice ${inv.number}` : "no invoice"}`;
+    }
+    if (type === "invoice") {
+      const inv = invoices.find(r => r.id === id);
+      if (!inv) return "";
+      return `${shortDate(inv.date)} · ${money(inv.amountCents)} · invoice ${inv.number}`;
+    }
+    const note = notes.find(r => r.id === id);
+    if (!note) return "";
+    return `${shortDate(note.date)} · vendor note`;
+  }
   function inspect(type: string, id: string) {
     if (sources.current) sources.current.open = true;
     const record = document.getElementById(recordId(type, id));
@@ -77,10 +98,9 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
       <div className="tags">
         <span className="tag">{run.mode === "stub" ? "Stub · no AI call" : "Real model"}</span>
         <span className={`tag state-${run.state}`}>{stateLabels[run.state]}</span>
-        {run.state === "completed" && <span className="tag">{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>}
+        {run.state === "completed" && <span className={`tag${run.reviewedAt ? " reviewed" : ""}`}>{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>}
       </div>
       <p className="run-status" ref={historical ? undefined : status} tabIndex={historical ? undefined : -1} role={historical ? undefined : "status"} aria-label={historical ? undefined : "Investigation status"}>{run.mode === "stub" ? stubStateDescriptions[run.state] : stateDescriptions[run.state]}</p>
-      <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
       {run.error && <p className="run-error">{errorDescriptions[run.error]} ({run.error})</p>}
       {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (count < 3 ? <>
         <p className="fine">Retry starts one new bounded attempt. It may make model requests in real mode; it never runs automatically.</p>
@@ -88,7 +108,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
           Retry investigation ({count}/3 attempts used)
         </button>
       </> : <p>Three attempts used. Reset the demo to start again.</p>)}
-      {run.findings.length === 0 && !["pending", "running"].includes(run.state) && <p>No findings were saved. No explanation has been verified.</p>}
+      {run.findings.length === 0 && !["pending", "running"].includes(run.state) && <p>No findings were saved.</p>}
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
@@ -96,18 +116,19 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
           <p className={verified ? "support verified" : "support"}>{verified ? "Verified record explanation" : "Draft · explanation not verified"}</p>
           <h5>{verified ? "Supported explanation" : finding.label === "Explained" ? "Draft explanation" : "Unresolved question"}</h5>
           <p>{finding.explanation}</p>
-          <p className="fine">References: {finding.referenceStatus} · Explanation support: {finding.supportStatus}</p>
           <h5>Cited evidence</h5>
           {finding.evidence.length ? <ul className="evidence-links">
             {finding.evidence.map((ref, i) => <li key={`${ref.type}-${ref.id}-${i}`}>
-              {hasRecord(ref.type, ref.id) ? <a href={`#${recordId(ref.type, ref.id)}`} onClick={event => { event.preventDefault(); inspect(ref.type, ref.id); }}>
-                {ref.type}: <code className="record-id">{ref.id}</code>
-              </a> : <span>{ref.type}: <code className="record-id">{ref.id}</code> — unavailable in this investigation</span>}
+              {hasRecord(ref.type, ref.id) ? <>
+                <a href={`#${recordId(ref.type, ref.id)}`} onClick={event => { event.preventDefault(); inspect(ref.type, ref.id); }}>
+                  {ref.type}: <code className="record-id">{ref.id}</code>
+                </a>
+                <span className="citation-context"> · {citationContext(ref.type, ref.id)}</span>
+              </> : <span>{ref.type}: <code className="record-id">{ref.id}</code> — unavailable in this investigation</span>}
             </li>)}
           </ul> : <p>No evidence cited. Follow-up is required.</p>}
           <h5>Recommended next step</h5>
           <p>{finding.nextStep}</p>
-          <p className="fine">Next steps are unverified guidance. Business reasons, payment approval and accounting treatment require human judgment.</p>
         </section>;
       })}
       {run.reviewedAt && <p className="review-ack">Reviewed {new Date(run.reviewedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. Acknowledgment only; explanation support is unchanged.</p>}
@@ -117,23 +138,65 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
           {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
         </button>
       </>}
-      <p className="fine run-identity">Run: {run.id} · Generation: {run.generation}</p>
+      <details className="run-details">
+        <summary>Run details</summary>
+        <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
+        <p className="fine run-identity">Run: <code className="record-id">{run.id}</code> · Generation: {run.generation}</p>
+      </details>
     </>;
   }
 
-  return <article className="finding" aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
+  const latestRun = attempts.at(-1);
+  const isReviewed = Boolean(latestRun?.reviewedAt);
+
+  return <article id={`exception-${exception.id}`} className={`finding${isReviewed ? " reviewed" : ""}`} aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
     <div className="finding-heading">
       <span className="rule">{exception.rule === "payment_increase" ? "PAYMENT INCREASE" : "POSSIBLE DUPLICATE"}</span>
       <h3>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h3>
+      {relatedExceptions.map(rel => (
+        <p className="related-exception" key={rel.id}>
+          Also flagged for this vendor:{" "}
+          <a href={`#exception-${rel.id}`}>
+            {rel.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}
+          </a>
+        </p>
+      ))}
     </div>
     <p className="trigger"><strong>Trigger: </strong>{exception.rule === "payment_increase"
       ? `At least ${money(exception.settings.minimumIncreaseCents)} and ${exception.settings.minimumPercent}% increase (dollar threshold only when prior total ≤ 0).`
       : `Same vendor, currency and amount; completed outgoing payments within ${exception.settings.duplicateDays} calendar days. At least one payment is in the current month; fully reversed payments are excluded.`}</p>
-    <dl className="cash-comparison">
-      <div><dt>Prior cash paid</dt><dd>{money(exception.summary.priorCents)}</dd></div>
-      <div><dt>Current cash paid</dt><dd>{money(exception.summary.currentCents)}</dd></div>
-      <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
-    </dl>
+    {exception.rule === "possible_duplicate" ? (
+      <div className="duplicate-summary">
+        <p className="amount-in-question">
+          <strong>
+            Amount in question:{" "}
+            <span className="num">
+              {amountInQuestion !== undefined ? `${money(amountInQuestion)}, not confirmed` : "not confirmed"}
+            </span>
+          </strong>
+        </p>
+        <ul className="flagged-payments">
+          {flaggedPayments.map(p => {
+            const inv = invoices.find(i => i.id === p.invoiceId);
+            return (
+              <li key={p.id}>
+                <span>
+                  <code className="record-id">{p.id}</code> · {shortDate(p.date)} ·{" "}
+                  {inv ? `invoice ${inv.number}` : "no invoice"}
+                </span>
+                <strong className="num">{money(p.amountCents)}</strong>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    ) : (
+      <dl className="cash-comparison">
+        <div><dt>Prior cash paid</dt><dd>{money(exception.summary.priorCents)}</dd></div>
+        <div><dt>Current cash paid</dt><dd>{money(exception.summary.currentCents)}</dd></div>
+        <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
+      </dl>
+    )}
     <p className="fine">Prior: {exception.summary.periods.priorStart} to {exception.summary.periods.currentStart} · Current: {exception.summary.periods.currentStart} to {exception.summary.periods.endExclusive} (end exclusive, UTC). Net completed cash, not accounting expense.</p>
     {runView(attempts.at(-1), attempts.length)}
     {attempts.length > 1 && <details>
