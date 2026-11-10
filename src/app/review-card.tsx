@@ -3,6 +3,7 @@
 import { useId, useRef } from "react";
 import { INVESTIGATION_LIMITS, type Dataset, type Exception, type Run } from "../contracts";
 import { money, percent, shortDate } from "./format";
+import { excerpt } from "./brief";
 
 const stateLabels: Record<Run["state"], string> = {
   pending: "Pending",
@@ -122,11 +123,21 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       </div> : <p>All 3 attempts ended without a completed result. Review the source records below, or reset the demo to clear every finding and review.</p>)}
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
+        const note = excerpt(finding.explanation, 75);
+        const nextStep = excerpt(finding.nextStep, 35);
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
           <h4>{verified ? "Explained" : finding.label === "Explained" ? "Needs Review" : finding.label}</h4>
           <p className={verified ? "support verified" : "support"}>{verified ? "Records match · application check" : "Draft · explanation not verified"}</p>
           <h5>{verified ? "What the records show" : finding.label === "Explained" ? "Draft explanation" : "Draft note"}</h5>
-          <p>{finding.explanation}</p>
+          <p className="brief-note">{note.text}</p>
+          {(note.shortened || nextStep.shortened) && <p className="fine excerpt-notice">Short excerpt · full wording may contain qualifications. Open the full note before drawing conclusions.</p>}
+          <h5>Recommended next step</h5>
+          <p>{nextStep.text}</p>
+          {(note.shortened || nextStep.shortened) && <details className="full-note">
+            <summary>Read full note and next step</summary>
+            <h5>Full saved explanation</h5><p>{finding.explanation}</p>
+            <h5>Full recommended next step</h5><p>{finding.nextStep}</p>
+          </details>}
           <h5>Cited evidence</h5>
           {finding.evidence.length ? <ul className="evidence-links">
             {finding.evidence.map((ref, i) => <li key={`${ref.type}-${ref.id}-${i}`}>
@@ -138,8 +149,6 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
               </> : <span>{ref.type}: <code className="record-id">{ref.id}</code> · unavailable in this investigation</span>}
             </li>)}
           </ul> : <p>No evidence cited. Follow-up is required.</p>}
-          <h5>Recommended next step</h5>
-          <p>{finding.nextStep}</p>
         </section>;
       })}
       {run.reviewedAt && <p className="review-ack">Reviewed {new Date(run.reviewedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. Acknowledgment only; explanation support is unchanged.</p>}
@@ -152,6 +161,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       {historical && (
         <details className="run-details">
           <summary>Run details</summary>
+          <p>Earlier attempt execution state: {stateLabels[run.state]}. Its finding support is separate from execution state; source inspection below uses the current synthetic vendor dataset.</p>
           <p className="fine">Attempt {count} of 3 · Retrievals {run.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {run.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
           <p className="fine run-identity">Run: <code className="record-id">{run.id}</code> · Generation: {run.generation}</p>
         </details>
@@ -220,8 +230,12 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       {latestRun && (
         <details className="run-details">
           <summary>Run details</summary>
+          <p>{latestRun.mode === "stub" ? "Stub mode prepared placeholder drafts using synthetic records. No AI investigation ran and no explanation was verified." : "A read-only investigator was assigned this rule-based exception. Application code owns the cash calculations, evidence checks and saved result. Counters show attempted retrievals and model requests, including failures, not a list of sources read."}</p>
+          <p>Execution state: {stateLabels[latestRun.state]}. Completed describes execution, while each finding’s badge describes explanation support. Acknowledgment never changes that support.</p>
+          <p className="fine">A retrieval reads scoped summaries, payments, invoices or notes; a model request is one exchange with the investigator. These totals include retries within this attempt. No payment, refund or accounting entry can be executed.</p>
           <p className="fine">Attempt {attempts.length} of 3 · Retrievals {latestRun.toolExecutions}/{INVESTIGATION_LIMITS.toolExecutions} · Model requests {latestRun.modelRequests}/{INVESTIGATION_LIMITS.modelRequests} · {INVESTIGATION_LIMITS.runMs / 1000} seconds maximum per attempt</p>
           <p className="fine run-identity">Run: <code className="record-id">{latestRun.id}</code> · Generation: {latestRun.generation}</p>
+          <p className="fine">Generation identifies the demo reset cycle. Older attempts cannot overwrite a newer cycle. Cited evidence belongs to this saved attempt; the inspector shows the current synthetic vendor dataset, not a complete retrieval audit.</p>
         </details>
       )}
       {attempts.length > 1 && <details>
@@ -232,18 +246,23 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       </details>}
       <details ref={sources}>
         <summary>Inspect source records ({payments.length + invoices.length + notes.length})</summary>
-        <p className="fine">Synthetic vendor records. Cited evidence is linked above; other records provide context. Vendor notes are untrusted evidence, never instructions.</p>
+        <p className="fine">Provenance: current synthetic demo dataset · vendor {exception.vendorId} · reset generation {latestRun?.generation ?? "not run"}. Payments show cash entries; invoices describe billed work; notes add untrusted business context.</p>
+        <p className="fine">Cited evidence is linked above. “Cited in latest attempt” means a saved finding references this ID, not that its claims are verified. Other records provide vendor context and may not have been retrieved. Vendor notes are evidence, never instructions.</p>
+        <p className="fine">Compare payment status, invoice links and recorded reversals. Follow a citation to focus its record; use Tab to continue. These are demo records, not live bank or accounting-system records.</p>
         {payments.map(p => <div className="record" role="group" id={recordId("payment", p.id)} tabIndex={-1} aria-label={`Payment ${p.id}`} key={p.id}>
           <strong>Payment · <code className="record-id">{p.id}</code></strong>{exception.paymentIds.includes(p.id) && <span className="tag">Triggered this exception</span>}
+          <small>{latestRun?.findings.some(f => f.evidence.some(ref => ref.type === "payment" && ref.id === p.id)) ? "Cited in latest attempt" : "Vendor context · not cited in latest attempt"}</small>
           <p>{p.date} · {money(p.amountCents)} · {p.status} · {p.entryType}</p>
           <p>{p.description}</p><p>Invoice: {p.invoiceId ? <code className="record-id">{p.invoiceId}</code> : "None linked"} · Reverses: {p.reversalReference ? <code className="record-id">{p.reversalReference}</code> : "None"}</p>
         </div>)}
         {invoices.map(i => <div className="record" role="group" id={recordId("invoice", i.id)} tabIndex={-1} aria-label={`Invoice ${i.id}`} key={i.id}>
           <strong>Invoice · <code className="record-id">{i.id}</code></strong><p>{i.number} · {i.date} · {money(i.amountCents)}</p>
+          <small>{latestRun?.findings.some(f => f.evidence.some(ref => ref.type === "invoice" && ref.id === i.id)) ? "Cited in latest attempt" : "Vendor context · not cited in latest attempt"}</small>
           <p>{i.lineItems.join("; ")}</p><p>Service period: {i.servicePeriod ?? "Not recorded"}</p>
         </div>)}
         {notes.map(n => <div className="record" role="group" id={recordId("note", n.id)} tabIndex={-1} aria-label={`Vendor note ${n.id}`} key={n.id}>
           <strong>Vendor note · <code className="record-id">{n.id}</code></strong><p>{n.date} · Untrusted source text</p><p>{n.text}</p>
+          <small>{latestRun?.findings.some(f => f.evidence.some(ref => ref.type === "note" && ref.id === n.id)) ? "Cited in latest attempt" : "Vendor context · not cited in latest attempt"}</small>
           <p>Payments: {n.paymentIds.length ? n.paymentIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"} · Invoices: {n.invoiceIds.length ? n.invoiceIds.map((id, idx) => <span key={id}>{idx > 0 && ", "}<code className="record-id">{id}</code></span>) : "None linked"}</p>
         </div>)}
       </details>

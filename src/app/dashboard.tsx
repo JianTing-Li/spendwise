@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
-import { money, percent } from "./format";
+import { money } from "./format";
+import { VendorInsights } from "./vendor-insights";
+import { LearningCenter } from "./learning-center";
 import { INVESTIGATION_LIMITS } from "../contracts";
 import { businessName } from "../fixtures/scenarios";
 import type { Permission } from "../server/access-policy";
@@ -19,6 +21,14 @@ export default function Dashboard({
 }) {
   const { data, busy, error, load, act, active } = useDemo(permissions);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [vendorFilter, setVendorFilter] = useState<{ generation: number; vendorId: string } | null>(null);
+  const selectedVendor = vendorFilter?.generation === data?.generation ? vendorFilter?.vendorId : undefined;
+  function reviewVendor(vendorId: string) {
+    if (data) setVendorFilter({ generation: data.generation, vendorId });
+    const queue = document.getElementById("investigation-queue");
+    queue?.focus({ preventScroll: true });
+    queue?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
   const resetButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -57,6 +67,7 @@ export default function Dashboard({
         </Link>
         <div className="header-actions">
           <span className="environment">Synthetic data</span>
+          <LearningCenter />
           {canSignOut && (
             <form action="/api/auth/signout" method="get">
               <button type="submit" className="secondary">Sign out</button>
@@ -169,6 +180,7 @@ export default function Dashboard({
         )}
       </div>
       <div className={busy === "reset" ? "dashboard-body dimmed" : "dashboard-body"}>
+        {data && <VendorInsights data={data} onReview={reviewVendor} />}
         <section className="metrics" aria-label="Payment overview">
           <div>
             <p>Exceptions to review</p>
@@ -196,11 +208,12 @@ export default function Dashboard({
             <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
           </div>
         </section>
-      <section className="queue-section">
+      <section className="queue-section" id="investigation-queue" tabIndex={-1} aria-labelledby="queue-title">
         <div className="section-title">
-          <h2>Investigation queue</h2>
+          <h2 id="queue-title">Investigation queue</h2>
           <span>{data ? `${data.exceptions.length} ${data.exceptions.length === 1 ? "exception" : "exceptions"} · ${reviewed} reviewed` : "Loading…"}</span>
         </div>
+        {selectedVendor && <div className="filter-notice"><p>Showing {data?.dataset.vendors.find(v => v.id === selectedVendor)?.name} · {sortedExceptions.filter(e => e.vendorId === selectedVendor).length} exceptions</p><button className="secondary" onClick={() => setVendorFilter(null)}>Show all exceptions</button></div>}
         {data?.exceptions.length === 0 && (
           <div className="empty">
             <h3>Baseline ready</h3>
@@ -208,7 +221,7 @@ export default function Dashboard({
           </div>
         )}
         <div className="queue">
-          {data && sortedExceptions.map((exception) => (
+          {data && sortedExceptions.filter(e => !selectedVendor || e.vendorId === selectedVendor).map((exception) => (
             <ReviewCard
               key={`${data.generation}:${exception.id}`}
               exception={exception}
@@ -223,52 +236,7 @@ export default function Dashboard({
           ))}
         </div>
       </section>
-      <section className="panel">
-        <div className="section-title">
-          <h2>Vendor payments</h2>
-          <span>Two complete calendar months</span>
-        </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Vendor</th>
-                <th scope="col" className="num">September</th>
-                <th scope="col" className="num">October</th>
-                <th scope="col" className="num">Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.summaries.map((s) => (
-                <tr key={s.vendorId}>
-                  <td className="vendor-cell">
-                    <strong>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.name
-                      }
-                    </strong>
-                    <small>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.category
-                      }
-                    </small>
-                  </td>
-                  <td className="num" data-label="September">{money(s.priorCents)}</td>
-                  <td className="num" data-label="October">{money(s.currentCents)}</td>
-                  <td className="num" data-label="Change">
-                    <span className="num-value">
-                      {money(s.differenceCents)}
-                      <small>{percent(s.percentChange)}</small>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+
       </div>
     </main>
   );

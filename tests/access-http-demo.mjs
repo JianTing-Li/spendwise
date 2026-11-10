@@ -41,11 +41,20 @@ try {
     const state=await api(undefined,admin); assert.equal(state.status,200);
     const data=await state.json(); assert.equal(data.exceptions.length,4); assert(data.runs.every(r=>r.mode==='stub'));
     assert.equal((await api({action:'reset'},admin,'https://foreign.example')).status,403);
-    const page=await fetch('http://127.0.0.1:3197/'); assert((await page.text()).includes('SpendWise access required'));
-    console.log('HTTP: missing identity 401; denied permission 403; authorized reset/inject/read 200; cross-origin 403; protected dashboard; model calls 0');
+    // APP-06 canonicalizes page requests before checking identity. Inspect the
+    // redirect locally; never follow the placeholder canonical host on the network.
+    const redirect=await fetch('http://127.0.0.1:3197/',{redirect:'manual'});
+    assert.equal(redirect.status,307);
+    assert.equal(redirect.headers.get('location'),`${canonical}/`);
+    console.log('HTTP: missing identity 401; denied permission 403; authorized reset/inject/read 200; cross-origin 403; canonical redirect 307 inspected without following; model calls 0');
   });
   await serve(false,async()=>{
     assert.equal((await api()).status,401);
-    console.log('HTTP: missing hosted configuration fails closed 401');
+    // Invalid hosted configuration does not canonicalize or expose the dashboard.
+    const page=await fetch('http://127.0.0.1:3197/',{redirect:'manual'});
+    assert.equal(page.status,200);
+    assert.equal(page.headers.get('location'),null);
+    assert((await page.text()).includes('SpendWise access required'));
+    console.log('HTTP: missing hosted configuration fails closed 401; protected dashboard');
   });
 } finally { await rm(directory,{recursive:true,force:true}); }
