@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DemoState, MutationResponse } from "../contracts";
+import { DemoState, MutationResponse, type CompanyId } from "../contracts";
 import type { Permission } from "../server/access-policy";
 
 class DemoError extends Error {
@@ -17,7 +17,7 @@ function responseError(status: number) {
 }
 
 /** Observe durable runs while the mutation request owns their execution. */
-export function useDemo(permissions: readonly Permission[]) {
+export function useDemo(permissions: readonly Permission[], companyId: CompanyId = "roast") {
   const [data, setData] = useState<DemoState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -42,7 +42,7 @@ export function useDemo(permissions: readonly Permission[]) {
     const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
     const timer = setTimeout(() => controller.abort(new DemoError(408, "Progress request timed out. Reload to check the current state.")), timeoutMs);
     try {
-      const response = await fetch("/api/demo", { cache: "no-store", signal: requestSignal });
+      const response = await fetch(companyPath("/api/demo", companyId), { cache: "no-store", signal: requestSignal });
       if (!response.ok) throw responseError(response.status);
       const next = DemoState.parse(await response.json());
       if (signal?.aborted || expectedEpoch !== epoch.current || id < appliedId.current || next.generation < generation.current) return;
@@ -56,7 +56,7 @@ export function useDemo(permissions: readonly Permission[]) {
         report(controller.signal.aborted ? controller.signal.reason : cause);
       }
     } finally { clearTimeout(timer); }
-  }, [report]);
+  }, [report, companyId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,7 +100,7 @@ export function useDemo(permissions: readonly Permission[]) {
     setBusy(kind);
     setError("");
     try {
-      const response = await fetch(path, {
+      const response = await fetch(companyPath(path, companyId), {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Spendwise-Demo": "1" },
         body: JSON.stringify(action),
@@ -126,4 +126,8 @@ export function useDemo(permissions: readonly Permission[]) {
   }
 
   return { data, busy, error, load, act, active };
+}
+
+function companyPath(path: string, company: CompanyId) {
+  return company === "roast" ? path : `${path}?company=${company}`;
 }

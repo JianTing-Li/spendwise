@@ -10,7 +10,7 @@ import { stubInvestigator } from "./stub";
 export async function runtimeFor(store: Store, id: string, input: InvestigationInput,
   mode: InvestigationResult["mode"], signal: AbortSignal, fakeClient?: ModelClient) {
   const retrieval = databaseRetrieval({ application: store.db, reader: store.reader },
-    { exceptionId: input.exception.id, generation: input.generation });
+    { exceptionId: input.exception.id, generation: input.generation, companyId: store.companyId });
   const counters = { toolExecutions: 0, modelRequests: 0 };
   const check = () => {
     if (signal.aborted) throw new RunError("deadline");
