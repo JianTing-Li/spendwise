@@ -4,19 +4,33 @@
 
 Finance workflow portfolio · **Elliot Watson & Jian Ting Li**.
 
-Investigate unusual payments using synthetic records, invoices, and vendor notes.
+**Live demo:** https://spendwise-olive-theta.vercel.app. Anyone can view it read-only; running investigations needs an authorized GitHub sign-in. All records are synthetic.
 
-**Flow:** Simulate payments → detect exceptions → investigate → review evidence → reset.
+Rules flag unusual vendor payments. One Claude agent investigates each flag using read-only, scoped tools over the payments, invoices and vendor notes. The application checks every citation and claim, and a person reviews the result.
 
-- **Accurate calculations:** Integer cents; explicit reversals.
-- **AI boundaries:** Read-only tools; scoped evidence.
-- **Repeatable demo:** Persistent data; safe injection/reset.
-- **Team workflow:** Shared contracts; independent development.
+**Flow:** Simulate payments → detect exceptions → investigate → validate evidence → human review → reset.
 
-**Status:** Working local demo; **stub findings**. Real mode uses scoped database retrieval; hosted Auth.js/Neon verification still requires operator configuration. See the [offline integration demo](docs/int-01-verification.md). Synthetic data only; no financial execution.
+- **Accurate calculations:** integer USD cents, cash by entry date, explicit reversals. Calculation and detection live in application code, never in the model.
+- **AI boundaries:** one agent, read-only scoped retrieval, no SQL or credentials in model input, hard limits of 8 retrievals, 10 model requests and 60 seconds per run.
+- **Honest results:** a finding counts as explained only when the cited records support it. Unsupported claims, failures and limits stay visible as such.
+- **Repeatable demo:** persistent data; injection and reset are idempotent, and reset stops stale runs from saving.
 
-**Stack:** Next.js · React · TypeScript · Tailwind · Zod · PGlite locally · Vitest · Playwright. Planned: Claude + Neon + Vercel.
+## Results so far
+Development evaluation (9 synthetic cases, one run each, `claude-opus-5-5`; [decision 004](docs/decisions/004-evaluation.md)):
 
+| | Claude investigator | Rule-based baseline |
+| --- | --- | --- |
+| Acceptable run state and label | 9 / 9 | 9 / 9 |
+| Unsupported "Explained" findings | 0 | 0 |
+| Required evidence cited | 18 / 18 | 18 / 18 |
+| Causes correct (human review) | 8 correct, 1 partly | states no causes |
+
+On these cases the model matches the baseline on every automatic metric; its added value is in the explanations and next steps, which people judge. The validator was tuned on these cases, so they don't show generalization. Analyst review time has not been measured. No savings, customers or production reliability are claimed.
+
+## Stack
+Next.js · React · TypeScript · Tailwind · Zod · Claude (Anthropic SDK) · Neon Postgres · Vercel · Auth.js (GitHub) · PGlite locally · Vitest · Playwright.
+
+## Run locally
 ```sh
 nvm use
 npm ci
@@ -24,6 +38,6 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000**. No API keys required.
+Open **http://127.0.0.1:3000**. Local mode uses stub findings and needs no API keys.
 
-[Developer setup](docs/development.md) · [Requirements](docs/prd.md) · [Setup checklist](docs/setup-checklist.md) · [Agent instructions](AGENTS.md)
+[Developer setup](docs/development.md) · [Requirements](docs/prd.md) · [Decisions](docs/decisions/) · [Agent instructions](AGENTS.md)
