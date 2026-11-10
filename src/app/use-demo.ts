@@ -99,7 +99,6 @@ export function useDemo(permissions: readonly Permission[]) {
     const expectedEpoch = ++epoch.current;
     setBusy(kind);
     setError("");
-    if (kind === "reset") setData(null);
     try {
       const response = await fetch(path, {
         method: "POST",
@@ -119,7 +118,6 @@ export function useDemo(permissions: readonly Permission[]) {
         // A read started before this denial must not erase its feedback or
         // restore records after a 401. An explicit Reload starts a new read.
         epoch.current++;
-        if (kind === "reset" && cause instanceof DemoError && cause.status === 403) setData(data);
         report(cause, "mutation");
       }
     } finally {

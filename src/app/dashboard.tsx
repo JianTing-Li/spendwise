@@ -1,70 +1,144 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
-import { money } from "./format";
+import { money, percent } from "./format";
 import { INVESTIGATION_LIMITS } from "../contracts";
+import { businessName } from "../fixtures/scenarios";
 import type { Permission } from "../server/access-policy";
 
-export default function Dashboard({ permissions, signedOut }: { permissions: readonly Permission[]; signedOut: boolean }) {
+export default function Dashboard({
+  permissions,
+  signedOut,
+  canSignOut = false,
+}: {
+  permissions: readonly Permission[];
+  signedOut: boolean;
+  canSignOut?: boolean;
+}) {
   const { data, busy, error, load, act, active } = useDemo(permissions);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmingReset) {
+      confirmButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [confirmingReset]);
   const can = (permission: Permission) => permissions.includes(permission);
+  const currentRuns = data?.runs.filter((run) => run.generation === data.generation) ?? [];
   const latestRuns = data?.exceptions.flatMap((exception) =>
-    data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
+    currentRuns.filter((run) => run.exceptionId === exception.id).slice(-1),
   ) ?? [];
+  const sortedExceptions = [...(data?.exceptions ?? [])].sort((a, b) => {
+    if (b.summary.differenceCents !== a.summary.differenceCents) {
+      return b.summary.differenceCents - a.summary.differenceCents;
+    }
+    if (a.rule !== b.rule) {
+      return a.rule === "payment_increase" ? -1 : 1;
+    }
+    return a.id.localeCompare(b.id);
+  });
   const reviewableRuns = latestRuns.filter(run => run.state === "completed");
+  const failedRuns = latestRuns.filter(run => run.state === "failed");
   const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
+  const savedFindings = currentRuns.reduce((n, r) => n + r.findings.length, 0);
+  const exceptionCount = data?.exceptions.length ?? 0;
+  const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || exceptionCount > 0);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
+  const displayBusinessName = businessName.replace(/^Example\s+/i, "").replace(/\s*\(fictional\)$/i, "");
   return (
     <main>
       <header>
         <Link className="brand" href="/">
-          S<span>SpendWise</span>
+          <span className="brand-mark" aria-hidden="true">S</span>
+          <span>SpendWise</span>
         </Link>
-        <span className="environment">SYNTHETIC DEMO</span>
+        <div className="header-actions">
+          <span className="environment">Synthetic data</span>
+          {canSignOut && (
+            <form action="/api/auth/signout" method="get">
+              <button type="submit" className="secondary">Sign out</button>
+            </form>
+          )}
+        </div>
       </header>
       <section className="intro">
         <div>
-          <p className="eyebrow">PAYMENT OPERATIONS / OCTOBER 2026</p>
-          <h1>
-            Every exception.
-            <br />
-            <span>A clearer next step.</span>
-          </h1>
-          <p className="lede">
-            Review unusual vendor payments with the records behind them.
-            <br />
-            September → October · USD · All records are fictional.
-          </p>
+          <p className="eyebrow">{displayBusinessName}</p>
+          <h1>Vendor payment exceptions · October 2026</h1>
         </div>
         <div className="controls">
           <button
             disabled={!can("inject") || Boolean(busy) || Boolean(error) || !data || data.injected}
-            onClick={() => act({ action: "inject", scenarioId: "demo-v1" })}
+            onClick={() => {
+              setConfirmingReset(false);
+              void act({ action: "inject", scenarioId: "demo-v1" });
+            }}
           >
             {busy === "inject"
               ? "Starting investigations…"
               : data?.injected
-                ? "Scenario injected"
+                ? "Payments added"
                 : "Simulate new payments"}
           </button>
-          <button
-            className="secondary"
-            disabled={!can("reset") || busy === "reset" || (!data && !busy)}
-            onClick={() => act({ action: "reset" })}
-          >
-            {busy === "reset" ? "Resetting…" : "Reset demo"}
-          </button>
+          {confirmingReset ? (
+            <div className="reset-confirm" role="group" aria-label="Confirm reset">
+              <p className="confirm-prompt">
+                {!hasScenarioState
+                  ? "Reset to baseline?"
+                  : savedFindings > 0
+                    ? `Clear ${savedFindings} ${savedFindings === 1 ? "finding" : "findings"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`
+                    : `Clear ${exceptionCount} ${exceptionCount === 1 ? "exception" : "exceptions"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`}
+              </p>
+              <div className="confirm-actions">
+                <button
+                  ref={confirmButtonRef}
+                  type="button"
+                  className="danger"
+                  disabled={!can("reset") || busy === "reset"}
+                  onClick={() => {
+                    setConfirmingReset(false);
+                    void act({ action: "reset" });
+                  }}
+                >
+                  Confirm reset
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setConfirmingReset(false);
+                    requestAnimationFrame(() => {
+                      resetButtonRef.current?.focus({ preventScroll: true });
+                    });
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              ref={resetButtonRef}
+              className="secondary"
+              disabled={!can("reset") || busy === "reset" || (!data && !busy)}
+              onClick={() => setConfirmingReset(true)}
+            >
+              {busy === "reset" ? "Resetting…" : "Reset demo"}
+            </button>
+          )}
         </div>
       </section>
       {signedOut && (
         <form className="sign-in-prompt" action="/api/auth/signin" method="get">
-          <p>Sign in with GitHub to run investigations. You are viewing the synthetic demo read-only.</p>
+          <p>You are viewing the synthetic demo read-only. You can open citations and source records; Simulate, Reset, Retry and Mark reviewed require GitHub sign-in.</p>
           <button type="submit" className="secondary">Sign in with GitHub</button>
         </form>
       )}
       {!signedOut && permissions.every(permission => permission === "read") && (
-        <p className="sign-in-prompt">This account is not authorized to run investigations. You are viewing the synthetic demo read-only.</p>
+        <p className="sign-in-prompt">This account is viewing the synthetic demo read-only. You can open citations and source records; Simulate, Reset, Retry and Mark reviewed require an authorized account.</p>
       )}
       {error && (
         <div className="error" role="alert">
@@ -77,29 +151,76 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
           </button>
         </div>
       )}
-      {!data && !error && <p role="status">{busy === "reset" ? "Clearing scenario findings and review acknowledgments…" : "Loading synthetic records…"}</p>}
-      {(active || busy === "inject" || busy === "retry") && <div className="progress" role="status">
-        {error ? "Progress updates are unavailable. Reload to check current run states." : `Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to ${INVESTIGATION_LIMITS.toolExecutions} retrievals, ${INVESTIGATION_LIMITS.modelRequests} model requests and ${INVESTIGATION_LIMITS.runMs / 1000} seconds.`}
-        <p className="fine">Keep this page open while it runs. Reset stops the scenario and clears its findings and human review acknowledgments.</p>
-      </div>}
-      <section className="metrics" aria-label="Payment overview">
-        <div>
-          <p>October cash paid</p>
-          <strong>{data ? money(total) : "—"}</strong>
-          <small>Net of completed reversals</small>
+      <div className={`status-strip${active || busy === "inject" || busy === "retry" ? " active" : ""}`} role="status">
+        {busy === "reset" ? (
+          <span>Clearing scenario findings and review acknowledgments…</span>
+        ) : !data && !error ? (
+          <span>Loading synthetic records…</span>
+        ) : active || busy === "inject" || busy === "retry" ? (
+          <span>
+            {error
+              ? "Progress updates are unavailable. Reload to check current run states."
+              : `Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to ${INVESTIGATION_LIMITS.toolExecutions} retrievals, ${INVESTIGATION_LIMITS.modelRequests} model requests and ${INVESTIGATION_LIMITS.runMs / 1000} seconds.`}
+          </span>
+        ) : (
+          <span>
+            Sep 1–30 vs Oct 1–31, 2026 · October cash paid <strong className="num">{data ? money(total) : "—"}</strong> (completed payments net of reversals)
+          </span>
+        )}
+      </div>
+      <div className={busy === "reset" ? "dashboard-body dimmed" : "dashboard-body"}>
+        <section className="metrics" aria-label="Payment overview">
+          <div>
+            <p>Exceptions to review</p>
+            <strong>{data?.exceptions.length ?? "—"}</strong>
+            <small>Flagged by rules for analyst review</small>
+          </div>
+          <div>
+            <p>Human review</p>
+            <strong>
+              {data ? (
+                reviewableRuns.length === 0 && failedRuns.length > 0 ? (
+                  <>
+                    {reviewed} reviewed · {failedRuns.length} failed
+                  </>
+                ) : (
+                  <>
+                    {reviewed} of {reviewableRuns.length} reviewed
+                    {failedRuns.length > 0 && <span> · {failedRuns.length} failed</span>}
+                  </>
+                )
+              ) : (
+                "—"
+              )}
+            </strong>
+            <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
+          </div>
+        </section>
+      <section className="queue-section">
+        <div className="section-title">
+          <h2>Investigation queue</h2>
+          <span>{data ? `${data.exceptions.length} ${data.exceptions.length === 1 ? "exception" : "exceptions"} · ${reviewed} reviewed` : "Loading…"}</span>
         </div>
-        <div>
-          <p>Exceptions to review</p>
-          <strong>{data?.exceptions.length ?? "—"}</strong>
-          <small>Rule-triggered, not confirmed errors</small>
-        </div>
-        <div>
-          <p>Human review</p>
-          <strong>
-            {data ? reviewed : "—"}
-            <span> / {data ? reviewableRuns.length : "—"}</span>
-          </strong>
-          <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
+        {data?.exceptions.length === 0 && (
+          <div className="empty">
+            <h3>Baseline ready</h3>
+            <p>Adds three October scenarios: one large increase and two pairs of same-amount payments.</p>
+          </div>
+        )}
+        <div className="queue">
+          {data && sortedExceptions.map((exception) => (
+            <ReviewCard
+              key={`${data.generation}:${exception.id}`}
+              exception={exception}
+              relatedExceptions={sortedExceptions.filter(e => e.vendorId === exception.vendorId && e.id !== exception.id)}
+              dataset={data.dataset}
+              attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
+              busy={Boolean(busy) || Boolean(error)}
+              canRetry={can("retry")}
+              canReview={can("review")}
+              act={act}
+            />
+          ))}
         </div>
       </section>
       <section className="panel">
@@ -111,16 +232,16 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
           <table>
             <thead>
               <tr>
-                <th>Vendor</th>
-                <th>September</th>
-                <th>October</th>
-                <th>Change</th>
+                <th scope="col">Vendor</th>
+                <th scope="col" className="num">September</th>
+                <th scope="col" className="num">October</th>
+                <th scope="col" className="num">Change</th>
               </tr>
             </thead>
             <tbody>
               {data?.summaries.map((s) => (
                 <tr key={s.vendorId}>
-                  <td>
+                  <td className="vendor-cell">
                     <strong>
                       {
                         data.dataset.vendors.find((v) => v.id === s.vendorId)
@@ -134,15 +255,13 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
                       }
                     </small>
                   </td>
-                  <td>{money(s.priorCents)}</td>
-                  <td>{money(s.currentCents)}</td>
-                  <td>
-                    {money(s.differenceCents)}
-                    <small>
-                      {s.percentChange === null
-                        ? "Percentage unavailable"
-                        : `${s.percentChange.toFixed(1)}%`}
-                    </small>
+                  <td className="num" data-label="September">{money(s.priorCents)}</td>
+                  <td className="num" data-label="October">{money(s.currentCents)}</td>
+                  <td className="num" data-label="Change">
+                    <span className="num-value">
+                      {money(s.differenceCents)}
+                      <small>{percent(s.percentChange)}</small>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -150,40 +269,7 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
           </table>
         </div>
       </section>
-      <section>
-        <div className="section-title">
-          <h2>Investigation queue</h2>
-          <span>Evidence first. Human judgment always.</span>
-        </div>
-        {data?.exceptions.length === 0 && (
-          <div className="empty">
-            <span>✓</span>
-            <h3>Baseline ready</h3>
-            <p>
-              Simulate new payments to explore an annual renewal,
-              <br />a possible duplicate, and two legitimate similar payments.
-            </p>
-          </div>
-        )}
-        <div className="queue">
-          {data?.exceptions.map((exception) => (
-            <ReviewCard
-              key={`${data.generation}:${exception.id}`}
-              exception={exception}
-              dataset={data.dataset}
-              attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
-              busy={Boolean(busy) || Boolean(error)}
-              canRetry={can("retry")}
-              canReview={can("review")}
-              act={act}
-            />
-          ))}
-        </div>
-      </section>
-      <footer>
-        SpendWise · Portfolio prototype{" "}
-        <span>Read-only investigation · No financial execution</span>
-      </footer>
+      </div>
     </main>
   );
 }
