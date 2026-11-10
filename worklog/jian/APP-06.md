@@ -1,6 +1,6 @@
 # APP-06 — Redirect non-canonical hosts to the production domain
 
-Owner: Jian Ting. Issue: (added when created). Branch: `app-06-canonical-host`, from `origin/main` at `d6ab7a9`. PR: (added when opened)
+Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/50. Branch: `app-06-canonical-host`, from `origin/main` at `d6ab7a9`. PR: (added when opened)
 
 ## Problem
 Right after a deploy, signing in from a deployment-specific URL (Vercel's **Visit** button) returned `{"error":"forbidden"}`; reloading on the production domain worked. Checked 2026-11-10 without signing in: the Auth.js sign-in form posts to `AUTH_URL` (`action` is the production domain), and a sign-in POST with any other `Origin` gets 403 from `authenticationRoute`. The deployment URL itself was not fetched, so the first step of the sequence is inferred.
