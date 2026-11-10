@@ -3,32 +3,43 @@ import { investigatorMode, normalizeResult } from "../investigation/result";
 import type { Database, DatabaseTransaction } from "./database";
 import { initializeLocalReader } from "./local-reader";
 import { migrate } from "./migrate";
-import { Dataset, DemoState, Exception, INVESTIGATION_LIMITS, Run, InvestigationResult, type InvestigationInput, } from "../../contracts";
-import { baseline, injectedDataset } from "../../fixtures/scenarios";
+import { CompanyId, Dataset, DemoState, Exception, INVESTIGATION_LIMITS, Run, InvestigationResult, type InvestigationInput, } from "../../contracts";
+import { companyDataset } from "../../fixtures/company-scenarios";
+import { companyStateId, vendorCompany } from "../../companies";
 import { detect, summarize, validateDataset } from "../../domain/finance";
 export class Store {
-  constructor(readonly db: Database, readonly reader?: Database) { }
+  constructor(readonly db: Database, readonly reader?: Database, readonly companyId: CompanyId = "roast") { CompanyId.parse(companyId); }
+  forCompany(companyId: CompanyId) { return new Store(this.db, this.reader, companyId); }
+  private get stateId() { return companyStateId(this.companyId); }
+  private runScope(parameter: number) {
+    return `exception_id IN (SELECT e.id FROM exceptions e JOIN vendors v ON v.id=e.payload->>'vendorId' WHERE v.company_id=$${parameter})`;
+  }
+  private async clearNoteLinks(tx: DatabaseTransaction) {
+    for (const table of ["note_payments", "note_invoices"] as const)
+      await tx.query(`DELETE FROM ${table} WHERE note_id IN (SELECT n.id FROM vendor_notes n JOIN vendors v ON v.id=n.vendor_id WHERE v.company_id=$1)`, [this.companyId]);
+  }
   async assertVersion() {
     await this.db.transaction(async (tx) => {
       const versions = (await tx.query<{
         version: number;
       }>("SELECT version FROM schema_migrations ORDER BY version")).rows.map(r => r.version);
-      if (versions.join(",") !== "1,2")
+      if (versions.join(",") !== "1,2,3")
         throw new Error("Database migration required");
     });
   }
   async initialize() {
     await migrate(this.db);
     await this.db.transaction(async (tx) => {
-      await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
-      const existing = await tx.query("SELECT id FROM vendors LIMIT 1");
+      await tx.query("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId]);
+      const existing = await tx.query("SELECT id FROM vendors WHERE company_id=$1 LIMIT 1", [this.companyId]);
       if (!existing.rows.length)
-        await this.writeDataset(tx, baseline);
+        await this.writeDataset(tx, companyDataset(this.companyId));
     });
     if (this.db.dialect !== "postgres") await initializeLocalReader(this.db);
   }
   private async writeDataset(tx: DatabaseTransaction, input: Dataset) {
     const data = validateDataset(input);
+    if (data.vendors.some(v => vendorCompany(v.id) !== this.companyId)) throw new Error("invalid_company_data");
     for (const row of data.vendors)
       await tx.query("INSERT INTO vendors (id,payload) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload", [row.id, JSON.stringify(row)]);
     for (const [table, rows] of [
@@ -40,7 +51,7 @@ export class Store {
       for (const row of rows)
         await tx.query(`INSERT INTO ${table} (id,vendor_id,payload) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload`, [row.id, row.vendorId, JSON.stringify(row)]);
     }
-    await tx.exec("DELETE FROM note_payments; DELETE FROM note_invoices;");
+    await this.clearNoteLinks(tx);
     for (const note of data.notes) {
       for (const id of note.paymentIds)
         await tx.query("INSERT INTO note_payments VALUES ($1,$2) ON CONFLICT DO NOTHING", [note.id, id]);
@@ -53,22 +64,25 @@ export class Store {
       // One coherent, read-only snapshot; polling never writes or locks reset.
       await tx.exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
       const meta = (await tx.query<{ generation: number; injected: boolean }>(
-        "SELECT generation, injected FROM demo_state WHERE id = 1")).rows[0];
-      const records = async (table: string) => (await tx.query<{
-        payload: unknown;
-      }>(`SELECT payload FROM ${table} ORDER BY id`)).rows.map((r) => r.payload);
+        "SELECT generation, injected FROM demo_state WHERE id = $1", [this.stateId])).rows[0];
+      const records = async (table: "vendors" | "invoices" | "payments" | "vendor_notes" | "exceptions") => {
+        const scope = table === "vendors" ? "company_id=$1" : `${table === "exceptions" ? "payload->>'vendorId'" : "vendor_id"} IN (SELECT id FROM vendors WHERE company_id=$1)`;
+        return (await tx.query<{ payload: unknown }>(`SELECT payload FROM ${table} WHERE ${scope} ORDER BY id`, [this.companyId])).rows.map(r => r.payload);
+      };
       const dataset = Dataset.parse({
         vendors: await records("vendors"),
         invoices: await records("invoices"),
         payments: await records("payments"),
         notes: await records("vendor_notes"),
       });
+      // An untouched company has an immutable baseline view; GET never seeds or mutates.
+      const visibleDataset = dataset.vendors.length === 0 && !meta.injected ? companyDataset(this.companyId) : dataset;
       return DemoState.parse({
         ...meta,
-        dataset,
-        summaries: summarize(dataset),
+        dataset: visibleDataset,
+        summaries: summarize(visibleDataset),
         exceptions: (await records("exceptions")).map((x) => Exception.parse(x)),
-        runs: (await tx.query<RunRow>("SELECT * FROM investigation_runs ORDER BY exception_id, attempt")).rows.map(row => effectiveRun(row)),
+        runs: (await tx.query<RunRow>(`SELECT * FROM investigation_runs WHERE ${this.runScope(1)} ORDER BY exception_id, attempt`, [this.companyId])).rows.map(row => effectiveRun(row)),
       });
     });
   }
@@ -78,10 +92,10 @@ export class Store {
       const meta = (await tx.query<{
         generation: number;
         injected: boolean;
-      }>("SELECT generation, injected FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
+      }>("SELECT generation, injected FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId])).rows[0];
       if (meta.injected)
         return { generation: meta.generation, changed: false };
-      const data = injectedDataset();
+      const data = companyDataset(this.companyId, true);
       await this.writeDataset(tx, data);
       for (const exception of detect(data)) {
         await tx.query("INSERT INTO exceptions VALUES ($1, $2) ON CONFLICT DO NOTHING", [exception.id, JSON.stringify(exception)]);
@@ -105,16 +119,16 @@ export class Store {
           encodeRun(run),
         ]);
       }
-      await tx.query("UPDATE demo_state SET injected = true WHERE id = 1");
+      await tx.query("UPDATE demo_state SET injected = true WHERE id = $1", [this.stateId]);
       return { generation: meta.generation, changed: true };
     });
   }
   async claim(id: string): Promise<InvestigationInput | null> {
     return this.db.transaction(async (tx) => {
-      await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
+      await tx.query("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId]);
       const row = (await tx.query<RunRow & {
         exception: unknown;
-      }>("SELECT r.*, e.payload AS exception FROM investigation_runs r JOIN exceptions e ON e.id = r.exception_id WHERE r.generation = (SELECT generation FROM demo_state WHERE id=1) AND r.id = $1 AND r.status = 'pending' AND r.deadline_at > clock_timestamp()", [id])).rows[0];
+      }>(`SELECT r.*, e.payload AS exception FROM investigation_runs r JOIN exceptions e ON e.id = r.exception_id WHERE r.generation = (SELECT generation FROM demo_state WHERE id=$3) AND r.id = $1 AND ${this.runScope(2)} AND r.status = 'pending' AND r.deadline_at > clock_timestamp()`, [id, this.companyId, this.stateId])).rows[0];
       if (!row)
         return null;
       const run = decodeRun(row);
@@ -135,10 +149,10 @@ export class Store {
     return this.db.transaction(async (tx) => {
       const meta = (await tx.query<{
         generation: number;
-      }>("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
+      }>("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId])).rows[0];
       if (meta.generation !== generation)
         return false;
-      const row = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id = $1 AND status = 'running'", [id])).rows[0];
+      const row = (await tx.query<RunRow>(`SELECT * FROM investigation_runs WHERE id = $1 AND ${this.runScope(2)} AND status = 'running'`, [id, this.companyId])).rows[0];
       if (!row)
         return false;
       const deadline = new Date(row.deadline_at).getTime();
@@ -161,10 +175,10 @@ export class Store {
     return this.db.transaction(async (tx) => {
       const meta = (await tx.query<{
         generation: number;
-      }>("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
+      }>("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId])).rows[0];
       // Mutations materialize expiry; GET only derives it.
-      await tx.query("UPDATE investigation_runs SET status='incomplete', payload=jsonb_set(payload,'{error}','\"deadline\"'::jsonb) WHERE generation=$1 AND status IN ('pending','running') AND deadline_at<=clock_timestamp()", [meta.generation]);
-      const previous = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2", [predecessorId, meta.generation])).rows[0];
+      await tx.query(`UPDATE investigation_runs SET status='incomplete', payload=jsonb_set(payload,'{error}','"deadline"'::jsonb) WHERE generation=$1 AND ${this.runScope(2)} AND status IN ('pending','running') AND deadline_at<=clock_timestamp()`, [meta.generation, this.companyId]);
+      const previous = (await tx.query<RunRow>(`SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2 AND ${this.runScope(3)}`, [predecessorId, meta.generation, this.companyId])).rows[0];
       if (!previous)
         throw new Error("invalid_retry");
       const existing = (await tx.query<{
@@ -186,9 +200,9 @@ export class Store {
   async charge(id: string, generation: number, counter: "toolExecutions" | "modelRequests", amount = 1) {
     if (!Number.isInteger(amount) || amount < 1 || amount > 10) throw new Error("invalid_counter");
     return this.db.transaction(async tx => {
-      const meta = (await tx.query<{generation: number}>("SELECT generation FROM demo_state WHERE id=1 FOR SHARE")).rows[0];
+      const meta = (await tx.query<{generation: number}>("SELECT generation FROM demo_state WHERE id=$1 FOR SHARE", [this.stateId])).rows[0];
       if (meta.generation !== generation) throw new RunError("stale_generation");
-      const row = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2 AND status='running' AND deadline_at>clock_timestamp() FOR UPDATE", [id,generation])).rows[0];
+      const row = (await tx.query<RunRow>(`SELECT * FROM investigation_runs WHERE id=$1 AND generation=$2 AND ${this.runScope(3)} AND status='running' AND deadline_at>clock_timestamp() FOR UPDATE`, [id,generation,this.companyId])).rows[0];
       if (!row) throw new RunError("deadline");
       const run = decodeRun(row);
       const limit = INVESTIGATION_LIMITS[counter];
@@ -203,16 +217,21 @@ export class Store {
   }
   async activeRuns(ids: string[], generation: number): Promise<string[]> {
     return this.db.transaction(async tx => (await tx.query<{id: string}>(
-      "SELECT r.id FROM investigation_runs r JOIN demo_state d ON d.id=1 AND d.generation=r.generation WHERE r.id=ANY($1::text[]) AND r.generation=$2 AND r.status='running' AND r.deadline_at>clock_timestamp()", [ids,generation])).rows.map(r => r.id));
+      `SELECT r.id FROM investigation_runs r JOIN demo_state d ON d.id=$3 AND d.generation=r.generation WHERE r.id=ANY($1::text[]) AND r.generation=$2 AND ${this.runScope(4)} AND r.status='running' AND r.deadline_at>clock_timestamp()`, [ids,generation,this.stateId,this.companyId])).rows.map(r => r.id));
   }
   async reset() {
     return this.db.transaction(async (tx) => {
-      await tx.query("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE");
-      await tx.exec("DELETE FROM note_payments; DELETE FROM note_invoices; DELETE FROM investigation_runs; DELETE FROM exceptions; DELETE FROM vendor_notes; DELETE FROM payments; DELETE FROM invoices; DELETE FROM vendors;");
-      await this.writeDataset(tx, baseline);
+      await tx.query("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId]);
+      await this.clearNoteLinks(tx);
+      await tx.query(`DELETE FROM investigation_runs WHERE ${this.runScope(1)}`, [this.companyId]);
+      await tx.query("DELETE FROM exceptions WHERE payload->>'vendorId' IN (SELECT id FROM vendors WHERE company_id=$1)", [this.companyId]);
+      for (const table of ["vendor_notes", "payments", "invoices"] as const)
+        await tx.query(`DELETE FROM ${table} WHERE vendor_id IN (SELECT id FROM vendors WHERE company_id=$1)`, [this.companyId]);
+      await tx.query("DELETE FROM vendors WHERE company_id=$1", [this.companyId]);
+      await this.writeDataset(tx, companyDataset(this.companyId));
       const meta = (await tx.query<{
         generation: number;
-      }>("UPDATE demo_state SET generation = generation + 1, injected = false WHERE id = 1 RETURNING generation")).rows[0];
+      }>("UPDATE demo_state SET generation = generation + 1, injected = false WHERE id = $1 RETURNING generation", [this.stateId])).rows[0];
       return { generation: meta.generation, changed: true };
     });
   }
@@ -220,8 +239,8 @@ export class Store {
     return this.db.transaction(async (tx) => {
       const meta = (await tx.query<{
         generation: number;
-      }>("SELECT generation FROM demo_state WHERE id = 1 FOR UPDATE")).rows[0];
-      const row = (await tx.query<RunRow>("SELECT * FROM investigation_runs WHERE id = $1 AND generation = $2 AND status = 'completed'", [id, meta.generation])).rows[0];
+      }>("SELECT generation FROM demo_state WHERE id = $1 FOR UPDATE", [this.stateId])).rows[0];
+      const row = (await tx.query<RunRow>(`SELECT * FROM investigation_runs WHERE id = $1 AND generation = $2 AND ${this.runScope(3)} AND status = 'completed'`, [id, meta.generation, this.companyId])).rows[0];
       if (!row)
         throw new Error("invalid_review");
       const run = decodeRun(row);

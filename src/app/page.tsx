@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Dashboard from './dashboard';
+import { CompanyId } from '../contracts';
 import { identify, authorize, canonicalRedirect, PUBLIC_SUBJECT } from '../server/access';
 export const dynamic = 'force-dynamic';
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ company?: string | string[] }> }) {
+  const selected = CompanyId.safeParse((await searchParams).company);
   const incoming = await headers();
   const host = incoming.get('host') ?? 'invalid';
   // Deployment-specific URLs would break sign-in (APP-06); send visitors to the production domain.
@@ -35,6 +37,7 @@ export default async function Page() {
     );
   return (
     <Dashboard
+      initialCompany={selected.success ? selected.data : "roast"}
       permissions={access.principal.grant.permissions}
       signedOut={access.principal.subject === PUBLIC_SUBJECT}
       canSignOut={access.principal.subject.startsWith("github:")}

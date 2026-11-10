@@ -3,22 +3,53 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
-import { money, percent } from "./format";
-import { INVESTIGATION_LIMITS } from "../contracts";
-import { businessName } from "../fixtures/scenarios";
+import { money } from "./format";
+import { VendorInsights } from "./vendor-insights";
+import { LearningCenter } from "./learning-center";
+import { INVESTIGATION_LIMITS, type CompanyId } from "../contracts";
+import { companies } from "../companies";
 import type { Permission } from "../server/access-policy";
 
-export default function Dashboard({
+type DashboardProps = { permissions: readonly Permission[]; signedOut: boolean; canSignOut?: boolean; initialCompany?: CompanyId };
+
+export default function Dashboard(props: DashboardProps) {
+  const [selection, setSelection] = useState({ id: props.initialCompany ?? "roast", focus: false });
+  const companyId = selection.id;
+  function selectCompany(id: CompanyId) {
+    setSelection({ id, focus: true });
+    const url = new URL(window.location.href);
+    if (id === "roast") url.searchParams.delete("company"); else url.searchParams.set("company", id);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
+  return <CompanyDashboard key={companyId} {...props} companyId={companyId} onCompanyChange={selectCompany} focusCompanyOnLoad={selection.focus} />;
+}
+
+function CompanyDashboard({
   permissions,
   signedOut,
   canSignOut = false,
-}: {
-  permissions: readonly Permission[];
-  signedOut: boolean;
-  canSignOut?: boolean;
-}) {
-  const { data, busy, error, load, act, active } = useDemo(permissions);
+  companyId,
+  onCompanyChange,
+  focusCompanyOnLoad,
+}: DashboardProps & { companyId: CompanyId; onCompanyChange: (id: CompanyId) => void; focusCompanyOnLoad: boolean }) {
+  const { data, busy, error, load, act, active } = useDemo(permissions, companyId);
+  const companySelector = useRef<HTMLSelectElement>(null);
+  const restoreSelectionFocus = useRef(focusCompanyOnLoad);
+  useEffect(() => {
+    if (data && !busy && !active && restoreSelectionFocus.current) {
+      companySelector.current?.focus({ preventScroll: true });
+      restoreSelectionFocus.current = false;
+    }
+  }, [data, busy, active]);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [vendorFilter, setVendorFilter] = useState<{ generation: number; vendorId: string } | null>(null);
+  const selectedVendor = vendorFilter?.generation === data?.generation ? vendorFilter?.vendorId : undefined;
+  function reviewVendor(vendorId: string) {
+    if (data) setVendorFilter({ generation: data.generation, vendorId });
+    const queue = document.getElementById("investigation-queue");
+    queue?.focus({ preventScroll: true });
+    queue?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
   const resetButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -47,7 +78,7 @@ export default function Dashboard({
   const exceptionCount = data?.exceptions.length ?? 0;
   const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || exceptionCount > 0);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
-  const displayBusinessName = businessName.replace(/^Example\s+/i, "").replace(/\s*\(fictional\)$/i, "");
+  const company = companies.find(c => c.id === companyId)!;
   return (
     <main>
       <header>
@@ -57,6 +88,7 @@ export default function Dashboard({
         </Link>
         <div className="header-actions">
           <span className="environment">Synthetic data</span>
+          <LearningCenter />
           {canSignOut && (
             <form action="/api/auth/signout" method="get">
               <button type="submit" className="secondary">Sign out</button>
@@ -66,7 +98,7 @@ export default function Dashboard({
       </header>
       <section className="intro">
         <div>
-          <p className="eyebrow">{displayBusinessName}</p>
+          <p className="eyebrow">{company.name}</p>
           <h1>Vendor payment exceptions · October 2026</h1>
         </div>
         <div className="controls">
@@ -131,6 +163,18 @@ export default function Dashboard({
           )}
         </div>
       </section>
+      <section className="company-selector" aria-label="Company demo">
+        <div><label htmlFor="company-demo">Explore a company demo</label>
+          <select ref={companySelector} id="company-demo" value={companyId} disabled={Boolean(busy) || active || !data} onChange={event => onCompanyChange(event.target.value as CompanyId)}>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.name} · {c.industry}</option>)}
+          </select>
+          {(busy || active) && <p className="fine">Wait for this operation to finish before switching companies.</p>}
+        </div>
+        <div><p><strong>{company.industry}</strong> · {company.context}</p>
+          <p className="fine">{company.examples}</p>
+          <p className="fine">{companyId === "roast" ? "Fictional company and records." : "Unaffiliated hypothetical scenario. No company data or actual vendor relationships."} All amounts are synthetic USD. Each company keeps its own findings and reviews; Reset affects only the selected demo.</p>
+        </div>
+      </section>
       {signedOut && (
         <form className="sign-in-prompt" action="/api/auth/signin" method="get">
           <p>You are viewing the synthetic demo read-only. You can open citations and source records; Simulate, Reset, Retry and Mark reviewed require GitHub sign-in.</p>
@@ -169,6 +213,7 @@ export default function Dashboard({
         )}
       </div>
       <div className={busy === "reset" ? "dashboard-body dimmed" : "dashboard-body"}>
+        {data && <VendorInsights data={data} onReview={reviewVendor} />}
         <section className="metrics" aria-label="Payment overview">
           <div>
             <p>Exceptions to review</p>
@@ -196,11 +241,12 @@ export default function Dashboard({
             <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
           </div>
         </section>
-      <section className="queue-section">
+      <section className="queue-section" id="investigation-queue" tabIndex={-1} aria-labelledby="queue-title">
         <div className="section-title">
-          <h2>Investigation queue</h2>
+          <h2 id="queue-title">Investigation queue</h2>
           <span>{data ? `${data.exceptions.length} ${data.exceptions.length === 1 ? "exception" : "exceptions"} · ${reviewed} reviewed` : "Loading…"}</span>
         </div>
+        {selectedVendor && <div className="filter-notice"><p>Showing {data?.dataset.vendors.find(v => v.id === selectedVendor)?.name} · {sortedExceptions.filter(e => e.vendorId === selectedVendor).length} exceptions</p><button className="secondary" onClick={() => setVendorFilter(null)}>Show all exceptions</button></div>}
         {data?.exceptions.length === 0 && (
           <div className="empty">
             <h3>Baseline ready</h3>
@@ -208,7 +254,7 @@ export default function Dashboard({
           </div>
         )}
         <div className="queue">
-          {data && sortedExceptions.map((exception) => (
+          {data && sortedExceptions.filter(e => !selectedVendor || e.vendorId === selectedVendor).map((exception) => (
             <ReviewCard
               key={`${data.generation}:${exception.id}`}
               exception={exception}
@@ -223,52 +269,7 @@ export default function Dashboard({
           ))}
         </div>
       </section>
-      <section className="panel">
-        <div className="section-title">
-          <h2>Vendor payments</h2>
-          <span>Two complete calendar months</span>
-        </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Vendor</th>
-                <th scope="col" className="num">September</th>
-                <th scope="col" className="num">October</th>
-                <th scope="col" className="num">Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.summaries.map((s) => (
-                <tr key={s.vendorId}>
-                  <td className="vendor-cell">
-                    <strong>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.name
-                      }
-                    </strong>
-                    <small>
-                      {
-                        data.dataset.vendors.find((v) => v.id === s.vendorId)
-                          ?.category
-                      }
-                    </small>
-                  </td>
-                  <td className="num" data-label="September">{money(s.priorCents)}</td>
-                  <td className="num" data-label="October">{money(s.currentCents)}</td>
-                  <td className="num" data-label="Change">
-                    <span className="num-value">
-                      {money(s.differenceCents)}
-                      <small>{percent(s.percentChange)}</small>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+
       </div>
     </main>
   );

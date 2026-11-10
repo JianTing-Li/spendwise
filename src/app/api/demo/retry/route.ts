@@ -3,6 +3,7 @@ import { getStore } from "../../../../server/db/local";
 import { identify, authorize, boundedJson } from "../../../../server/access";
 import { runPending } from "../../../../server/investigation/run";
 import { z } from "zod";
+import { requestCompany } from "../../../../server/demo-company";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 export async function POST(request: Request) {
@@ -19,8 +20,11 @@ export async function POST(request: Request) {
   }
   const denied = authorize(access.principal, "retry", predecessorId);
   if (denied) return denied;
+  let company;
+  try { company = requestCompany(request); } catch { return reply({ error: "invalid_company" }, 400); }
   try {
-    const store = await getStore();
+    const root = await getStore();
+    const store = company === "roast" ? root : root.forCompany(company);
     const result = await store.retry(predecessorId, acceptedAt);
     await runPending(store, { signal: request.signal });
     return reply(MutationResponse.parse({ ok: true, ...result }));

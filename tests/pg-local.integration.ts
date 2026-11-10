@@ -426,3 +426,47 @@ test("real pg: shared compatibility procedure upgrades populated 001 and replays
     await control.query(`DROP SCHEMA "${name}" CASCADE`);
   }
 });
+
+test("real pg: company locks, retrieval, reviews and resets stay isolated across independent pools", options, async () => {
+  const name = 'app01_test_' + randomUUID().replaceAll('-', '');
+  const a = scopedDatabase(name), b = scopedDatabase(name);
+  await control.query(`CREATE SCHEMA "${name}"`);
+  let release!: () => void;
+  let holder: Promise<unknown> | undefined;
+  try {
+    const root = new Store(a.db); await root.initialize();
+    const hub = root.forCompany('hubspot'), gxo = new Store(b.db).forCompany('gxo');
+    await hub.inject(); await gxo.inject();
+    const h = (await hub.state()).runs[0], g = (await gxo.state()).runs[0];
+    const hi = await hub.claim(h.id), gi = await gxo.claim(g.id);
+    assert.ok(hi); assert.ok(gi);
+    let locked!: () => void;
+    const acquired = new Promise<void>(done => { locked = done; });
+    const gate = new Promise<void>(done => { release = done; });
+    holder = a.db.transaction(async tx => {
+      await tx.query('SELECT generation FROM demo_state WHERE id=2 FOR UPDATE');
+      locked(); await gate;
+    });
+    await acquired;
+    const result = await stubInvestigator.investigate(gi, new AbortController().signal);
+    // An exclusive HubSpot lock must not block GXO's own generation lock.
+    assert.equal(await Promise.race([gxo.finish(g.id, g.generation, result), delay(2000, 'blocked', { ref: false })]), true);
+    release(); await holder;
+    await gxo.review(g.id);
+    const before = await gxo.state();
+    await hub.reset();
+    assert.equal(await hub.finish(h.id, h.generation, await stubInvestigator.investigate(hi, new AbortController().signal)), false);
+    assert.deepEqual(await gxo.state(), before);
+    const reopened = new Store(a.db).forCompany('gxo');
+    assert.deepEqual(await reopened.state(), before);
+    await assert.rejects(hub.review(g.id), /invalid_review/);
+    await assert.rejects(hub.retry(g.id), /invalid_retry/);
+    const retrieval = databaseRetrieval({ application: b.db }, { companyId: 'hubspot', exceptionId: g.exceptionId, generation: (await hub.state()).generation });
+    await assert.rejects(retrieval.list_payments(), (error: unknown) => error instanceof RetrievalError && error.code === 'invalid_scope');
+    assert.equal((await root.state()).injected, false);
+  } finally {
+    release?.(); await holder;
+    await Promise.all([a.db.close(), b.db.close()]);
+    await control.query(`DROP SCHEMA "${name}" CASCADE`);
+  }
+});

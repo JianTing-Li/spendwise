@@ -8,6 +8,8 @@ export const INVESTIGATION_LIMITS = Object.freeze({
 });
 
 export const Id = z.string().min(1).max(120);
+export const CompanyId = z.enum(["roast", "hubspot", "gxo"]);
+export type CompanyId = z.infer<typeof CompanyId>;
 export const DateOnly = z.iso.date();
 export const Cents = z.number().int().safe();
 export const Vendor = z.object({
