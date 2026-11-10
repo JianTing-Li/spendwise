@@ -1,7 +1,7 @@
 # DEPLOY-01 — Prepare and verify free-tier deployment
 
 Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/14
-Branch: `deploy-01`, from `origin/main` at `a806e06`. PR: PR_LINK
+Branch: `deploy-01`, from `origin/main` at `a806e06`. PR: https://github.com/JianTing-Li/spendwise/pull/46
 
 Setup details are in `docs/development.md` under "Hosted deployment (Vercel + Neon)". No URLs, passwords or keys appear here.
 
