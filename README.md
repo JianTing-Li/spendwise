@@ -1,39 +1,64 @@
 # SpendWise AI
 
-**Vendor-payment exceptions. Traceable evidence. Human judgment.**
+**AI-assisted vendor payment exception review — deterministic financial math, scoped evidence retrieval, and human-in-the-loop verification.**
 
-Finance workflow portfolio · **Elliot Watson & Jian Ting Li**.
+Built by **Elliot Watson & Jian Ting Li** · **Live demo:** [spendwise-olive-theta.vercel.app](https://spendwise-olive-theta.vercel.app) *(public read-only view; GitHub sign-in required to run or reset investigations)*
 
-**Live demo:** https://spendwise-olive-theta.vercel.app. Anyone can view it read-only; running investigations needs an authorized GitHub sign-in. All records are synthetic.
+![SpendWise AI walkthrough](docs/demo.gif)
 
-Rules flag unusual vendor payments. One Claude agent investigates each flag using read-only, scoped tools over the payments, invoices and vendor notes. The application checks citation scope, screens for specific overclaims and unsupported amounts, and requires cited records to support an `Explained` finding. A person reviews the result, including model-written next steps.
+---
 
-**Flow:** Simulate payments → detect exceptions → investigate → validate evidence → human review → reset.
+## 30-Second Overview
 
-- **Accurate calculations:** integer USD cents, cash by entry date, explicit reversals. Calculation and detection live in application code, never in the model.
-- **AI boundaries:** one agent, read-only scoped retrieval, no SQL or credentials in model input, hard limits of 8 retrievals, 10 model requests and 60 seconds per run.
-- **Honest results:** a finding counts as explained only when the cited records support it. Unsupported claims, failures and limits stay visible as such.
-- **Repeatable demo:** repeat injection creates no duplicate records. Reset restores the baseline and advances the generation so stale runs cannot save.
+Finance teams lose hours every month-end cross-checking payment runs against invoices and FP&A notes to figure out whether a cash spike is a real duplicate payment or an expected contract change.
 
-## Results so far
-Evaluation on 13 synthetic cases, one run each, `claude-opus-5-5`, scored by the same evaluator for both methods ([decision 004](docs/decisions/004-evaluation.md)):
+**SpendWise AI** pairs **deterministic application rules** with **one read-only Claude investigator**:
 
-| | Claude, development (9) | Baseline, development | Claude, held-out (4) | Baseline, held-out |
+1. **Application code** calculates net cash paid (integer USD cents, entry-date cash basis, explicit reversals) and flags payment increases (`≥ $5,000` and `≥ 20%`) and possible duplicate payments (`same vendor & amount within 7 days`).
+2. **Claude (`claude-opus-5-5`)** investigates each exception through 4 scoped, read-only tools (`get_payment_summary`, `list_payments`, `get_invoices`, `get_vendor_notes`) under strict runtime budgets (`≤ 8` tool calls, `≤ 10` model calls, `60s` timeout).
+3. **Application validation** checks every cited ID, screens for overclaims or unsupported dollar figures, and only marks a finding **`Explained`** when the cited invoices and notes mathematically cover the cash change.
+4. **A finance analyst** inspects the linked source records and records human acknowledgment (**Mark reviewed** — never autonomous payment execution).
+
+---
+
+## Demo Scenarios — *Roast & Co. Coffee* (October 2026 Close)
+
+| Vendor | Sep → Oct Cash | What Triggered It | What SpendWise AI Finds |
+| --- | --- | --- | --- |
+| **Northstar POS Cloud** *(Point-of-Sale & SaaS)* | `$1,000` → `$13,000` (`+1,200.0%`) | `$12,000` increase (`≥ $5,000` & `20%`) | **`Explained`** — `$1,000` monthly cafe terminal usage billed as usual on Oct 15, plus a `$12,000` annual enterprise platform renewal (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
+| **Harbor Tax & Advisory** *(Quarterly Tax & Audit)* | `$0` → `$6,000` | Two `$3,000` payments 2 days apart + `$6,000` increase | **`Needs Review`** — Two `$3,000` ACH batch payments (`Oct 8` & `Oct 10`) reference the **same** `$3,000` Q3 sales-tax invoice (`HA-101`). Flags **`$3,000.00` in question, not confirmed**. |
+| **Fieldwork Creative Studio** *(Packaging & Store Design)* | `$0` → `$3,000` | Two `$1,500` payments 2 days apart | **`Explained`** — Looks like a duplicate by amount and date, but `pay-design-a` pays `Invoice FS-201` (*holiday coffee bag artwork*) and `pay-design-b` pays `Invoice FS-202` (*winter cafe menu boards*). |
+
+---
+
+## Why It's Production-Minded
+
+- **Zero LLM math:** All currency math uses safe integer cents in application code; the model never computes totals or modifies records.
+- **Evidence verification over prompt trust:** Valid record IDs alone cannot produce a verified finding. Application code verifies invoice balance, note consistency, and overclaim rules before any `Explained` badge is shown.
+- **Prompt-injection & budget safety:** Retrieved vendor notes are wrapped as untrusted data (`≤ 4,000` chars), and SDK retries are locked to `0` under hard per-run budgets.
+- **Idempotent demo & generation safety:** Resetting increments the database generation atomically inside a transaction so in-flight runs can never overwrite a fresh reset.
+
+---
+
+## Evaluation Results (`claude-opus-5-5` vs. Rule-Based Baseline)
+
+Evaluated across **13 synthetic cases** (9 development + 4 held-out, [decision 004](docs/decisions/004-evaluation.md)) and verified across 3 consecutive end-to-end live cycles ([DEMO-01 worklog](worklog/jian/DEMO-01.md)):
+
+| Metric | Claude (Dev, 9) | Baseline (Dev) | Claude (Held-out, 4) | Baseline (Held-out) |
 | --- | --- | --- | --- | --- |
-| Unsupported "Explained" findings | **0** | 0 | **0** | 0 |
-| Acceptable label after validation | 9 / 9 | 9 / 9 | 3 / 4 | 4 / 4 |
-| Required evidence cited | 18 / 18 | 18 / 18 | 11 / 11 | 11 / 11 |
-| Causes correct (human review) | 8 correct, 1 partly | Not human-scored | 4 / 4 | Not human-scored |
+| Unsupported `Explained` findings | **0** | 0 | **0** | 0 |
+| Acceptable label after validation | **9 / 9** | 9 / 9 | **3 / 4** | 4 / 4 |
+| Required evidence cited | **18 / 18** | 18 / 18 | **11 / 11** | 11 / 11 |
+| Causes correct (human review) | **8 correct, 1 partly** | Not human-scored | **4 / 4** | Not human-scored |
 
-The held-out label miss came from the validator rejecting a correct, cautiously worded answer. The baseline matched or exceeded Claude's automatic label scores and produced rule-based explanations where its record checks passed. People scored Claude's explanations for cause correctness. The relative usefulness of either method's explanations and next steps remains unmeasured. The held-out cases were run once after the prompt and validator were final. These 13 synthetic cases provide a limited comparison, and analyst review time remains unmeasured.
+*Note:* The single held-out label miss came from the validator conservatively downgrading a correct, cautiously phrased model explanation.
 
-## Demo reliability
-In three consecutive real-mode cycles on the live site (inject → detect → investigate → validate → review → reset, 2026-11-10), every run completed within its limits (4 of 10 model requests, 6 of 8 retrievals). Repeat injection created nothing new, and each reset removed every scenario record, finding and review. Local integration tests use a synthetic model client to exercise retry and reset during a run. Browser tests cover failure states and retry history. See the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
+---
 
-## Stack
-Next.js · React · TypeScript · Tailwind · Zod · Claude (Anthropic SDK) · Neon Postgres · Vercel · Auth.js (GitHub) · PGlite locally · Vitest · Playwright.
+## Tech Stack & Local Quickstart
 
-## Run locally
+**Stack:** Next.js 16 (App Router, Node Route Handlers) · React 19 · TypeScript · Zod · Claude (`@anthropic-ai/sdk`) · Neon Postgres (`pg`) & local PGlite · Auth.js (GitHub OAuth) · Vitest · Playwright
+
 ```sh
 nvm use
 npm ci
@@ -41,6 +66,6 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000**. Local mode uses stub findings and needs no API keys.
+Open **http://127.0.0.1:3000** (runs offline out of the box with local PGlite and stub mode; no API keys required).
 
-[Developer setup](docs/development.md) · [Requirements](docs/prd.md) · [Decisions](docs/decisions/) · [Agent instructions](AGENTS.md)
+[Developer setup](docs/development.md) · [Product requirements](docs/prd.md) · [Architecture decisions](docs/decisions/) · [Working agreement](AGENTS.md)
