@@ -261,7 +261,9 @@ it('keeps signed-in grants and gives accounts without read only the public view'
 it('redirects non-canonical hosts to AUTH_URL and leaves canonical, local and unconfigured hosts alone', async () => {
   expect(await canonicalRedirect('spendwise-abc123-calm-forge.vercel.app')).toBe(`${origin}/`);
   expect(await canonicalRedirect('spendwise-git-main-calm-forge.vercel.app', '/?x=1')).toBe(`${origin}/?x=1`);
-  expect(await canonicalRedirect('evil.example', '//evil.example/path')).toBe(`${origin}/`);
+  // Destinations never leave AUTH_URL, however the path is spelled.
+  for (const path of ['//evil.example/path', '/\\evil.example/path', '\\\\evil.example', 'https://evil.example/', '/\t/evil.example', 'http://demo.example/'])
+    expect(await canonicalRedirect('spendwise-abc123-calm-forge.vercel.app', path)).toBe(`${origin}/`);
   expect(await canonicalRedirect('demo.example')).toBeNull();
   expect(await canonicalRedirect('DEMO.EXAMPLE')).toBeNull();
   expect(await canonicalRedirect(null)).toBeNull();

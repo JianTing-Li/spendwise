@@ -92,7 +92,11 @@ export async function canonicalRedirect(host: string | null, path = '/'): Promis
   if (!config || !host) return null;
   const canonical = new URL(config.origin);
   if (host.toLowerCase() === canonical.host) return null;
-  return new URL(path.startsWith('/') && !path.startsWith('//') ? path : '/', canonical).toString();
+  // Resolve, then require the canonical origin: URL parsing treats a backslash as a slash, so
+  // prefix checks alone could let a path like "/<backslash>evil.example" leave the production domain.
+  let target: URL;
+  try { target = new URL(path, canonical); } catch { return canonical.origin + '/'; }
+  return target.origin === canonical.origin ? target.toString() : canonical.origin + '/';
 }
 export function authorize(principal: Principal, permission: Permission, runId?: string) {
   return permits(principal, permission, runId) ? null : deny(403);
