@@ -18,7 +18,7 @@ test("INV-09/10: inject, inspect, review, persist and reset", async ({
   await page.getByRole("button", { name: "Simulate new payments" }).click();
   await expect(page.getByText("Stub · no AI call")).toHaveCount(4);
   await expect(
-    page.getByRole("button", { name: "Scenario injected" }),
+    page.getByRole("button", { name: "Payments added" }),
   ).toBeDisabled();
   await page.getByText("Inspect source records").first().click();
   await expect(page.locator("details[open] .record").first()).toBeVisible();

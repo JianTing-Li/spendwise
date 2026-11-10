@@ -13,20 +13,20 @@ const stateLabels: Record<Run["state"], string> = {
   cancelled: "Cancelled",
 };
 const stateDescriptions: Record<Run["state"], string> = {
-  pending: "Pending — waiting to start.",
-  running: "Running — gathering and validating evidence.",
-  completed: "Completed — investigation finished; check each finding’s support below.",
-  incomplete: "Incomplete — evidence or an investigation limit prevented completion.",
-  failed: "Failed — the investigation could not finish.",
-  cancelled: "Cancelled — execution stopped before completion.",
+  pending: "Waiting to start.",
+  running: "Gathering and checking records.",
+  completed: "Investigation finished. Check each finding below.",
+  incomplete: "Stopped before completion. See run details.",
+  failed: "Investigation did not finish.",
+  cancelled: "Stopped before completion.",
 };
 const stubStateDescriptions: Record<Run["state"], string> = {
-  pending: "Stub pending — waiting to start the demonstration.",
-  running: "Stub running — preparing demonstration findings; no AI investigation.",
-  completed: "Stub completed — the stub finished; no AI investigation or explanation verification was performed.",
-  incomplete: "Stub incomplete — the demonstration did not finish within its evidence or execution limits.",
-  failed: "Stub failed — the demonstration could not finish.",
-  cancelled: "Stub cancelled — the demonstration stopped before completion.",
+  pending: "Placeholder queued. No investigation will run.",
+  running: "Preparing placeholder result. No investigation is running.",
+  completed: "Placeholder result. No investigation ran.",
+  incomplete: "Placeholder stopped before completion. No investigation ran.",
+  failed: "Placeholder did not finish. No investigation ran.",
+  cancelled: "Placeholder cancelled. No investigation ran.",
 };
 const errorDescriptions = {
   unavailable: "Investigation service or evidence unavailable.",
@@ -119,13 +119,13 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
           Retry investigation ({count}/3 attempts used)
         </button>
         <p className="fine">Retry starts one new bounded attempt.</p>
-      </div> : <p>Three attempts used. Reset the demo to start again.</p>)}
+      </div> : <p>All 3 attempts failed. Review the source records below, or reset the demo to clear every finding and review.</p>)}
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>
           <h4>{verified ? "Explained" : finding.label === "Explained" ? "Needs Review" : finding.label}</h4>
-          <p className={verified ? "support verified" : "support"}>{verified ? "Verified record explanation" : "Draft · explanation not verified"}</p>
-          <h5>{verified ? "Supported explanation" : finding.label === "Explained" ? "Draft explanation" : "Unresolved question"}</h5>
+          <p className={verified ? "support verified" : "support"}>{verified ? "Records match · application check" : "Draft · explanation not verified"}</p>
+          <h5>{verified ? "What the records show" : finding.label === "Explained" ? "Draft explanation" : "Draft note"}</h5>
           <p>{finding.explanation}</p>
           <h5>Cited evidence</h5>
           {finding.evidence.length ? <ul className="evidence-links">
@@ -135,7 +135,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
                   {ref.type}: <code className="record-id">{ref.id}</code>
                 </a>
                 <span className="citation-context"> · {citationContext(ref.type, ref.id)}</span>
-              </> : <span>{ref.type}: <code className="record-id">{ref.id}</code> — unavailable in this investigation</span>}
+              </> : <span>{ref.type}: <code className="record-id">{ref.id}</code> · unavailable in this investigation</span>}
             </li>)}
           </ul> : <p>No evidence cited. Follow-up is required.</p>}
           <h5>Recommended next step</h5>
@@ -144,7 +144,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
       })}
       {run.reviewedAt && <p className="review-ack">Reviewed {new Date(run.reviewedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. Acknowledgment only; explanation support is unchanged.</p>}
       {!historical && run.state === "completed" && <>
-        <p className="fine">Mark reviewed records your acknowledgment for this run and generation. It does not approve a payment or verify an explanation.</p>
+        <p className="fine">Records that you looked at this finding. It does not approve the payment.</p>
         <button className="secondary" disabled={busy || !canReview || Boolean(run.reviewedAt)} onClick={() => runAction({ action: "review", runId: run.id })}>
           {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
         </button>
@@ -162,7 +162,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
 
   return <article id={`exception-${exception.id}`} className={`finding${isReviewed ? " reviewed" : ""}`} aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
     <div className="finding-heading">
-      <span className="rule">{exception.rule === "payment_increase" ? "PAYMENT INCREASE" : "POSSIBLE DUPLICATE"}</span>
+      <span className="rule">{exception.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}</span>
       <h3>{dataset.vendors.find(v => v.id === exception.vendorId)?.name}</h3>
       {relatedExceptions.map(rel => (
         <p className="related-exception" key={rel.id}>
@@ -208,7 +208,7 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
         <div><dt>Cash change</dt><dd>{money(exception.summary.differenceCents)}<small>{percent(exception.summary.percentChange)}</small></dd></div>
       </dl>
     )}
-    <p className="fine">Prior: {exception.summary.periods.priorStart} to {exception.summary.periods.currentStart} · Current: {exception.summary.periods.currentStart} to {exception.summary.periods.endExclusive} (end exclusive, UTC). Net completed cash, not accounting expense.</p>
+    <p className="fine">Sep 1–30 vs Oct 1–31, 2026. Completed payments net of reversals (cash, not expense).</p>
     {runView(attempts.at(-1), attempts.length)}
     {attempts.length > 1 && <details>
       <summary>Attempt history</summary>

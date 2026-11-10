@@ -17,7 +17,7 @@ export default async function Page() {
             <span>SpendWise</span>
           </Link>
           <div className="header-actions">
-            <span className="environment">SYNTHETIC DEMO</span>
+            <span className="environment">Synthetic data</span>
           </div>
         </header>
         <section className="access-required">

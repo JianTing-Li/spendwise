@@ -5,6 +5,7 @@ import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
 import { money, percent } from "./format";
 import { INVESTIGATION_LIMITS } from "../contracts";
+import { businessName } from "../fixtures/scenarios";
 import type { Permission } from "../server/access-policy";
 
 export default function Dashboard({
@@ -46,7 +47,7 @@ export default function Dashboard({
           <span>SpendWise</span>
         </Link>
         <div className="header-actions">
-          <span className="environment">SYNTHETIC DEMO</span>
+          <span className="environment">Synthetic data</span>
           {canSignOut && (
             <form action="/api/auth/signout" method="get">
               <button type="submit" className="secondary">Sign out</button>
@@ -56,17 +57,8 @@ export default function Dashboard({
       </header>
       <section className="intro">
         <div>
-          <p className="eyebrow">PAYMENT OPERATIONS / OCTOBER 2026</p>
-          <h1>
-            Every exception.
-            <br />
-            <span>A clearer next step.</span>
-          </h1>
-          <p className="lede">
-            Review unusual vendor payments with the records behind them.
-            <br />
-            September → October · USD · All records are fictional.
-          </p>
+          <p className="eyebrow">{businessName} · Synthetic data</p>
+          <h1>Vendor payment exceptions · October 2026</h1>
         </div>
         <div className="controls">
           <button
@@ -79,7 +71,7 @@ export default function Dashboard({
             {busy === "inject"
               ? "Starting investigations…"
               : data?.injected
-                ? "Scenario injected"
+                ? "Payments added"
                 : "Simulate new payments"}
           </button>
           {confirmingReset && hasScenarioState ? (
@@ -165,11 +157,6 @@ export default function Dashboard({
       <div className={busy === "reset" ? "dashboard-body dimmed" : "dashboard-body"}>
         <section className="metrics" aria-label="Payment overview">
           <div>
-            <p>October cash paid</p>
-            <strong>{data ? money(total) : "—"}</strong>
-            <small>Net of completed reversals</small>
-          </div>
-          <div>
             <p>Exceptions to review</p>
             <strong>{data?.exceptions.length ?? "—"}</strong>
             <small>Flagged by rules for analyst review</small>
@@ -192,16 +179,12 @@ export default function Dashboard({
       <section className="queue-section">
         <div className="section-title">
           <h2>Investigation queue</h2>
-          <span>Evidence first. Human judgment always.</span>
+          <span>{data ? `${data.exceptions.length} ${data.exceptions.length === 1 ? "exception" : "exceptions"} · ${reviewed} reviewed` : "Loading…"}</span>
         </div>
         {data?.exceptions.length === 0 && (
           <div className="empty">
-            <span>✓</span>
             <h3>Baseline ready</h3>
-            <p>
-              Simulate new payments to explore an annual renewal,
-              <br />a possible duplicate, and two legitimate similar payments.
-            </p>
+            <p>Adds three October scenarios: one large increase and two pairs of same-amount payments.</p>
           </div>
         )}
         <div className="queue">

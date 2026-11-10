@@ -58,14 +58,14 @@ test("keyboard/mobile evidence, verified vs draft labels, and run-specific revie
   });
   await opened(page);
   const card = page.getByRole("article");
-  await expect(card.getByText("Verified record explanation", { exact: true })).toHaveCount(1);
+  await expect(card.getByText("Records match · application check", { exact: true })).toHaveCount(1);
   await expect(card.getByRole("heading", { name: "Explained", exact: true })).toHaveCount(1);
   await expect(card.getByText("Draft · explanation not verified", { exact: true })).toHaveCount(1);
-  await expect(card.getByRole("heading", { name: "Unresolved question" })).toBeVisible();
+  await expect(card.getByRole("heading", { name: "Draft note" })).toBeVisible();
   await expect(card.getByText(/At least \$6,000.00 and 25%/)).toBeVisible();
   await expect(card.getByText("$1,000.00", { exact: true })).toBeVisible();
   await expect(card.getByText("$13,000.00", { exact: true })).toBeVisible();
-  await expect(card.getByText(/missing-note — unavailable/)).toBeVisible();
+  await expect(card.getByText(/missing-note · unavailable/)).toBeVisible();
   const citation = card.getByRole("link", { name: `note: ${note.id}` }).first();
   await citation.focus();
   await page.keyboard.press("Enter");
@@ -144,7 +144,7 @@ test("poll pending/running, distinguish incomplete/cancelled/failed, and bound e
     await page.keyboard.press("Space");
     await expect(card.getByText("Failed", { exact: true })).toBeVisible();
     await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
-    await expect(card.getByText("Three attempts used. Reset the demo to start again.")).toBeVisible();
+    await expect(card.getByText(/All 3 attempts failed\. Review the source records below/)).toBeVisible();
     await expect(card.getByRole("button", { name: /Retry investigation/ })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Mark reviewed" })).toHaveCount(0);
     expect(retries).toBe(2);
@@ -267,7 +267,7 @@ test("stub, incomplete, invalid-reference and unresolved findings never acquire 
     await opened(page);
     const card = page.getByRole("article");
     await expect(card.getByText("Draft · explanation not verified", { exact: true })).toBeVisible();
-    await expect(card.getByText("Verified record explanation", { exact: true })).toHaveCount(0);
+    await expect(card.getByText("Records match · application check", { exact: true })).toHaveCount(0);
     await expect(card.getByRole("heading", { name: "Explained", exact: true })).toHaveCount(0);
     await expect(card.getByRole("heading", { name: "Needs Review", exact: true })).toHaveCount(1);
   }
@@ -292,8 +292,8 @@ test("human review includes only completed latest runs and stub states describe 
     await expect(card.getByText("Draft · awaiting human review", { exact: true })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Mark reviewed", exact: true })).toHaveCount(0);
   }
-  await expect(page.getByText(/Stub completed — the stub finished/)).toBeVisible();
-  await expect(page.getByText(/Stub running — preparing demonstration findings/)).toBeVisible();
+  await expect(page.getByText(/Placeholder result\. No investigation ran\./)).toBeVisible();
+  await expect(page.getByText(/Preparing placeholder result\. No investigation is running\./)).toBeVisible();
 });
 
 test("a stalled progress read times out without cancelling execution and can be reloaded", async ({ page }) => {
