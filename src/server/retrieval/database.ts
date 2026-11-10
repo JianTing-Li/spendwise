@@ -1,13 +1,14 @@
 import "server-only";
 import { z } from "zod";
-import { Dataset, Exception, Id, ToolInputs, ToolOutputs, Vendor } from "../../contracts";
+import { CompanyId, Dataset, Exception, Id, ToolInputs, ToolOutputs, Vendor } from "../../contracts";
+import { companyStateId } from "../../companies";
 import { periods, summarize } from "../../domain/finance";
 import type { Retrieval } from "../../investigation";
 import type { Database, DatabaseTransaction } from "../db/database";
 import { assertReadOnly } from "../db/permissions";
 import { bounded, duplicateLookbackStart, RetrievalError, retrievalLimits } from "./bounds";
 
-const Scope = z.object({ exceptionId: Id, generation: z.number().int().nonnegative() }).strict();
+const Scope = z.object({ exceptionId: Id, generation: z.number().int().nonnegative(), companyId: CompanyId.optional() }).strict();
 type Scope = z.infer<typeof Scope>;
 
 // Fixed, application-owned SQL. No caller can supply table names, predicates or SQL.
@@ -47,10 +48,10 @@ export function databaseRetrieval(
         // Concurrent evidence reads share this lock. Reset/injection take UPDATE,
         // so generation and records stay coherent until the short read ends.
         const meta = (await control.query<{ generation: number }>(
-          "SELECT generation FROM demo_state WHERE id=1 FOR SHARE")).rows[0];
+          "SELECT generation FROM demo_state WHERE id=$1 FOR SHARE", [companyStateId(scope.companyId ?? "roast")])).rows[0];
         if (meta?.generation !== scope.generation) throw new RetrievalError("stale_generation");
         const row = (await control.query<{ payload: unknown }>(
-          "SELECT payload FROM exceptions WHERE id=$1", [scope.exceptionId])).rows[0];
+          "SELECT e.payload FROM exceptions e JOIN vendors v ON v.id=e.payload->>'vendorId' WHERE e.id=$1 AND v.company_id=$2", [scope.exceptionId, scope.companyId ?? "roast"])).rows[0];
         if (!row) throw new RetrievalError("invalid_scope");
         const exception = Exception.parse(row.payload);
         if (exception.id !== scope.exceptionId || exception.paymentIds.length > 100)

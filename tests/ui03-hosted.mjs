@@ -73,6 +73,21 @@ try {
   }
   assert.equal((await api("/api/demo", { action: "reset" }, await cookie("github:123", 3601))).status, 401);
   assert.equal((await api("/api/demo", { action: "reset" }, admin, "https://foreign.invalid")).status, 403);
+  for (const company of ["hubspot", "gxo"]) {
+    const path = `/api/demo?company=${company}`;
+    assert.equal((await api(path, { action: "inject", scenarioId: "demo-v1" }, admin)).status, 200);
+    const state = await (await api(path)).json();
+    assert.equal(state.runs.length, 4);
+    assert(state.dataset.vendors.every(v => v.id.startsWith(`${company}:`)));
+    assert(state.runs.every(r => r.mode === "stub" && r.modelRequests === 0));
+    for (const [target, body] of [[path, { action: "inject", scenarioId: "demo-v1" }], [path, { action: "reset" }], [path, { action: "review", runId: state.runs[0].id }], [`/api/demo/retry?company=${company}`, { predecessorId: state.runs[0].id }]]) {
+      assert.equal((await api(target, body)).status, 401);
+      assert.equal((await api(target, body, await cookie("github:456"))).status, 403);
+      assert.equal((await api(target, body, await cookie("github:789"))).status, 403);
+    }
+    assert.equal((await api(path, { action: "review", runId: data.runs[0].id }, admin)).status, 409);
+    assert.equal((await api(`/api/demo/retry?company=${company}`, { predecessorId: data.runs[0].id }, admin)).status, 409);
+  }
   console.log("Hosted HTTP: public read 200; all public mutations 401; read-only/ungranted mutations 403; expired session 401; cross-origin mutation 403; model requests 0");
 
   browser = await chromium.launch();
@@ -121,8 +136,35 @@ try {
       await audit(page, "expanded run and source records");
       await page.screenshot({ path: join(output, "records.png"), fullPage: true });
     }
+    for (const [company, vendor, source] of [["hubspot", "Summit Cloud Security", "Annual endpoint security platform subscription"], ["gxo", "Atlas Automation Services", "Annual warehouse robotics service coverage"]]) {
+      const selector = page.getByLabel("Explore a company demo", { exact: true });
+      await selector.selectOption(company);
+      await page.getByRole("button", { name: new RegExp(vendor) }).waitFor();
+      assert.equal(await page.getByRole("article").count(), 4);
+      assert.equal(await selector.inputValue(), company);
+      assert(await page.getByRole("button", { name: "Payments added", exact: true }).isDisabled());
+      assert(await page.getByRole("button", { name: "Reset demo", exact: true }).isDisabled());
+      for (const button of await page.getByRole("button", { name: "Mark reviewed", exact: true }).all()) assert(await button.isDisabled());
+      if (label === "public") {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await audit(page, `${company} desktop dashboard`);
+        await page.screenshot({ path: join(output, `${company}-overview.png`) });
+        await page.setViewportSize({ width: 375, height: 1000 });
+        await audit(page, `${company} mobile dashboard`);
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        await page.screenshot({ path: join(output, `${company}-mobile.png`), fullPage: true });
+        await page.setViewportSize({ width: 1440, height: 1000 });
+      }
+      const companyCard = page.getByRole("article").first();
+      await companyCard.getByText(/Inspect source records/).click();
+      assert(await companyCard.getByText(source, { exact: true }).first().isVisible());
+      if (label === "public") await audit(page, `${company} source records`);
+      await page.reload();
+      await page.getByRole("button", { name: new RegExp(vendor) }).waitFor();
+      assert.equal(await selector.inputValue(), company);
+    }
     assert.deepEqual(errors, []);
-    console.log(`Browser: ${label} dashboard, disabled mutations, vendor filtering, run/source inspection; no page errors`);
+    console.log(`Browser: ${label} all three companies, disabled mutations, vendor filtering, run/source inspection, deep-link reload; no page errors`);
     await context.close();
   }
 } finally {

@@ -6,20 +6,41 @@ import { ReviewCard } from "./review-card";
 import { money } from "./format";
 import { VendorInsights } from "./vendor-insights";
 import { LearningCenter } from "./learning-center";
-import { INVESTIGATION_LIMITS } from "../contracts";
-import { businessName } from "../fixtures/scenarios";
+import { INVESTIGATION_LIMITS, type CompanyId } from "../contracts";
+import { companies } from "../companies";
 import type { Permission } from "../server/access-policy";
 
-export default function Dashboard({
+type DashboardProps = { permissions: readonly Permission[]; signedOut: boolean; canSignOut?: boolean; initialCompany?: CompanyId };
+
+export default function Dashboard(props: DashboardProps) {
+  const [selection, setSelection] = useState({ id: props.initialCompany ?? "roast", focus: false });
+  const companyId = selection.id;
+  function selectCompany(id: CompanyId) {
+    setSelection({ id, focus: true });
+    const url = new URL(window.location.href);
+    if (id === "roast") url.searchParams.delete("company"); else url.searchParams.set("company", id);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
+  return <CompanyDashboard key={companyId} {...props} companyId={companyId} onCompanyChange={selectCompany} focusCompanyOnLoad={selection.focus} />;
+}
+
+function CompanyDashboard({
   permissions,
   signedOut,
   canSignOut = false,
-}: {
-  permissions: readonly Permission[];
-  signedOut: boolean;
-  canSignOut?: boolean;
-}) {
-  const { data, busy, error, load, act, active } = useDemo(permissions);
+  companyId,
+  onCompanyChange,
+  focusCompanyOnLoad,
+}: DashboardProps & { companyId: CompanyId; onCompanyChange: (id: CompanyId) => void; focusCompanyOnLoad: boolean }) {
+  const { data, busy, error, load, act, active } = useDemo(permissions, companyId);
+  const companySelector = useRef<HTMLSelectElement>(null);
+  const restoreSelectionFocus = useRef(focusCompanyOnLoad);
+  useEffect(() => {
+    if (data && !busy && !active && restoreSelectionFocus.current) {
+      companySelector.current?.focus({ preventScroll: true });
+      restoreSelectionFocus.current = false;
+    }
+  }, [data, busy, active]);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<{ generation: number; vendorId: string } | null>(null);
   const selectedVendor = vendorFilter?.generation === data?.generation ? vendorFilter?.vendorId : undefined;
@@ -57,7 +78,7 @@ export default function Dashboard({
   const exceptionCount = data?.exceptions.length ?? 0;
   const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || exceptionCount > 0);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
-  const displayBusinessName = businessName.replace(/^Example\s+/i, "").replace(/\s*\(fictional\)$/i, "");
+  const company = companies.find(c => c.id === companyId)!;
   return (
     <main>
       <header>
@@ -77,7 +98,7 @@ export default function Dashboard({
       </header>
       <section className="intro">
         <div>
-          <p className="eyebrow">{displayBusinessName}</p>
+          <p className="eyebrow">{company.name}</p>
           <h1>Vendor payment exceptions · October 2026</h1>
         </div>
         <div className="controls">
@@ -140,6 +161,18 @@ export default function Dashboard({
               {busy === "reset" ? "Resetting…" : "Reset demo"}
             </button>
           )}
+        </div>
+      </section>
+      <section className="company-selector" aria-label="Company demo">
+        <div><label htmlFor="company-demo">Explore a company demo</label>
+          <select ref={companySelector} id="company-demo" value={companyId} disabled={Boolean(busy) || active || !data} onChange={event => onCompanyChange(event.target.value as CompanyId)}>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.name} · {c.industry}</option>)}
+          </select>
+          {(busy || active) && <p className="fine">Wait for this operation to finish before switching companies.</p>}
+        </div>
+        <div><p><strong>{company.industry}</strong> · {company.context}</p>
+          <p className="fine">{company.examples}</p>
+          <p className="fine">{companyId === "roast" ? "Fictional company and records." : "Unaffiliated hypothetical scenario. No company data or actual vendor relationships."} All amounts are synthetic USD. Each company keeps its own findings and reviews; Reset affects only the selected demo.</p>
         </div>
       </section>
       {signedOut && (

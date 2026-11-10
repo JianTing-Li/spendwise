@@ -3,6 +3,7 @@ import { getStore } from "../../../server/db/local";
 import { identify, authorize, boundedJson } from "../../../server/access";
 import { runPending } from "../../../server/investigation/run";
 import { logDemoUnavailable } from "../../../server/db/unavailable-log";
+import { requestCompany } from "../../../server/demo-company";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -13,8 +14,11 @@ export async function GET(request: Request) {
   if (access.denied) return access.denied;
   const denied = authorize(access.principal, "read");
   if (denied) return denied;
+  let company;
+  try { company = requestCompany(request); } catch { return reply({ error: "invalid_company" }, 400); }
   try {
-    return reply(await (await getStore()).state());
+    const store = await getStore();
+    return reply(await (company === "roast" ? store : store.forCompany(company)).state());
   } catch (error) {
     logDemoUnavailable(error);
     return reply({ error: "unavailable" }, 503);
@@ -32,8 +36,11 @@ export async function POST(request: Request) {
   }
   const denied = authorize(access.principal, action.action, action.action === "review" ? action.runId : undefined);
   if (denied) return denied;
+  let company;
+  try { company = requestCompany(request); } catch { return reply({ error: "invalid_company" }, 400); }
   try {
-    const store = await getStore();
+    const root = await getStore();
+    const store = company === "roast" ? root : root.forCompany(company);
     let result;
     if (action.action === "inject") {
       result = await store.inject(acceptedAt);

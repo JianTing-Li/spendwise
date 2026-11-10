@@ -7,8 +7,8 @@ import { baseline, injectedDataset } from "../src/fixtures/scenarios";
 import { runPending } from "../src/server/investigation/run";
 import { migrate } from "../src/server/db/migrate";
 it("bundles exact immutable SQL and loads without cwd filesystem access", async () => {
-  for (let i = 0; i < 2; i++)
-    expect(migrations[i]).toBe(await readFile(new URL(`../src/server/db/migrations/00${i + 1}_${i === 0 ? 'initial' : 'durable'}.sql`, import.meta.url), 'utf8'));
+  for (let i = 0; i < 3; i++)
+    expect(migrations[i]).toBe(await readFile(new URL(`../src/server/db/migrations/00${i + 1}_${['initial', 'durable', 'companies'][i]}.sql`, import.meta.url), 'utf8'));
   const db = new PGlite();
   try {
     // A DB boundary which rejects file reads is unnecessary: migration imports
@@ -16,7 +16,7 @@ it("bundles exact immutable SQL and loads without cwd filesystem access", async 
     const store = new Store(db);
     await store.initialize();
     await store.initialize();
-    expect((await db.query('SELECT version FROM schema_migrations ORDER BY version')).rows).toEqual([{ version: 1 }, { version: 2 }]);
+    expect((await db.query('SELECT version FROM schema_migrations ORDER BY version')).rows).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
   }
   finally {
     await db.close();
@@ -108,5 +108,5 @@ it("initializes from another process working directory", async () => {
   const { tmpdir } = await import('node:os');
   const { fileURLToPath } = await import('node:url');
   const { stdout } = await promisify(execFile)(process.execPath, ['--import', import.meta.resolve('tsx'), fileURLToPath(new URL('./helpers/portable-store.ts', import.meta.url))], { cwd: tmpdir() });
-  expect(JSON.parse(stdout)).toEqual({ versions: [{ version: 1 }, { version: 2 }], payments: 2 });
+  expect(JSON.parse(stdout)).toEqual({ versions: [{ version: 1 }, { version: 2 }, { version: 3 }], payments: 2 });
 });

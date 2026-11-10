@@ -11,7 +11,7 @@ it("runs the same isolated compatibility scenario offline with zero model reques
   } finally { await db.close(); }
 });
 it("rejects future/gapped migration ledgers without changing them", async () => {
-  for (const versions of [[2], [1, 2, 3], [1, 3]]) {
+  for (const versions of [[2], [1, 2, 3, 4], [1, 3]]) {
     const db = new PGlite();
     try {
       await db.exec('CREATE TABLE schema_migrations(version integer PRIMARY KEY)');
