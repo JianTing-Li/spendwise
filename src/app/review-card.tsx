@@ -32,11 +32,13 @@ const errorDescriptions = {
   internal: "The investigation encountered an internal error.",
 };
 
-export function ReviewCard({ exception, dataset, attempts, busy, act }: {
+export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canReview, act }: {
   exception: Exception;
   dataset: Dataset;
   attempts: Run[];
   busy: boolean;
+  canRetry: boolean;
+  canReview: boolean;
   act: (action: object, path?: string) => Promise<void>;
 }) {
   const prefix = useId();
@@ -74,7 +76,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
       {run.error && <p className="run-error">{errorDescriptions[run.error]} ({run.error})</p>}
       {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (count < 3 ? <>
         <p className="fine">Retry starts one new bounded attempt. It may make model requests in real mode; it never runs automatically.</p>
-        <button disabled={busy} onClick={() => runAction({ predecessorId: run.id }, "/api/demo/retry")}>
+        <button disabled={busy || !canRetry} onClick={() => runAction({ predecessorId: run.id }, "/api/demo/retry")}>
           Retry investigation ({count}/3 attempts used)
         </button>
       </> : <p>Three attempts used. Reset the demo to start again.</p>)}
@@ -103,7 +105,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, act }: {
       {run.reviewedAt && <p className="review-ack">Reviewed {new Date(run.reviewedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC. Acknowledgment only; explanation support is unchanged.</p>}
       {!historical && run.state === "completed" && <>
         <p className="fine">Mark reviewed records your acknowledgment for this run and generation. It does not approve a payment or verify an explanation.</p>
-        <button className="secondary" disabled={busy || Boolean(run.reviewedAt)} onClick={() => runAction({ action: "review", runId: run.id })}>
+        <button className="secondary" disabled={busy || !canReview || Boolean(run.reviewedAt)} onClick={() => runAction({ action: "review", runId: run.id })}>
           {run.reviewedAt ? "Reviewed" : "Mark reviewed"}
         </button>
       </>}

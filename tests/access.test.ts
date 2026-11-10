@@ -172,3 +172,62 @@ it('completes GitHub OAuth callback with offline provider responses and stable n
   remember(signout);
   expect((await GET(req(undefined,jarCookie()))).status).toBe(401);
 });
+// APP-05: optional public read-only viewing (docs/decisions/005-public-read-only.md).
+it('keeps signed-out requests at 401 unless SPENDWISE_PUBLIC_READ is exactly "1"', async () => {
+  for (const value of [undefined, '', '0', 'true', 'TRUE', 'yes', ' 1', '1 ', '01', 'on']) {
+    vi.stubEnv('SPENDWISE_PUBLIC_READ', value);
+    expect((await GET(req())).status).toBe(401);
+    expect((await identify(req())).denied?.status).toBe(401);
+  }
+  expect(store.state).not.toHaveBeenCalled();
+});
+it('lets a signed-out visitor read with only the read permission when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  const access = await identify(req());
+  expect(access.principal).toEqual({ subject: 'public:anonymous', grant: { permissions: ['read'] } });
+  const response = await GET(req());
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  // Invalid, expired and forged cookies are signed-out visitors, never more.
+  for (const c of [`${salt}=forged`, await cookie('github:123', -120)])
+    expect((await identify(req(undefined, c))).principal?.grant.permissions).toEqual(['read']);
+});
+it('keeps every mutation behind sign-in when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  for (const body of [{action:'inject',scenarioId:'demo-v1'}, {action:'reset'}, {action:'review',runId:'r'}])
+    expect((await POST(req(body))).status).toBe(401);
+  expect((await retry(req({predecessorId:'r'}))).status).toBe(401);
+  expect((await POST(req({action:'reset'}, `${salt}=forged`))).status).toBe(401);
+  for (const action of ['inject','reset','review','retry'] as const) expect(store[action]).not.toHaveBeenCalled();
+  expect(runPending).not.toHaveBeenCalled();
+});
+it('keeps cross-site and missing-CSRF requests at 403 when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  expect((await GET(req(undefined,'',{origin:'https://evil.example'}))).status).toBe(403);
+  expect((await GET(req(undefined,'',{'sec-fetch-site':'cross-site'}))).status).toBe(403);
+  for (const extra of [{origin:'https://evil.example'}, {origin:''}, {'x-spendwise-demo':''}, {'sec-fetch-site':'cross-site'}] as Record<string,string>[]) {
+    expect((await POST(req({action:'reset'},'',extra))).status).toBe(403);
+    expect((await retry(req({predecessorId:'r'},'',extra))).status).toBe(403);
+  }
+  expect(store.state).not.toHaveBeenCalled(); expect(store.reset).not.toHaveBeenCalled(); expect(store.retry).not.toHaveBeenCalled();
+});
+it('fails closed with public reading on when hosted authentication is not fully configured', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  for (const [key,value] of [['AUTH_SECRET',''],['AUTH_URL',''],['AUTH_URL','http://demo.example'],['AUTH_GITHUB_ID',''],['AUTH_GITHUB_SECRET',''],['SPENDWISE_ACCESS_GRANTS','{invalid'],['SPENDWISE_ACCESS_GRANTS','{}']]) {
+    const old = process.env[key]; vi.stubEnv(key,value);
+    expect(hostedConfig()).toBeNull();
+    const response = await GET(req()); expect(response.status).toBe(401);
+    expect(await response.text()).toBe('{"error":"unauthorized"}');
+    vi.stubEnv(key,old);
+  }
+  expect(store.state).not.toHaveBeenCalled();
+});
+it('does not change signed-in grants when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  const c = await cookie();
+  expect((await identify(req(undefined,c))).principal).toEqual({ subject: 'github:123', grant: grants['github:123'] });
+  expect((await POST(req({action:'reset'},c))).status).toBe(200);
+  // A signed-in account without a grant keeps zero permissions; it is not downgraded to the public visitor.
+  expect((await GET(req(undefined,await cookie('github:999')))).status).toBe(403);
+  expect((await POST(req({action:'reset'},await cookie('github:999')))).status).toBe(403);
+});

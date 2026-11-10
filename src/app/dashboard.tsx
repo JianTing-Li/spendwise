@@ -4,9 +4,11 @@ import { useDemo } from "./use-demo";
 import { ReviewCard } from "./review-card";
 import { money } from "./format";
 import { INVESTIGATION_LIMITS } from "../contracts";
+import type { Permission } from "../server/access-policy";
 
-export default function Dashboard() {
-  const { data, busy, error, load, act, active } = useDemo();
+export default function Dashboard({ permissions, signedOut }: { permissions: readonly Permission[]; signedOut: boolean }) {
+  const { data, busy, error, load, act, active } = useDemo(permissions);
+  const can = (permission: Permission) => permissions.includes(permission);
   const latestRuns = data?.exceptions.flatMap((exception) =>
     data.runs.filter((run) => run.exceptionId === exception.id && run.generation === data.generation).slice(-1),
   ) ?? [];
@@ -37,7 +39,7 @@ export default function Dashboard() {
         </div>
         <div className="controls">
           <button
-            disabled={Boolean(busy) || Boolean(error) || !data || data.injected}
+            disabled={!can("inject") || Boolean(busy) || Boolean(error) || !data || data.injected}
             onClick={() => act({ action: "inject", scenarioId: "demo-v1" })}
           >
             {busy === "inject"
@@ -48,13 +50,19 @@ export default function Dashboard() {
           </button>
           <button
             className="secondary"
-            disabled={busy === "reset" || (!data && !busy)}
+            disabled={!can("reset") || busy === "reset" || (!data && !busy)}
             onClick={() => act({ action: "reset" })}
           >
             {busy === "reset" ? "Resetting…" : "Reset demo"}
           </button>
         </div>
       </section>
+      {signedOut && (
+        <form className="sign-in-prompt" action="/api/auth/signin" method="get">
+          <p>Sign in with GitHub to run investigations. You are viewing the synthetic demo read-only.</p>
+          <button type="submit" className="secondary">Sign in with GitHub</button>
+        </form>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
@@ -162,6 +170,8 @@ export default function Dashboard() {
               dataset={data.dataset}
               attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
               busy={Boolean(busy) || Boolean(error)}
+              canRetry={can("retry")}
+              canReview={can("review")}
               act={act}
             />
           ))}

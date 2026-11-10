@@ -37,6 +37,9 @@ import { permits, type Permission, type Principal } from './access-policy';
 export { permits } from './access-policy';
 export type { Principal } from './access-policy';
 const localGrant: Principal = { subject: 'local:loopback', grant: { permissions: ['read', 'inject', 'reset', 'review', 'retry'] } };
+/** Signed-out hosted visitor under SPENDWISE_PUBLIC_READ. Never a grant key: grants only accept github:<id>. */
+export const PUBLIC_SUBJECT = 'public:anonymous';
+const publicRead = () => process.env.SPENDWISE_PUBLIC_READ === '1'; // Exact match; any other value keeps sign-in required.
 export type Access = { principal: Principal; denied?: never } | { principal?: never; denied: Response };
 export function deny(status: 401 | 403) {
   return Response.json({ error: status === 401 ? 'unauthorized' : 'forbidden' }, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -59,7 +62,12 @@ export async function identify(request: Request): Promise<Access> {
     (origin !== config.origin || request.headers.get('x-spendwise-demo') !== '1')))
     return { denied: deny(403) };
   const principal = await sessionPrincipal(request);
-  return principal ? { principal } : { denied: deny(401) };
+  if (principal) return { principal };
+  // Optional public viewing (decision 005): only with valid hosted auth (checked above), only
+  // for signed-out GETs, and only `read`. Every mutation still needs a granted session.
+  if (request.method === 'GET' && publicRead())
+    return { principal: { subject: PUBLIC_SUBJECT, grant: { permissions: ['read'] } } };
+  return { denied: deny(401) };
 }
 export function authorize(principal: Principal, permission: Permission, runId?: string) {
   return permits(principal, permission, runId) ? null : deny(403);

@@ -61,7 +61,7 @@ Deployment has no lead yet; see DEPLOY-01 (#14). Real and stub implementations u
 - **INV-09 Honest state:** Pending, running, completed, incomplete, failed, cancelled remain distinct. No real-to-stub fallback. Unimplemented integrations fail explicitly.
 - **INV-10 Reset/idempotency:** Stable injection/exception IDs; atomic generation changes; check generation under the same transaction as result persistence. Reset invalidates old runs. Retries/concurrency cannot duplicate records.
 - **INV-11 Ground truth:** `evals/ground-truth/` is evaluator-only. Never import it into application, agent, retrieval, or model prompts.
-- **INV-12 Secrets/access:** Credentials server-side only; never commit, print, log, or return them. Mutation access is enforced in code. Deployed mode fails closed until authentication is implemented. No `NEXT_PUBLIC_*` credentials.
+- **INV-12 Secrets/access:** Credentials server-side only; never commit, print, log, or return them. Mutation access is enforced in code. Deployed mode fails closed unless hosted authentication is fully configured. Optional public viewing (`SPENDWISE_PUBLIC_READ=1`, off by default, [decision 005](docs/decisions/005-public-read-only.md)) exposes synthetic state read-only to signed-out visitors; it never grants mutation or model access. No `NEXT_PUBLIC_*` credentials.
 
 ## Working commands and conventions
 Node version: `.nvmrc`; npm version: `packageManager`. Exact dependencies; one npm lockfile. Strict TypeScript and Zod at boundaries. Use parameterized queries and meaningful failure tests. Scope tests to changed behavior; never claim checks ran unless they did.

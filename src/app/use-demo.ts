@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DemoState, MutationResponse } from "../contracts";
+import type { Permission } from "../server/access-policy";
 
 class DemoError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -15,7 +16,7 @@ function responseError(status: number) {
 }
 
 /** Observe durable runs while the mutation request owns their execution. */
-export function useDemo() {
+export function useDemo(permissions: readonly Permission[]) {
   const [data, setData] = useState<DemoState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -82,6 +83,8 @@ export function useDemo() {
 
   async function act(action: object, path = "/api/demo") {
     const kind = "action" in action ? String(action.action) : "retry";
+    // Controls are disabled without the permission; never send a request the server will refuse.
+    if (!permissions.some(permission => permission === kind)) return;
     // A ref closes the gap before React commits a disabled button. Reset may
     // supersede execution, but never another reset. Server idempotency remains authoritative.
     if (mutation.current && (kind !== "reset" || mutation.current.kind === "reset")) return;
