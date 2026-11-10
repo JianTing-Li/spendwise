@@ -223,12 +223,25 @@ it('fails closed with public reading on when hosted authentication is not fully 
   }
   expect(store.state).not.toHaveBeenCalled();
 });
-it('does not change signed-in grants when public reading is on', async () => {
+it('keeps signed-in grants and gives accounts without read only the public view', async () => {
   vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
   const c = await cookie();
   expect((await identify(req(undefined,c))).principal).toEqual({ subject: 'github:123', grant: grants['github:123'] });
   expect((await POST(req({action:'reset'},c))).status).toBe(200);
-  // A signed-in account without a grant keeps zero permissions; it is not downgraded to the public visitor.
-  expect((await GET(req(undefined,await cookie('github:999')))).status).toBe(403);
-  expect((await POST(req({action:'reset'},await cookie('github:999')))).status).toBe(403);
+  // An account with no grant sees what a signed-out visitor sees, and nothing more.
+  const stranger = await cookie('github:999');
+  expect((await identify(req(undefined,stranger))).principal).toEqual({ subject: 'github:999', grant: { permissions: ['read'] } });
+  expect((await GET(req(undefined,stranger))).status).toBe(200);
+  for (const body of [{action:'inject',scenarioId:'demo-v1'}, {action:'reset'}, {action:'review',runId:'r'}])
+    expect((await POST(req(body,stranger))).status).toBe(403);
+  expect((await retry(req({predecessorId:'r'},stranger))).status).toBe(403);
+  expect((await identify(req({action:'reset'},stranger))).principal?.grant.permissions).toEqual([]);
+  // A run-scoped grant gains read on GETs only; its permissions and scope are otherwise unchanged.
+  vi.stubEnv('SPENDWISE_ACCESS_GRANTS', JSON.stringify({'github:123':{permissions:['review','retry'],runIds:['allowed']}}));
+  expect((await identify(req(undefined,c))).principal?.grant).toEqual({ permissions: ['review','retry','read'], runIds: ['allowed'] });
+  expect((await GET(req(undefined,c))).status).toBe(200);
+  expect((await POST(req({action:'review',runId:'other'},c))).status).toBe(403);
+  expect((await POST(req({action:'reset'},c))).status).toBe(403);
+  expect((await POST(req({action:'review',runId:'allowed'},c))).status).toBe(200);
+  expect(store.inject).not.toHaveBeenCalled(); expect(store.retry).not.toHaveBeenCalled();
 });

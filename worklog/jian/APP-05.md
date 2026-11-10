@@ -12,7 +12,7 @@ Decision record: `docs/decisions/005-public-read-only.md`. Operator notes: `docs
 - `AGENTS.md` (INV-12), `docs/decisions/005-public-read-only.md`, `docs/development.md`, `.env.example`.
 
 ## Decisions
-- A signed-in account with no grant keeps zero permissions (403, "SpendWise access required") even with public viewing on, as the agreed design says "no signed-in principal". A visitor who signs in without a grant therefore loses the public view until the session ends (at most one hour).
+- A signed-in account whose grant lacks `read` gains `read` on GETs only when public viewing is on, so signing in never shows less than the public view (Jian, 2026-11-10, after the code review). The first commit followed the original design and returned 403.
 - Invalid, expired or forged cookies count as signed out.
 
 ## Checks
@@ -21,7 +21,7 @@ Decision record: `docs/decisions/005-public-read-only.md`. Operator notes: `docs
 - Not run: `npm run test:e2e`, `npm run test:pg`, `npm run test:neon`. The disabled Retry button was not seen in a browser (no failed run in the stub state); it uses the same permission check. No check of the live site yet: that follows the merge and the Vercel change.
 
 ## Code review (2026-11-10, medium)
-Findings are on the PR. Fixed: tests now pin the setting off. Left for a decision or accepted: the sign-in prompt leads accounts without a grant to the locked page; an expired session keeps enabled controls until a page reload; public reads have no rate limit; `HEAD /api/demo` stays 401; per-run grants and read-only copy are not reflected in the buttons.
+Findings are on the PR. Fixed: tests now pin the setting off. Fixed after Jian's decision: accounts without a grant keep the read-only view. Accepted: an expired session keeps enabled controls until a page reload; public reads have no rate limit; `HEAD /api/demo` stays 401; per-run grants and read-only copy are not reflected in the buttons.
 
 ## Next action
 - After merge Jian sets `SPENDWISE_PUBLIC_READ=1` in Vercel (Config, Production only), redeploys, and the live site is checked signed out.

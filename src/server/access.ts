@@ -62,11 +62,17 @@ export async function identify(request: Request): Promise<Access> {
     (origin !== config.origin || request.headers.get('x-spendwise-demo') !== '1')))
     return { denied: deny(403) };
   const principal = await sessionPrincipal(request);
-  if (principal) return { principal };
   // Optional public viewing (decision 005): only with valid hosted auth (checked above), only
-  // for signed-out GETs, and only `read`. Every mutation still needs a granted session.
-  if (request.method === 'GET' && publicRead())
-    return { principal: { subject: PUBLIC_SUBJECT, grant: { permissions: ['read'] } } };
+  // for GETs, and only `read`. Every mutation still needs a granted session.
+  const publicGet = request.method === 'GET' && publicRead();
+  if (principal) {
+    // Signing in never shows less than the public view: an account without `read` gains only
+    // `read`, only on GETs. Its other permissions and run scope are unchanged.
+    if (publicGet && !principal.grant.permissions.includes('read'))
+      return { principal: { subject: principal.subject, grant: { ...principal.grant, permissions: [...principal.grant.permissions, 'read'] } } };
+    return { principal };
+  }
+  if (publicGet) return { principal: { subject: PUBLIC_SUBJECT, grant: { permissions: ['read'] } } };
   return { denied: deny(401) };
 }
 export function authorize(principal: Principal, permission: Permission, runId?: string) {

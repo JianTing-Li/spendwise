@@ -63,6 +63,9 @@ export default function Dashboard({ permissions, signedOut }: { permissions: rea
           <button type="submit" className="secondary">Sign in with GitHub</button>
         </form>
       )}
+      {!signedOut && permissions.every(permission => permission === "read") && (
+        <p className="sign-in-prompt">This account is not authorized to run investigations. You are viewing the synthetic demo read-only.</p>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
