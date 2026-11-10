@@ -1,7 +1,7 @@
 # APP-05 — Public read-only viewing of the hosted demo
 
 Owner: Jian Ting. Issue: https://github.com/JianTing-Li/spendwise/issues/45
-Branch: `app-05-public-read-only`, from `origin/main` at `1eb5c55`. PR: (added when opened)
+Branch: `app-05-public-read-only`, from `origin/main` at `1eb5c55`. PR: https://github.com/JianTing-Li/spendwise/pull/47
 
 Decision record: `docs/decisions/005-public-read-only.md`. Operator notes: `docs/development.md`, "Public read-only viewing".
 
