@@ -78,7 +78,7 @@ header {
 }
 .record-id {
   font-family: var(--mono);
-  font-size: 0.95em;
+  font-size: 1em;
 }
 .environment,
 .eyebrow,
@@ -412,6 +412,8 @@ article.finding.reviewed {
 .flagged-payments strong {
   color: var(--ink);
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .citation-context {
   color: var(--muted);
