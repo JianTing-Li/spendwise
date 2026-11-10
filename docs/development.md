@@ -79,10 +79,19 @@ GRANT SELECT ON vendors, invoices, payments, vendor_notes, note_payments, note_i
 Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PASSWORD` as the owner or use **Reset password** in Neon's Connect dialog, then update every place that URL is stored.
 
 ### Vercel environment variables (Production scope only)
-- Config: `DATABASE_MODE=neon`, `DATABASE_MIGRATION_ROLE=neondb_owner`, `INVESTIGATOR_MODE` (`stub` or `real`), `AUTH_URL` (the production origin, no trailing slash), `AUTH_GITHUB_ID`, `SPENDWISE_ACCESS_GRANTS`.
+- Config: `DATABASE_MODE=neon`, `DATABASE_MIGRATION_ROLE=neondb_owner`, `INVESTIGATOR_MODE` (`stub` or `real`), `AUTH_URL` (the production origin, no trailing slash), `AUTH_GITHUB_ID`, `SPENDWISE_ACCESS_GRANTS`, and optionally `SPENDWISE_PUBLIC_READ` (below).
 - Secret: `DATABASE_URL`, `DATABASE_READONLY_URL`, `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, `ANTHROPIC_API_KEY`. `ANTHROPIC_MODEL` is optional.
 - Database URLs must end at `/neondb`: the app rejects Neon's `?sslmode=...` suffix and enforces verified TLS itself.
 - GitHub OAuth app callback: `<AUTH_URL>/api/auth/callback/github`. Sessions last at most one hour from sign-in, so sign in shortly before a demo.
+
+### Public read-only viewing
+`SPENDWISE_PUBLIC_READ=1` (server-only, Config type, off by default) lets signed-out visitors load the dashboard and `GET /api/demo` with only the `read` permission. See [decision 005](decisions/005-public-read-only.md).
+
+- Only the exact value `1` turns it on. Unset, `0`, `true` or a typo keeps sign-in required.
+- It needs fully valid hosted authentication (`AUTH_*` and `SPENDWISE_ACCESS_GRANTS`); otherwise every request still returns 401.
+- Simulate, Reset, Retry and Mark reviewed still need a signed-in, granted GitHub account. Signed-out POSTs return 401. Cross-site requests return 403, except a top-level link to the dashboard page. Visitors see a "Sign in with GitHub to run investigations" prompt and disabled buttons. When a signed-in session ends, the next 401 switches an open dashboard to that view.
+- A signed-in account without a grant sees the same read-only dashboard, with a note that it is not authorized to run investigations; its POSTs return 403.
+- Visitors see whatever state the last signed-in user left, including real-mode findings, and each page load or poll reads the database. Reset before sharing the link if the state should be the baseline.
 
 ### Operating notes
 - Changing a variable needs a new Production deployment. For a secret, **Edit** opens an inline form whose **Save** is below the value box. Saves and redeploys don't happen if Vercel's identity prompt is dismissed; confirm "Updated just now" and a new Production deployment.

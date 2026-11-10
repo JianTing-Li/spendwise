@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DemoState, MutationResponse } from "../contracts";
+import type { Permission } from "../server/access-policy";
 
 class DemoError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -15,7 +17,7 @@ function responseError(status: number) {
 }
 
 /** Observe durable runs while the mutation request owns their execution. */
-export function useDemo() {
+export function useDemo(permissions: readonly Permission[]) {
   const [data, setData] = useState<DemoState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -25,10 +27,14 @@ export function useDemo() {
   const generation = useRef(-1);
   const mutation = useRef<{ kind: string; controller: AbortController } | null>(null);
 
+  const router = useRouter();
   const report = useCallback((cause: unknown, source: "read" | "mutation" = "read") => {
     if (cause instanceof DemoError && (cause.status === 401 || (source === "read" && cause.status === 403))) setData(null);
     setError(cause instanceof DemoError ? cause.message : "Connection lost. Reload to check the current state before trying again.");
-  }, []);
+    // A 401 means the session ended. Re-render the server page so its permissions follow: the
+    // read-only view with the sign-in prompt, or the locked page. Client state is kept.
+    if (cause instanceof DemoError && cause.status === 401) router.refresh();
+  }, [router]);
 
   const load = useCallback(async (signal?: AbortSignal, expectedEpoch = epoch.current, timeoutMs = 5000) => {
     const id = ++requestId.current;
@@ -82,6 +88,8 @@ export function useDemo() {
 
   async function act(action: object, path = "/api/demo") {
     const kind = "action" in action ? String(action.action) : "retry";
+    // Controls are disabled without the permission; never send a request the server will refuse.
+    if (!permissions.some(permission => permission === kind)) return;
     // A ref closes the gap before React commits a disabled button. Reset may
     // supersede execution, but never another reset. Server idempotency remains authoritative.
     if (mutation.current && (kind !== "reset" || mutation.current.kind === "reset")) return;

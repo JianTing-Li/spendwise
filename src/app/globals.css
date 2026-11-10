@@ -311,6 +311,20 @@ footer {
 .error button {
   margin-left: 12px;
 }
+.sign-in-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  padding: 14px 20px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+.sign-in-prompt p {
+  margin: 0;
+}
 .finding {
   min-width: 0;
   overflow-wrap: anywhere;

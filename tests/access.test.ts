@@ -22,6 +22,7 @@ beforeEach(() => {
   vi.stubEnv('VERCEL', '1'); vi.stubEnv('AUTH_URL', origin); vi.stubEnv('AUTH_SECRET', secret);
   vi.stubEnv('AUTH_GITHUB_ID', 'offline-id'); vi.stubEnv('AUTH_GITHUB_SECRET', 'offline-provider-secret');
   vi.stubEnv('SPENDWISE_ACCESS_GRANTS', JSON.stringify(grants));
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', ''); // Off unless a test turns it on, whatever the shell exports.
   store.state.mockResolvedValue({ synthetic: true });
   for (const action of ['inject','reset','review','retry'] as const) store[action].mockResolvedValue({ generation: 1, changed: true });
 });
@@ -90,8 +91,14 @@ it('rejects cross-origin and missing CSRF capability, including direct API bypas
     expect((await POST(req({action:'reset'},c,extra))).status).toBe(403);
   expect((await GET(req(undefined,c,{origin:'https://evil.example'}))).status).toBe(403);
   expect(store.reset).not.toHaveBeenCalled();
-  // A top-level GET after OAuth may retain cross-site navigation metadata.
-  expect((await identify(req(undefined,c,{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate'}))).principal?.subject).toBe('github:123');
+  // A top-level dashboard GET after OAuth may retain cross-site navigation metadata.
+  const nav = {'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  const dashboard = (extra: Record<string,string>) => new Request(`${origin}/`, { headers: { host: 'demo.example', cookie: c, ...extra } });
+  expect((await identify(dashboard(nav))).principal?.subject).toBe('github:123');
+  // Not for API routes, frames or headers missing the document destination.
+  expect((await identify(req(undefined,c,nav))).denied?.status).toBe(403);
+  expect((await identify(dashboard({...nav,'sec-fetch-dest':'iframe'}))).denied?.status).toBe(403);
+  expect((await identify(dashboard({'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate'}))).denied?.status).toBe(403);
 });
 it('fails closed for missing/invalid config with redacted responses and no provider calls', async () => {
   for (const [key,value] of [['AUTH_SECRET',''],['AUTH_URL',''],['AUTH_URL','http://demo.example'],['AUTH_GITHUB_ID',''],['AUTH_GITHUB_SECRET',''],['SPENDWISE_ACCESS_GRANTS','{invalid']]) {
@@ -171,4 +178,82 @@ it('completes GitHub OAuth callback with offline provider responses and stable n
   const signout = await authenticationRoute(new Request(`${origin}/api/auth/signout`,{method:'POST',headers:{origin,cookie:jarCookie(),'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrfToken})}));
   remember(signout);
   expect((await GET(req(undefined,jarCookie()))).status).toBe(401);
+});
+// APP-05: optional public read-only viewing (docs/decisions/005-public-read-only.md).
+it('keeps signed-out requests at 401 unless SPENDWISE_PUBLIC_READ is exactly "1"', async () => {
+  for (const value of [undefined, '', '0', 'true', 'TRUE', 'yes', ' 1', '1 ', '01', 'on']) {
+    vi.stubEnv('SPENDWISE_PUBLIC_READ', value);
+    expect((await GET(req())).status).toBe(401);
+    expect((await identify(req())).denied?.status).toBe(401);
+  }
+  expect(store.state).not.toHaveBeenCalled();
+});
+it('lets a signed-out visitor read with only the read permission when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  const access = await identify(req());
+  expect(access.principal).toEqual({ subject: 'public:anonymous', grant: { permissions: ['read'] } });
+  const response = await GET(req());
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  // Invalid, expired and forged cookies are signed-out visitors, never more.
+  for (const c of [`${salt}=forged`, await cookie('github:123', -120)])
+    expect((await identify(req(undefined, c))).principal?.grant.permissions).toEqual(['read']);
+});
+it('keeps every mutation behind sign-in when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  for (const body of [{action:'inject',scenarioId:'demo-v1'}, {action:'reset'}, {action:'review',runId:'r'}])
+    expect((await POST(req(body))).status).toBe(401);
+  expect((await retry(req({predecessorId:'r'}))).status).toBe(401);
+  expect((await POST(req({action:'reset'}, `${salt}=forged`))).status).toBe(401);
+  for (const action of ['inject','reset','review','retry'] as const) expect(store[action]).not.toHaveBeenCalled();
+  expect(runPending).not.toHaveBeenCalled();
+});
+it('keeps cross-site and missing-CSRF requests at 403 when public reading is on', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  expect((await GET(req(undefined,'',{origin:'https://evil.example'}))).status).toBe(403);
+  expect((await GET(req(undefined,'',{'sec-fetch-site':'cross-site'}))).status).toBe(403);
+  // A cross-site link or iframe to the read API gets 403, not the public payload.
+  for (const dest of ['document','iframe'])
+    expect((await GET(req(undefined,'',{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':dest}))).status).toBe(403);
+  // A portfolio link to the dashboard still opens it read-only.
+  const link = new Request(`${origin}/`, { headers: { host: 'demo.example', 'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document' } });
+  expect((await identify(link)).principal?.subject).toBe('public:anonymous');
+  for (const extra of [{origin:'https://evil.example'}, {origin:''}, {'x-spendwise-demo':''}, {'sec-fetch-site':'cross-site'}] as Record<string,string>[]) {
+    expect((await POST(req({action:'reset'},'',extra))).status).toBe(403);
+    expect((await retry(req({predecessorId:'r'},'',extra))).status).toBe(403);
+  }
+  expect(store.state).not.toHaveBeenCalled(); expect(store.reset).not.toHaveBeenCalled(); expect(store.retry).not.toHaveBeenCalled();
+});
+it('fails closed with public reading on when hosted authentication is not fully configured', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  for (const [key,value] of [['AUTH_SECRET',''],['AUTH_URL',''],['AUTH_URL','http://demo.example'],['AUTH_GITHUB_ID',''],['AUTH_GITHUB_SECRET',''],['SPENDWISE_ACCESS_GRANTS','{invalid'],['SPENDWISE_ACCESS_GRANTS','{}']]) {
+    const old = process.env[key]; vi.stubEnv(key,value);
+    expect(hostedConfig()).toBeNull();
+    const response = await GET(req()); expect(response.status).toBe(401);
+    expect(await response.text()).toBe('{"error":"unauthorized"}');
+    vi.stubEnv(key,old);
+  }
+  expect(store.state).not.toHaveBeenCalled();
+});
+it('keeps signed-in grants and gives accounts without read only the public view', async () => {
+  vi.stubEnv('SPENDWISE_PUBLIC_READ', '1');
+  const c = await cookie();
+  expect((await identify(req(undefined,c))).principal).toEqual({ subject: 'github:123', grant: grants['github:123'] });
+  expect((await POST(req({action:'reset'},c))).status).toBe(200);
+  // An account with no grant sees what a signed-out visitor sees, and nothing more.
+  const stranger = await cookie('github:999');
+  expect((await identify(req(undefined,stranger))).principal).toEqual({ subject: 'github:999', grant: { permissions: ['read'] } });
+  expect((await GET(req(undefined,stranger))).status).toBe(200);
+  for (const body of [{action:'inject',scenarioId:'demo-v1'}, {action:'reset'}, {action:'review',runId:'r'}])
+    expect((await POST(req(body,stranger))).status).toBe(403);
+  expect((await retry(req({predecessorId:'r'},stranger))).status).toBe(403);
+  expect((await identify(req({action:'reset'},stranger))).principal?.grant.permissions).toEqual([]);
+  // A run-scoped grant gains read on GETs only; its permissions and scope are otherwise unchanged.
+  vi.stubEnv('SPENDWISE_ACCESS_GRANTS', JSON.stringify({'github:123':{permissions:['review','retry'],runIds:['allowed']}}));
+  expect((await identify(req(undefined,c))).principal?.grant).toEqual({ permissions: ['review','retry','read'], runIds: ['allowed'] });
+  expect((await GET(req(undefined,c))).status).toBe(200);
+  expect((await POST(req({action:'review',runId:'other'},c))).status).toBe(403);
+  expect((await POST(req({action:'reset'},c))).status).toBe(403);
+  expect((await POST(req({action:'review',runId:'allowed'},c))).status).toBe(200);
+  expect(store.inject).not.toHaveBeenCalled(); expect(store.retry).not.toHaveBeenCalled();
 });
