@@ -195,6 +195,7 @@ test("reset during execution rejects late read and mutation responses", async ({
     await expect.poll(() => held).toBe(true);
     await page.getByRole("button", { name: "Reset demo" }).focus();
     await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Confirm reset" }).click();
     await expect(page.getByText("Baseline ready")).toBeVisible();
     staleRead.release();
     injection.release();
@@ -234,6 +235,7 @@ test("read denial and mutation 401 hide records; scoped mutation 403 preserves r
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   await page.getByRole("button", { name: "Reset demo" }).click();
+  await page.getByRole("button", { name: "Confirm reset" }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText("Access denied");
   await expect(page.getByRole("article")).toHaveCount(1);
   await page.getByRole("button", { name: "Reload", exact: true }).click();
@@ -281,7 +283,7 @@ test("human review includes only completed latest runs and stub states describe 
   await page.route("**/api/demo", route => route.fulfill({ json: state }));
   await opened(page);
   const metric = page.locator(".metrics > div").filter({ has: page.getByText("Human review", { exact: true }) });
-  await expect(metric.locator("strong")).toHaveText("1 / 1");
+  await expect(metric.locator("strong")).toHaveText("1 of 1 reviewed · 1 failed");
   await expect(metric).toContainText("Completed runs only");
   await expect(page.getByText("Human acknowledgment recorded", { exact: true })).toHaveCount(1);
   for (const status of states.slice(1)) {

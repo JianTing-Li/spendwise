@@ -150,6 +150,63 @@ button:disabled {
 .secondary:hover:not(:disabled) {
   background: #e4ebe3;
 }
+.danger {
+  background: #8b3320;
+  border-color: #8b3320;
+  color: #fff;
+}
+.danger:hover:not(:disabled) {
+  background: #6f2718;
+}
+.reset-confirm {
+  border: 1px solid #d9b5ad;
+  background: #f9e7e2;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.confirm-prompt {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #742b1b;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+.confirm-actions button {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.status-strip {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #edf2e9;
+  color: var(--ink);
+  font-size: 13px;
+}
+.status-strip.active {
+  border-color: #2b6785;
+  background: #e3eff6;
+  color: #18475e;
+}
+.dashboard-body.dimmed {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+.retry-controls {
+  margin: 12px 0;
+}
+.no-findings {
+  color: var(--ink) !important;
+  font-weight: 500;
+}
 button:focus-visible,
 summary:focus-visible,
 a:focus-visible {

@@ -37,8 +37,19 @@ const errorDescriptions = {
   model_limit: "The model request limit was reached.",
   invalid_evidence: "Some evidence references could not be validated.",
   stale_generation: "This run belongs to an earlier reset generation.",
-  internal: "The investigation encountered an internal error.",
+  internal: "The investigation stopped unexpectedly.",
 };
+
+function describeRunError(run: Run): string {
+  if (!run.error) return "";
+  if (run.error === "unavailable") {
+    if (run.mode === "real" && run.modelRequests === 0 && run.toolExecutions === 0) {
+      return "Real model is not configured in this environment. Retrying will not help.";
+    }
+    return "Evidence records could not be read during the investigation. Try again.";
+  }
+  return errorDescriptions[run.error];
+}
 
 export function ReviewCard({ exception, relatedExceptions = [], dataset, attempts, busy, canRetry, canReview, act }: {
   exception: Exception;
@@ -96,19 +107,19 @@ export function ReviewCard({ exception, relatedExceptions = [], dataset, attempt
     if (!run) return <p>Investigation not started.</p>;
     return <>
       <div className="tags">
-        <span className="tag">{run.mode === "stub" ? "Stub · no AI call" : "Real model"}</span>
+        <span className="tag">{run.mode === "stub" ? "Stub · no AI call" : run.modelRequests === 0 ? "Real mode · no model call made" : "Real model"}</span>
         <span className={`tag state-${run.state}`}>{stateLabels[run.state]}</span>
         {run.state === "completed" && <span className={`tag${run.reviewedAt ? " reviewed" : ""}`}>{run.reviewedAt ? "Human acknowledgment recorded" : "Draft · awaiting human review"}</span>}
       </div>
       <p className="run-status" ref={historical ? undefined : status} tabIndex={historical ? undefined : -1} role={historical ? undefined : "status"} aria-label={historical ? undefined : "Investigation status"}>{run.mode === "stub" ? stubStateDescriptions[run.state] : stateDescriptions[run.state]}</p>
-      {run.error && <p className="run-error">{errorDescriptions[run.error]} ({run.error})</p>}
-      {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (count < 3 ? <>
-        <p className="fine">Retry starts one new bounded attempt. It may make model requests in real mode; it never runs automatically.</p>
-        <button disabled={busy || !canRetry} onClick={() => runAction({ predecessorId: run.id }, "/api/demo/retry")}>
+      {run.error && <p className="run-error">{describeRunError(run)}</p>}
+      {run.findings.length === 0 && !["pending", "running"].includes(run.state) && <p className="no-findings">No findings were saved.</p>}
+      {!historical && ["failed", "incomplete", "cancelled"].includes(run.state) && (count < 3 ? <div className="retry-controls">
+        <button className="secondary" disabled={busy || !canRetry} onClick={() => runAction({ predecessorId: run.id }, "/api/demo/retry")}>
           Retry investigation ({count}/3 attempts used)
         </button>
-      </> : <p>Three attempts used. Reset the demo to start again.</p>)}
-      {run.findings.length === 0 && !["pending", "running"].includes(run.state) && <p>No findings were saved.</p>}
+        <p className="fine">Retry starts one new bounded attempt.</p>
+      </div> : <p>Three attempts used. Reset the demo to start again.</p>)}
       {run.findings.map((finding, index) => {
         const verified = run.mode === "real" && run.state === "completed" && finding.label === "Explained" && finding.referenceStatus === "valid" && finding.supportStatus === "supported";
         return <section className="finding-detail" key={index} aria-label={`Finding ${index + 1}`}>

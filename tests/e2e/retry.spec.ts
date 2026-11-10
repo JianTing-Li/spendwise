@@ -31,6 +31,8 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   }) => r.modelRequests === 0)).toBe(true);
   await page.screenshot({ path: 'test-results/retry-history.png', fullPage: true });
   await page.getByRole('button', { name: 'Reset demo' }).click();
+  await expect(page.getByText('Clear 4 findings and 0 reviews?')).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm reset' }).click();
   await expect(page.getByText('Baseline ready')).toBeVisible();
   const stale = await request.post('/api/demo/retry', { headers: { Origin: 'http://127.0.0.1:3100', 'X-Spendwise-Demo': '1' }, data: { predecessorId } });
   expect(stale.status()).toBe(409);
