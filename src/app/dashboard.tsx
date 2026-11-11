@@ -67,6 +67,12 @@ function CompanyDashboard({
   const company = companies.find(c => c.id === companyId)!;
   const findings = data?.runs.filter(r => r.generation === data.generation).reduce((n, r) => n + r.findings.length, 0) ?? 0;
 
+  // A new tab keeps the selection only if that vendor is in it; otherwise its first vendor shows.
+  function changeTab(next: Tab) {
+    setTabChoice(next);
+    const visible = rows.filter(r => next === "all" || (next === "checked" ? r.checked : r.flags.length > 0 && !r.checked));
+    if (!visible.some(r => r.id === selectedId)) setPicked(null);
+  }
   // Acting on a vendor pins it, so reviewing never swaps the detail to another vendor.
   function actOnSelected(action: object, path?: string) {
     if (data && selected) setPicked({ generation: data.generation, id: selected.id });
@@ -163,7 +169,7 @@ function CompanyDashboard({
 
       <div className={busy === "reset" ? "workspace dimmed" : "workspace"}>
         {data && <>
-          <VendorList rows={rows} tab={tab} onTab={setTabChoice} selected={selectedId} onSelect={select} reviewed={reviewed} flagged={flagged} />
+          <VendorList rows={rows} tab={tab} onTab={changeTab} selected={selectedId} onSelect={select} reviewed={reviewed} flagged={flagged} />
           <VendorDetail row={selected} data={data} busy={Boolean(busy) || Boolean(error)} canRetry={can("retry")} canReview={can("review")} act={actOnSelected} />
         </>}
         {!data && !error && <p className="empty">Loading records…</p>}

@@ -101,7 +101,7 @@ Neon can't display passwords set in SQL; to replace one, run `ALTER ROLE ... PAS
 
 ### Running the live demo
 1. Sign in with a GitHub account listed in `SPENDWISE_ACCESS_GRANTS`, shortly before the demo (sessions last one hour).
-2. Confirm the vendor list says **No flags yet**. If it shows flags, select **Reset demo** first. After deploying UI-05/DATA-02, Reset each company once: existing databases keep their old three-vendor records until a Reset writes the new 11–12 vendor baseline.
+2. Confirm the vendor list says **No flags yet**. If it shows flags, select **Reset demo** first. After deploying UI-05/DATA-02, Reset each company once. Existing databases show the old three-vendor baseline until then; loading payments without a Reset adds the new vendors, so the baseline and loaded views would disagree.
 3. **Load October payments**: six flags are detected and six bounded investigations run, with live progress on each flag. In real mode each load costs model calls (about 24 requests, roughly $0.35 at list price); stub mode costs nothing.
 4. Open a flagged vendor, read why it was flagged and the answer, open the evidence chips, and **Mark reviewed** to record a human acknowledgment.
 5. **Reset demo** at the end so public visitors see the baseline.

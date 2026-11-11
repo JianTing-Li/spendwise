@@ -25,7 +25,7 @@ function why(exception: Exception, dataset: Dataset) {
   if (exception.rule === "payment_increase") {
     const s = exception.summary;
     return {
-      headline: `Paid ${dollars(s.differenceCents)} more than in September${s.percentChange === null ? "" : ` (${percent(s.percentChange)})`}.`,
+      headline: `Paid ${dollars(s.differenceCents)} more than in September${s.percentChange === null ? "" : ` (${percent(s.percentChange, s.priorCents)})`}.`,
       detail: `${dollars(s.priorCents)} in September → ${dollars(s.currentCents)} in October. Rule: increases over ${dollars(exception.settings.minimumIncreaseCents)} and ${exception.settings.minimumPercent}%.`,
     };
   }
@@ -55,7 +55,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
   const run = attempts.at(-1);
   const outcome = runOutcome(run);
   const reason = why(exception, dataset);
-  const key = (ref: Ref) => `${ref.type}:${ref.id}`;
+  const key = (ref: Ref) => `${ref.type}-${ref.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
   function chipLabel(ref: Ref) {
     if (ref.type === "payment") {
@@ -109,6 +109,8 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     const bullets = f.summary ? body : body.slice(1);
     const cited = f.evidence.filter(ref => chipLabel(ref));
     const missing = f.evidence.length - cited.length;
+    // Open state and element IDs are per finding, so two findings citing one record stay independent.
+    const slot = (ref: Ref) => `${index}-${key(ref)}`;
     return <section className={`answer${index ? " secondary" : ""}`} key={index} aria-label={index ? `Also noted ${index}` : "Answer"}>
       {index > 0 && <p className="eyebrow">Also noted · {label}</p>}
       <p className="answer-headline">{headline}</p>
@@ -118,12 +120,12 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
       </p>
       <p className="next-step"><strong>Next step:</strong> {f.nextStep}</p>
       {f.evidence.length > 0 && <div className="evidence" aria-label="Evidence">
-        {cited.map(ref => <button key={key(ref)} type="button" className={`chip${open === key(ref) ? " open" : ""}`} aria-expanded={open === key(ref)} aria-controls={`${prefix}-${key(ref)}`} onClick={() => setOpen(open === key(ref) ? null : key(ref))}>
+        {cited.map(ref => { const k = slot(ref); return <button key={k} type="button" className={`chip${open === k ? " open" : ""}`} aria-expanded={open === k} aria-controls={`${prefix}-${k}`} onClick={() => setOpen(open === k ? null : k)}>
           {chipLabel(ref)}
-        </button>)}
+        </button>; })}
         {missing > 0 && <span className="chip missing">{missing} cited {missing === 1 ? "record isn't" : "records aren't"} available</span>}
       </div>}
-      {cited.map(ref => open === key(ref) && <div className="record" id={`${prefix}-${key(ref)}`} key={key(ref)}>{record(ref)}</div>)}
+      {cited.map(ref => open === slot(ref) && <div className="record" id={`${prefix}-${slot(ref)}`} key={slot(ref)}>{record(ref)}</div>)}
     </section>;
   }
 

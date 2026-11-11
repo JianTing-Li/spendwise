@@ -33,13 +33,15 @@ function describe(step: Activity, dataset: Dataset): string {
 
 /** Live view of one running investigation: what it has looked at, and what it is doing now. */
 export function Progress({ run, dataset }: { run: Run; dataset: Dataset }) {
-  const [started] = useState(() => Date.now());
-  const [now, setNow] = useState(started);
+  // Time since the server started the run, so it survives reloads and vendor switches.
+  const [mounted] = useState(() => Date.now());
+  const started = run.startedAt ? Math.min(Date.parse(run.startedAt), mounted) : mounted;
+  const [now, setNow] = useState(mounted);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const seconds = Math.floor((now - started) / 1000);
+  const seconds = Math.max(0, Math.floor((now - started) / 1000));
   const steps = run.activity.map(step => describe(step, dataset));
   const last = run.activity.at(-1)?.tool;
   const current = run.mode === "stub"

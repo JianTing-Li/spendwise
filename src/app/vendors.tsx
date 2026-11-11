@@ -90,7 +90,7 @@ export function VendorDetail({ row, data, busy, canRetry, canReview, act }: {
           <span className="track"><span className={`fill ${kind}`} style={{ width: `${(Math.abs(cents) / scale) * 100}%` }} /></span>
           <strong className="num">{dollars(cents)}</strong>
         </div>)}
-      <p className="fine">Change {change(s.differenceCents)}{s.differenceCents !== 0 ? ` (${percent(s.percentChange)})` : ""}</p>
+      <p className="fine">Change {change(s.differenceCents)}{s.differenceCents !== 0 ? ` (${percent(s.percentChange, s.priorCents)})` : ""}</p>
     </div>
     {row.flags.length === 0 && <p className="calm">No flags. October looks normal for this vendor.</p>}
     {row.flags.map(exception => <ReviewCard

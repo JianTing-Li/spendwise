@@ -1,14 +1,11 @@
 import type { DemoState, Exception, Finding, Run, Summary } from "../contracts";
+import { isVerifiedExplanation } from "../agent/validation";
 
 export type Outcome = "explained" | "review" | "running" | "failed" | "waiting" | "placeholder";
 
 /** Verified only when a completed real run's finding passed the application check. */
 export const isVerified = (run: Run, finding: Finding) =>
-  run.mode === "real" &&
-  run.state === "completed" &&
-  finding.label === "Explained" &&
-  finding.referenceStatus === "valid" &&
-  finding.supportStatus === "supported";
+  run.mode === "real" && run.state === "completed" && isVerifiedExplanation(finding);
 
 export function runOutcome(run: Run | undefined): Outcome {
   if (!run) return "waiting";

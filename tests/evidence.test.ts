@@ -653,7 +653,7 @@ describe("UI-05/DATA-02 validator changes", () => {
     expect(f.supportNote).toMatch(/same service period/);
   });
 
-  it("a verified late payment says the invoice covers earlier work", async () => {
+  it("an invoice for work before September is never verified, because older payments are out of scope", async () => {
     const data = Dataset.parse({
       vendors: [{ id: "v-late", name: "Dairy Co", category: "Dairy" }],
       invoices: [
@@ -662,6 +662,8 @@ describe("UI-05/DATA-02 validator changes", () => {
         { id: "inv-sep", vendorId: "v-late", number: "D-0930", date: "2026-09-01", amountCents: 200000, currency: "USD", lineItems: ["September deliveries"], servicePeriod: "2026-09-01 / 2026-09-30" },
       ],
       payments: [
+        // An August payment of the same invoice may exist outside the scoped records.
+        ["p-aug-early", "inv-aug", "2026-08-10", 600000],
         ["p-sep", "inv-sep", "2026-09-10", 200000], ["p-oct", "inv-oct", "2026-10-10", 200000], ["p-aug", "inv-aug", "2026-10-22", 600000],
       ].map(([id, invoiceId, date, amountCents]) => ({ id, vendorId: "v-late", invoiceId, date, amountCents, currency: "USD", status: "completed", entryType: "outgoing", reversalReference: null, description: "Dairy" })),
       notes: [],
@@ -669,8 +671,24 @@ describe("UI-05/DATA-02 validator changes", () => {
     const f = await check(data, "increase:v-late:2026-10", {
       evidence: [ref("payment", "p-aug"), ref("invoice", "inv-aug")],
     });
+    expect(f).toMatchObject({ label: "Needs Review", supportStatus: "missing" });
+    expect(f.supportNote).toMatch(/earlier payment of it can't be ruled out/);
+  });
+
+  it("two same-period invoices paid in the same month are not treated as re-billing", async () => {
+    const data = Dataset.parse({
+      vendors: [{ id: "v-seat", name: "Seats Co", category: "Software" }],
+      invoices: [
+        { id: "inv-s1", vendorId: "v-seat", number: "L-1", date: "2026-10-01", amountCents: 300000, currency: "USD", lineItems: ["Team license"], servicePeriod: "2026-10-01 / 2026-10-31" },
+        { id: "inv-s2", vendorId: "v-seat", number: "L-2", date: "2026-10-01", amountCents: 300000, currency: "USD", lineItems: ["Team license"], servicePeriod: "2026-10-01 / 2026-10-31" },
+      ],
+      payments: [["p-1", "inv-s1", "2026-10-03"], ["p-2", "inv-s2", "2026-10-20"]]
+        .map(([id, invoiceId, date]) => ({ id, vendorId: "v-seat", invoiceId, date, amountCents: 300000, currency: "USD", status: "completed", entryType: "outgoing", reversalReference: null, description: "License" })),
+      notes: [],
+    });
+    const f = await check(data, "increase:v-seat:2026-10", {
+      evidence: [ref("payment", "p-1"), ref("payment", "p-2"), ref("invoice", "inv-s1"), ref("invoice", "inv-s2")],
+    });
     expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
-    expect(f.explanation).toContain("earlier work");
-    expect(f.summary).toMatch(/late payment of invoice D-0831/);
   });
 });

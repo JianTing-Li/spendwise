@@ -270,11 +270,11 @@
       "exceptionId": "increase:vendor-dairy:2026-10",
       "condition": "none",
       "expectedRunState": "completed",
-      "expectedLabel": "Explained",
+      "expectedLabel": "Needs Review",
       "acceptableLabels": [
-        "Explained"
+        "Needs Review"
       ],
-      "expectedCause": "The usual $2,400 monthly milk bill is unchanged; October also pays the August invoice VD-0831 ($6,200, August service period), sent late per the accounts payable note. That late payment covers the $6,200 increase.",
+      "expectedCause": "The usual $2,400 monthly milk bill is unchanged; October also pays the August invoice VD-0831 ($6,200, August service period), sent late per the accounts payable note. That payment accounts for the $6,200 increase, but payments before September are outside the records, so an earlier payment of VD-0831 cannot be ruled out. Recommend confirming it was not paid in August.",
       "requiredEvidence": [
         {
           "type": "payment",

@@ -239,24 +239,40 @@ function invoiceBalanced(invoiceId: string, scoped: Records) {
 }
 
 /**
- * Another paid invoice in scope bills the same amount for the same service
- * period: possibly the same work billed twice under a new number. This only
- * blocks a verified explanation; it never asserts a duplicate.
+ * Another invoice bills the same amount for the same service period and was
+ * paid in an earlier month than this one: possibly the same work re-billed
+ * under a new number. Same-month pairs (for example two identical licenses
+ * bought together) are not matched. This only blocks a verified explanation;
+ * it never asserts a duplicate.
  */
 function sameWorkBilledTwice(invoiceId: string, scoped: Records) {
   const invoice = scoped.invoices.find((i) => i.id === invoiceId);
   if (!invoice?.servicePeriod) return false;
   const counts = paid(scoped);
-  const paidInvoices = new Set(
-    scoped.payments.filter(counts).map((p) => p.invoiceId),
-  );
+  const month = (p: Payment) => p.date.slice(0, 7);
+  const ownMonths = scoped.payments.filter((p) => counts(p) && p.invoiceId === invoice.id).map(month);
+  if (!ownMonths.length) return false;
+  const latest = ownMonths.sort().at(-1)!;
   return scoped.invoices.some(
     (other) =>
       other.id !== invoice.id &&
-      paidInvoices.has(other.id) &&
       other.amountCents === invoice.amountCents &&
-      other.servicePeriod === invoice.servicePeriod,
+      other.servicePeriod === invoice.servicePeriod &&
+      scoped.payments.some((p) => counts(p) && p.invoiceId === other.id && month(p) < latest),
   );
+}
+
+/**
+ * The invoice is for work before the comparison period (dated, or with a
+ * service period ending, before September). Payments that old are outside the
+ * scoped records, so an earlier payment of the same invoice cannot be ruled
+ * out and "paid exactly once" cannot be verified.
+ */
+function predatesScope(invoiceId: string, scoped: Records) {
+  const invoice = scoped.invoices.find((i) => i.id === invoiceId);
+  if (!invoice) return false;
+  const end = invoice.servicePeriod?.match(/(\d{4}-\d{2}-\d{2})\s*$/)?.[1];
+  return invoice.date < periods.priorStart || (end !== undefined && end < periods.priorStart);
 }
 
 /**
@@ -282,6 +298,8 @@ function documentedIncrease(
     return fail("missing", "No cited invoice matches the October payments.");
   if (current.some((p) => !invoiceBalanced(p.invoiceId!, scoped)))
     return fail("contradicted", "An invoice is not paid exactly once and in full.");
+  if (current.some((p) => predatesScope(p.invoiceId!, scoped)))
+    return fail("missing", "An invoice covers work before September, so an earlier payment of it can't be ruled out.");
   if (current.some((p) => sameWorkBilledTwice(p.invoiceId!, scoped)))
     return fail("contradicted", "Two invoices bill the same amount for the same service period.");
   if (notesContradict(exception, scoped, cited))
@@ -324,6 +342,8 @@ function distinctInvoices(
     return fail("missing", "Both invoices describe the same work.");
   if (!invoiceBalanced(ia.id, scoped) || !invoiceBalanced(ib.id, scoped))
     return fail("contradicted", "An invoice is not paid exactly once and in full.");
+  if (predatesScope(ia.id, scoped) || predatesScope(ib.id, scoped))
+    return fail("missing", "An invoice covers work before September, so an earlier payment of it can't be ruled out.");
   if (sameWorkBilledTwice(ia.id, scoped) || sameWorkBilledTwice(ib.id, scoped))
     return fail("contradicted", "Two invoices bill the same amount for the same service period.");
   if (notesContradict(exception, scoped, cited))
@@ -351,10 +371,10 @@ function day(date: string) {
   });
 }
 
-/** "Aug 1 – Aug 31, 2026" from "2026-08-01 / 2026-08-31"; null when unparseable. */
+/** "Aug 1, 2026 – Aug 31, 2026" from "2026-08-01 / 2026-08-31"; null when unparseable. */
 function period(servicePeriod: string | null) {
   const m = servicePeriod?.match(/^(\d{4}-\d{2}-\d{2})\s*\/\s*(\d{4}-\d{2}-\d{2})$/);
-  return m ? { start: m[1], end: m[2], text: `${day(m[1])} – ${day(m[2])}` } : null;
+  return m ? { text: `${day(m[1])} – ${day(m[2])}` } : null;
 }
 
 function describeInvoice(invoice: Records["invoices"][number]) {
@@ -383,22 +403,14 @@ function verifiedExplanation(
       (p) => counts(p) && inCurrent(p) && p.invoiceId && invoiceIds.has(p.invoiceId),
     );
     const invoices = [...new Set(current.map(invoiceOf))];
-    const isLate = (i: Records["invoices"][number]) => {
-      const span = period(i.servicePeriod);
-      return Boolean(span && span.end < periods.currentStart);
-    };
     for (const p of current) {
       const invoice = invoiceOf(p);
       const span = period(invoice.servicePeriod);
-      const when = span ? (isLate(invoice) ? ` (earlier work: ${span.text})` : ` (${span.text})`) : "";
-      lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoice)} in full${when}.`);
+      lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoice)} in full${span ? ` (${span.text})` : ""}.`);
     }
     lines.push(`Together these cover the ${usd(exception.summary.differenceCents)} increase over September.`);
-    const late = invoices.find(isLate);
     const main = [...invoices].sort((a, b) => b.amountCents - a.amountCents)[0];
-    summary = late
-      ? `October includes a late payment of invoice ${late.number} for earlier work, which covers the ${usd(exception.summary.differenceCents)} increase.`
-      : `The ${usd(exception.summary.differenceCents)} increase is paid against invoice ${main.number}: ${quoted(main.lineItems).slice(1, -1)}.`;
+    summary = `The ${usd(exception.summary.differenceCents)} increase is paid against invoice ${main.number}: ${quoted(main.lineItems).slice(1, -1)}.`;
   } else {
     const [a, b] = exception.paymentIds.map(
       (id) => cited.payments.find((p) => p.id === id)!,

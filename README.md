@@ -43,7 +43,7 @@ The default company, *Roast & Co. Coffee* (October 2026 close):
 | Vendor | Sep → Oct cash | What triggered it | Expected result |
 | --- | --- | --- | --- |
 | **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Explained.** Normal $1,000 monthly fee plus a $12,000 annual subscription (`Invoice NS-2026`) covering Oct 2026–Sep 2027. |
-| **Valley Dairy Co.** | $2,400 → $8,600 | $6,200 increase | **Explained.** The usual milk bill plus the August invoice (`VD-0831`), sent late and paid in October. |
+| **Valley Dairy Co.** | $2,400 → $8,600 | $6,200 increase | **Needs review.** The usual milk bill plus the August invoice (`VD-0831`), sent late and paid in October. The records explain the jump, but August payments are outside them, so the app won't verify the bill was paid only once. |
 | **Summit Espresso Service** | $6,000 → $12,000 | $6,000 increase | **Needs review.** A "re-issued" Q3 invoice (`SE-1008`) bills the same quarter already paid in September (`SE-0905`). The duplicate rule misses it (12 days apart); the agent connects the records. |
 | **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs review.** Both payments reference the same $3,000 invoice (`HA-101`): $3,000 in question, not confirmed. |
 | **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Lookalike.** The payments cover two different invoices (`FS-201` artwork, `FS-202` menu boards). |
@@ -61,7 +61,7 @@ The goal is an investigator that never overclaims. Across 15 synthetic cases (11
 | Required evidence cited | 23 / 24 | 22 / 24 | 11 / 11 | 11 / 11 |
 | Causes correct (human review) | Pending review | Not human-scored | 4 / 4 | Not human-scored |
 
-On the re-issued invoice case, the baseline only follows October payments, so it never cites the September payment for the same quarter. Claude cited both and explained the possible double payment. Development results are from one run on 2026-11-11 (prompt v2); held-out results are from 2026-11-10 (prompt v1) and were not re-run.
+On the re-issued invoice case, the baseline only follows October payments, so it never cites the September payment for the same quarter. Claude cited both and explained the possible double payment. Development results are from one run on 2026-11-11 (prompt v2), re-validated offline after a code-review fix to the validator; held-out results are from 2026-11-10 (prompt v1) and were not re-run.
 
 Three consecutive live cycles on the deployed site (inject → detect → investigate → validate → review → reset) all completed within limits on 2026-11-10. See the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
 

@@ -131,7 +131,7 @@ export class Store {
       }>(`SELECT r.*, e.payload AS exception FROM investigation_runs r JOIN exceptions e ON e.id = r.exception_id WHERE r.generation = (SELECT generation FROM demo_state WHERE id=$3) AND r.id = $1 AND ${this.runScope(2)} AND r.status = 'pending' AND r.deadline_at > clock_timestamp()`, [id, this.companyId, this.stateId])).rows[0];
       if (!row)
         return null;
-      const run = decodeRun(row);
+      const run = { ...decodeRun(row), startedAt: new Date().toISOString() };
       await tx.query("UPDATE investigation_runs SET status = 'running', payload = $2 WHERE id = $1", [id, encodeRun(run)]);
       const deadline = new Date(row.deadline_at).getTime();
       return {
@@ -191,13 +191,13 @@ export class Store {
       }>("SELECT id FROM investigation_runs WHERE exception_id=$1 AND generation=$2 ORDER BY attempt DESC LIMIT 1", [previous.exception_id, meta.generation])).rows[0];
       if (latest.id !== previous.id || previous.attempt >= 3 || !["failed", "incomplete", "cancelled"].includes(previous.status))
         throw new Error("invalid_retry");
-      const run = Run.parse({ ...decodeRun(previous), id: `run:${meta.generation}:${previous.exception_id}:attempt-${previous.attempt + 1}`, state: "pending", findings: [], activity: [], error: null, reviewedAt: null, toolExecutions: 0, modelRequests: 0 });
+      const run = Run.parse({ ...decodeRun(previous), id: `run:${meta.generation}:${previous.exception_id}:attempt-${previous.attempt + 1}`, state: "pending", findings: [], activity: [], startedAt: null, error: null, reviewedAt: null, toolExecutions: 0, modelRequests: 0 });
       await tx.query("INSERT INTO investigation_runs (id,exception_id,generation,status,deadline_at,payload,attempt,predecessor_id) VALUES ($1,$2,$3,'pending',$4,$5,$6,$7)", [run.id, run.exceptionId, run.generation, new Date(acceptedAt + INVESTIGATION_LIMITS.runMs).toISOString(), encodeRun(run), previous.attempt + 1, predecessorId]);
       return { generation: meta.generation, changed: true };
     });
   }
   /** Short atomic reservation before work. Never replay after uncertain commit. */
-  async charge(id: string, generation: number, counter: "toolExecutions" | "modelRequests", amount = 1) {
+  async charge(id: string, generation: number, counter: "toolExecutions" | "modelRequests", amount = 1, activity: Activity[] = []) {
     if (!Number.isInteger(amount) || amount < 1 || amount > 10) throw new Error("invalid_counter");
     return this.db.transaction(async tx => {
       const meta = (await tx.query<{generation: number}>("SELECT generation FROM demo_state WHERE id=$1 FOR SHARE", [this.stateId])).rows[0];
@@ -208,6 +208,8 @@ export class Store {
       const limit = INVESTIGATION_LIMITS[counter];
       if (run[counter] + amount > limit) throw new RunError(counter === "toolExecutions" ? "tool_limit" : "model_limit");
       run[counter] += amount;
+      // Display-only progress rides along in the same write.
+      if (activity.length) run.activity = [...run.activity, ...activity.map(e => Activity.parse(e))].slice(0, MAX_ACTIVITY);
       await tx.query("UPDATE investigation_runs SET payload=$2 WHERE id=$1", [id,encodeRun(run)]);
       return run[counter];
     });

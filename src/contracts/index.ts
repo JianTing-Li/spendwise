@@ -146,6 +146,8 @@ export type Activity = z.infer<typeof Activity>;
 export const MAX_ACTIVITY = 24;
 export const Run = InvestigationResult.extend({
   activity: z.array(Activity).max(MAX_ACTIVITY).default([]),
+  /** When the run was claimed and started running; display only. */
+  startedAt: z.iso.datetime().nullable().default(null),
   id: Id,
   exceptionId: Id,
   generation: z.number().int(),

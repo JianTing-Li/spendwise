@@ -1,6 +1,3 @@
-export const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(cents / 100);
-
 /** "$12,000" when whole dollars, "$1,250.50" otherwise. */
 export const dollars = (cents: number) =>
   new Intl.NumberFormat("en-US", {
@@ -14,9 +11,10 @@ export const dollars = (cents: number) =>
 export const change = (cents: number) =>
   cents === 0 ? "$0" : `${cents > 0 ? "+" : "−"}${dollars(Math.abs(cents))}`;
 
-export const percent = (value: number | null) =>
+/** Percent change; when there is none (prior total zero or negative), say why. */
+export const percent = (value: number | null, priorCents = 0) =>
   value === null
-    ? "new this month"
+    ? priorCents === 0 ? "new this month" : "no % change: September was negative"
     : `${new Intl.NumberFormat("en-US", {
         maximumFractionDigits: 0,
         signDisplay: "exceptZero",

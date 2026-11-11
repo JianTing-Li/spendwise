@@ -16,9 +16,9 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
     if (signal.aborted) throw new RunError("deadline");
     if (Date.now() >= Date.parse(input.deadlineAt) - 1000) throw new RunError("deadline");
   };
-  const charge = async (counter: keyof typeof counters, amount = 1) => {
+  const charge = async (counter: keyof typeof counters, amount = 1, activity: Activity[] = []) => {
     check();
-    counters[counter] = Math.max(counters[counter], await store.charge(id, input.generation, counter, amount));
+    counters[counter] = Math.max(counters[counter], await store.charge(id, input.generation, counter, amount, activity));
     check();
   };
   // Validation reuses complete scoped responses, never a model-filtered subset.
@@ -53,8 +53,7 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
       await cached(name);
   }
   // Display-only progress. A failure here never fails or extends the run.
-  const recordActivity = async (content: ReadonlyArray<{ type: string; name?: string; input?: unknown }>) => {
-    const entries = content.filter(b => b.type === "tool_use").map(b => activityEntry(b.name, b.input));
+  const recordActivity = async (entries: Activity[]) => {
     try { await store.recordActivity(id, input.generation, entries); }
     catch { /* progress is cosmetic; counters and persistence carry the guarantees */ }
   };
@@ -82,8 +81,11 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
           // may leave a conservative reservation; it can never undercount work.
           const attempts = response.content.filter(b => b.type === "tool_use" && b.name !== "submit_findings").length;
           const amount = Math.min(attempts, INVESTIGATION_LIMITS.toolExecutions - counters.toolExecutions);
-          if (amount > 0) await charge("toolExecutions", amount);
-          await recordActivity(response.content);
+          const activity = response.content.filter(b => b.type === "tool_use").map(b => activityEntry(b.name, b.input));
+          // One write per response: progress is stored with the lookup charge.
+          // Only a submission-only response needs its own small display write.
+          if (amount > 0) await charge("toolExecutions", amount, activity);
+          else await recordActivity(activity);
           return response;
         } },
       });
