@@ -176,7 +176,6 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
 
   function finding(f: Finding, index: number, current: Run) {
     const verified = isVerified(current, f);
-    const label = verified ? "Explained" : f.label === "Explained" ? "Needs Review" : f.label;
     const body = lines(f.explanation);
     const headline = f.summary ?? body[0];
     // A verified answer's bullets are app-written and repeat "From the records", so they're left out.
@@ -186,7 +185,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     // Open state and element IDs are per finding, so two findings citing one record stay independent.
     const slot = (ref: Ref) => `${index}-${key(ref)}`;
     return <section className={`answer${index ? " secondary" : ""}`} key={index} aria-label={index ? `Also noted ${index}` : "Answer"}>
-      {index > 0 && <p className="eyebrow">Also noted · {label}</p>}
+      {index > 0 && <p className="eyebrow">Also noted · {verified ? outcomeLabel.explained : outcomeLabel.review}</p>}
       <p className="answer-headline">{headline}</p>
       {bullets.length > 0 && <ul className="answer-points">{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
       {verified
