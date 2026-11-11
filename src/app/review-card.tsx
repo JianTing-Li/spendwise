@@ -20,6 +20,16 @@ const errorText: Record<NonNullable<Run["error"]>, string> = {
 
 type Ref = Finding["evidence"][number];
 
+/** Reason for findings saved before reasons were recorded, from their saved statuses. */
+function savedReason(f: Finding, run: Run) {
+  if (run.mode === "stub") return "Placeholder only: no AI investigation ran.";
+  if (f.referenceStatus === "invalid") return "Cites records that couldn't be found.";
+  if (f.supportStatus === "contradicted") return "The records contradict this explanation, or it states something only a person can decide.";
+  if (f.supportStatus === "missing") return "Records needed to support it are missing.";
+  if (f.referenceStatus === "unchecked") return "The run stopped before its evidence was checked.";
+  return "The investigator left this for a person to decide.";
+}
+
 /** Why the rule flagged this, in one plain sentence plus the rule itself. */
 function why(exception: Exception, dataset: Dataset) {
   if (exception.rule === "payment_increase") {
@@ -35,6 +45,42 @@ function why(exception: Exception, dataset: Dataset) {
     headline: a ? `Two payments of ${dollars(a.amountCents)}${days === null ? "" : `, ${days} ${days === 1 ? "day" : "days"} apart`}.` : "Two payments of the same amount.",
     detail: `Amount in question: ${a ? dollars(a.amountCents) : "unknown"}, not confirmed. Rule: same amount within ${exception.settings.duplicateDays} days.`,
   };
+}
+
+/**
+ * What the records show, computed by application code (no model, no cause
+ * claim): which October payments are new or different from September, or
+ * which invoices the two flagged payments point to.
+ */
+function recordFacts(exception: Exception, dataset: Dataset): string[] {
+  const payments = dataset.payments.filter(p => p.vendorId === exception.vendorId && p.status === "completed");
+  const invoiceOf = (id: string | null) => dataset.invoices.find(i => i.id === id);
+  const label = (p: Dataset["payments"][number]) => {
+    const inv = invoiceOf(p.invoiceId);
+    const what = (inv?.lineItems[0] ?? p.description).replace(/\s+—\s+(September|October|August)$/, "");
+    return `${dollars(p.amountCents)} · ${what}${inv ? ` (invoice ${inv.number})` : " (no invoice)"}`;
+  };
+  if (exception.rule === "possible_duplicate") {
+    const flagged = exception.paymentIds.map(id => payments.find(p => p.id === id)).filter((p): p is NonNullable<typeof p> => Boolean(p));
+    const numbers = [...new Set(flagged.map(p => invoiceOf(p.invoiceId)?.number ?? null))];
+    if (numbers.includes(null)) return ["At least one of the payments has no invoice linked."];
+    return numbers.length === 1
+      ? [`Both payments point to the same invoice, ${numbers[0]}.`]
+      : [`The payments point to different invoices: ${numbers.join(" and ")}.`];
+  }
+  const outgoing = payments.filter(p => p.entryType === "outgoing");
+  const sep = outgoing.filter(p => p.date >= "2026-09-01" && p.date < "2026-10-01");
+  const oct = outgoing.filter(p => p.date >= "2026-10-01" && p.date < "2026-11-01").sort((a, b) => b.amountCents - a.amountCents);
+  const key = (p: Dataset["payments"][number]) => `${p.amountCents}|${(invoiceOf(p.invoiceId)?.lineItems[0] ?? p.description).replace(/\s+—\s+\w+$/, "")}`;
+  const sepKeys = sep.map(key);
+  const lines = oct.map(p => {
+    const i = sepKeys.indexOf(key(p));
+    if (i >= 0) { sepKeys.splice(i, 1); return `Same as September: ${label(p)}`; }
+    return `New in October: ${label(p)}`;
+  });
+  const reversals = payments.filter(p => p.entryType === "reversal" && p.date >= "2026-09-01" && p.date < "2026-11-01");
+  if (reversals.length) lines.push(`${reversals.length} reversal${reversals.length === 1 ? "" : "s"} recorded in these months.`);
+  return lines.sort((a, b) => Number(b.startsWith("New")) - Number(a.startsWith("New"))).slice(0, 4);
 }
 
 export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canReview, act }: {
@@ -55,6 +101,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
   const run = attempts.at(-1);
   const outcome = runOutcome(run);
   const reason = why(exception, dataset);
+  const facts = recordFacts(exception, dataset);
   const key = (ref: Ref) => `${ref.type}-${ref.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
   function chipLabel(ref: Ref) {
@@ -116,7 +163,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
       <p className="answer-headline">{headline}</p>
       {bullets.length > 0 && <ul className="answer-points">{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
       <p className={verified ? "check verified" : "check"}>
-        {verified ? "Checked against the records" : `Not verified: ${f.supportNote ?? (current.mode === "stub" ? "placeholder only, no AI investigation ran." : "the run stopped before its evidence was checked.")}`}
+        {verified ? "Checked against the records" : `Not verified: ${f.supportNote ?? savedReason(f, current)}`}
       </p>
       <p className="next-step"><strong>Next step:</strong> {f.nextStep}</p>
       {f.evidence.length > 0 && <div className="evidence" aria-label="Evidence">
@@ -136,9 +183,13 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     </div>
     <p className="why"><strong>Why flagged:</strong> {reason.headline}</p>
     <p className="fine">{reason.detail}</p>
+    {facts.length > 0 && <div className="facts" aria-label="From the records">
+      <p className="eyebrow">From the records</p>
+      <ul>{facts.map((line, i) => <li key={i} className={line.startsWith("New") ? "new" : undefined}>{line}</li>)}</ul>
+    </div>}
     <p className="sr-only" ref={status} tabIndex={-1} role="status" aria-label="Investigation status">{run ? `${outcomeLabel[outcome]}${run.reviewedAt ? ", reviewed" : ""}` : "Not started"}</p>
 
-    {run && (run.state === "pending" || run.state === "running") && <Progress run={run} dataset={dataset} />}
+    {run && (run.state === "pending" || run.state === "running") && <Progress run={run} dataset={dataset} vendorId={exception.vendorId} />}
 
     {run && ["failed", "incomplete", "cancelled"].includes(run.state) && <div className="stopped">
       <p><strong>The investigation didn&apos;t finish.</strong> {run.error ? errorText[run.error] : "It was cancelled."}</p>
@@ -152,8 +203,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     {run?.state === "completed" && <div className="review-row">
       {run.reviewedAt
         ? <p className="reviewed-note">✓ Reviewed {new Date(run.reviewedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</p>
-        : <button disabled={busy || !canReview} onClick={() => send({ action: "review", runId: run.id })}>Mark reviewed</button>}
-      <span className="fine">Marking reviewed doesn&apos;t approve or pay anything.</span>
+        : <button disabled={busy || !canReview} title="Records that you looked at this. It doesn't approve or pay anything." onClick={() => send({ action: "review", runId: run.id })}>Mark reviewed</button>}
     </div>}
 
     {run && <details className="run-details">

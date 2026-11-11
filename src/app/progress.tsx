@@ -4,26 +4,33 @@ import { useEffect, useState } from "react";
 import { INVESTIGATION_LIMITS, type Activity, type Dataset, type Run } from "../contracts";
 import { dollars, shortDate } from "./format";
 
-/** Plain-English step from a recorded lookup. Uses record numbers, never model text. */
-function describe(step: Activity, dataset: Dataset): string {
-  const invoice = (id: string) => dataset.invoices.find(i => i.id === id)?.number;
+/**
+ * Plain-English step from a recorded lookup request. It names what the agent
+ * asked for, resolved only against this vendor's records; it never claims the
+ * lookup returned anything, and never shows model text.
+ */
+function describe(step: Activity, dataset: Dataset, vendorId: string): string {
+  const invoice = (id: string) => dataset.invoices.find(i => i.id === id && i.vendorId === vendorId)?.number;
   const payment = (id: string) => {
-    const p = dataset.payments.find(r => r.id === id);
+    const p = dataset.payments.find(r => r.id === id && r.vendorId === vendorId);
     return p ? `${shortDate(p.date)} ${dollars(p.amountCents)}` : null;
   };
+  const outside = (found: number) => (found < step.ids.length ? " (some aren't this vendor's records)" : "");
   switch (step.tool) {
     case "get_payment_summary":
-      return "Checked September and October totals";
+      return "Asked for September and October totals";
     case "list_payments": {
       const known = step.ids.map(payment).filter(Boolean);
-      return known.length === 1 ? `Looked up the ${known[0]} payment` : known.length ? `Looked up ${known.length} payments` : "Listed the vendor's payments";
+      if (!step.ids.length) return "Asked for the vendor's payments";
+      return (known.length === 1 ? `Asked for the ${known[0]} payment` : `Asked for ${known.length} payments`) + outside(known.length);
     }
     case "get_invoices": {
       const numbers = step.ids.map(invoice).filter(Boolean);
-      return numbers.length ? `Read invoice ${numbers.slice(0, 3).join(", ")}` : "Read the linked invoices";
+      if (!step.ids.length) return "Asked for the linked invoices";
+      return (numbers.length ? `Asked for invoice ${numbers.slice(0, 3).join(", ")}` : "Asked for invoices") + outside(numbers.length);
     }
     case "get_vendor_notes":
-      return "Read the vendor notes";
+      return "Asked for the vendor notes";
     case "submit_findings":
       return "Wrote up the answer";
     default:
@@ -32,7 +39,7 @@ function describe(step: Activity, dataset: Dataset): string {
 }
 
 /** Live view of one running investigation: what it has looked at, and what it is doing now. */
-export function Progress({ run, dataset }: { run: Run; dataset: Dataset }) {
+export function Progress({ run, dataset, vendorId }: { run: Run; dataset: Dataset; vendorId: string }) {
   // Time since the server started the run, so it survives reloads and vendor switches.
   const [mounted] = useState(() => Date.now());
   const started = run.startedAt ? Math.min(Date.parse(run.startedAt), mounted) : mounted;
@@ -42,7 +49,7 @@ export function Progress({ run, dataset }: { run: Run; dataset: Dataset }) {
     return () => clearInterval(timer);
   }, []);
   const seconds = Math.max(0, Math.floor((now - started) / 1000));
-  const steps = run.activity.map(step => describe(step, dataset));
+  const steps = run.activity.map(step => describe(step, dataset, vendorId));
   const last = run.activity.at(-1)?.tool;
   const current = run.mode === "stub"
     ? "Preparing a placeholder (no AI call in this mode)"
@@ -57,7 +64,7 @@ export function Progress({ run, dataset }: { run: Run; dataset: Dataset }) {
     <div className="progress" role="status" aria-live="polite" aria-label="Investigation progress">
       <div className="progress-bar" aria-hidden="true"><span /></div>
       <ol className="progress-steps">
-        {steps.map((text, i) => <li key={i} className="done">{text}</li>)}
+        {steps.map((text, i) => <li key={i} className="step">{text}</li>)}
         <li className="now">{current}…</li>
       </ol>
       <p className="fine">

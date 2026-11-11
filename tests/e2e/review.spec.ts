@@ -79,7 +79,8 @@ test("keyboard/mobile evidence, verified vs draft labels, safe notes and run-spe
   await page.keyboard.press("Space");
   await expect(card.getByText(/✓ Reviewed/)).toBeVisible();
   await expect(card.getByRole("status", { name: "Investigation status" })).toBeFocused();
-  await expect(card.getByText(/doesn't approve or pay anything/)).toBeVisible();
+  // The "not an approval" note lives on the button's tooltip, not as visible text.
+  await expect(card.getByText(/doesn't approve or pay anything/)).toHaveCount(0);
   await page.reload();
   await expect(card.getByText(/✓ Reviewed/)).toBeVisible();
   await expect(card.getByRole("button", { name: "Mark reviewed" })).toHaveCount(0);
@@ -96,14 +97,18 @@ test("live progress shows plain steps from recorded lookups, never model text", 
     { tool: "get_payment_summary", ids: [] },
     { tool: "list_payments", ids: ["pay-renewal-annual"] },
     { tool: "get_invoices", ids: ["inv-renewal"] },
+    // Another vendor's invoice: shown as an out-of-scope request, never as read.
+    { tool: "get_invoices", ids: ["inv-advisory"] },
   ] });
   await page.route("**/api/demo", route => route.fulfill({ json: state }));
   await opened(page);
   const progress = page.getByRole("status", { name: "Investigation progress" });
-  await expect(progress).toContainText("Checked September and October totals");
-  await expect(progress).toContainText("Looked up the Oct 20 $12,000 payment");
-  await expect(progress).toContainText("Read invoice NS-2026");
+  await expect(progress).toContainText("Asked for September and October totals");
+  await expect(progress).toContainText("Asked for the Oct 20 $12,000 payment");
+  await expect(progress).toContainText("Asked for invoice NS-2026");
   await expect(progress).toContainText("Deciding what to check next…");
+  await expect(progress).toContainText("Asked for invoices (some aren't this vendor's records)");
+  await expect(progress).not.toContainText("Read ");
   await expect(progress).toContainText("3/8 lookups");
   await expect(page.locator(".banner")).toContainText("Investigating 1 flag");
   await expect(page.locator(".vendor-row .badge")).toHaveText("Investigating");

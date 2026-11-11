@@ -25,6 +25,7 @@ test("one vendor list: flagged first, tabs filter without mutation, detail shows
   await expect(detail).toContainText("Change +$6,000 (new this month)");
   await expect(detail.getByRole("article")).toHaveCount(2);
   await expect(detail.getByRole("article").nth(1)).toContainText("Two payments of $3,000, 2 days apart.");
+  await expect(detail.getByRole("article").nth(1)).toContainText("Both payments point to the same invoice, HA-101.");
   await list.getByRole("tab", { name: /All vendors 12/ }).click();
   await expect(list.locator(".vendor-row")).toHaveCount(12);
   const rent = list.locator(".vendor-row").filter({ hasText: "Main Street Properties" });

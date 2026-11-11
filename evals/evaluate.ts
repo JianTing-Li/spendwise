@@ -34,7 +34,7 @@ import type {
 import { loadGroundTruth, type GroundTruthCase } from "./ground-truth";
 import { BASELINE_VERSION, baselineFor } from "./baseline";
 
-export const EVALUATOR_VERSION = "evaluator-v2";
+export const EVALUATOR_VERSION = "evaluator-v3";
 const RUN_MS = 60_000;
 /** Retrievals allowed under the `tool_limit` condition (the real limit is 8). */
 export const TOOL_LIMIT_CONDITION = 1;
@@ -62,7 +62,7 @@ const NEGATED =
  */
 export function statedCauses(findings: Finding[]) {
   const sentences = findings.flatMap((f) =>
-    `${f.explanation}\n${f.nextStep}`.split(/(?<=[.;:!?])\s+|\n+/),
+    `${f.summary ?? ""}\n${f.explanation}\n${f.nextStep}`.split(/(?<=[.;:!?])\s+|\n+/),
   );
   return sentences
     .map((s) => s.trim())
@@ -183,7 +183,8 @@ export function scoreCase(expected: GroundTruthCase, run: CaseRun) {
     (f) => f.referenceStatus === "invalid",
   ).length;
   const text = run.findings
-    .map((f) => `${f.explanation}\n${f.nextStep}`.toLowerCase())
+    // The summary is the card's headline, so it is checked like the rest of the wording.
+    .map((f) => `${f.summary ?? ""}\n${f.explanation}\n${f.nextStep}`.toLowerCase())
     .join("\n");
   // "Any stated business cause" is made when the method labels anything
   // Explained, before or after validation (a downgraded claim was still

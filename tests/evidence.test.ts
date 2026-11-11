@@ -588,8 +588,16 @@ describe("AI-02 run outcome is separate from finding support", () => {
 });
 
 describe("UI-05/DATA-02 validator changes", () => {
+  /** Demo records with the monthly POS fees un-invoiced, as they were before DATA-02. */
+  const uninvoiced = () => {
+    const data = injectedDataset();
+    for (const p of data.payments) if (p.id === "pay-renewal-sep" || p.id === "pay-renewal-oct") p.invoiceId = null;
+    data.invoices = data.invoices.filter((i) => i.id !== "inv-renewal-sep" && i.id !== "inv-renewal-oct");
+    return data;
+  };
+
   it("a cited, unchanged monthly payment without an invoice no longer blocks Explained", async () => {
-    const f = await check(demo, RENEWAL, {
+    const f = await check(uninvoiced(), RENEWAL, {
       evidence: [...renewalEvidence, ref("payment", "pay-renewal-oct"), ref("payment", "pay-renewal-sep")],
     });
     expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
@@ -597,11 +605,35 @@ describe("UI-05/DATA-02 validator changes", () => {
   });
 
   it("un-invoiced cash still cannot explain an increase on its own", async () => {
-    const f = await check(demo, RENEWAL, {
+    const f = await check(uninvoiced(), RENEWAL, {
       evidence: [ref("payment", "pay-renewal-oct"), ref("note", "note-renewal")],
     });
     expect(f).toMatchObject({ label: "Needs Review", supportStatus: "missing" });
     expect(f.supportNote).toBe("No cited invoice matches the October payments.");
+  });
+
+  it("a cited payment must come with its own invoice", async () => {
+    const f = await check(demo, RENEWAL, {
+      evidence: [...renewalEvidence, ref("payment", "pay-renewal-oct")],
+    });
+    expect(f).toMatchObject({ label: "Needs Review", supportStatus: "missing" });
+    expect(f.supportNote).toBe("A cited October payment's invoice is not cited.");
+  });
+
+  it("leaving the re-issued invoice out of the citations cannot clear Summit Espresso (Codex P1)", async () => {
+    const ESPRESSO = "increase:vendor-espresso:2026-10";
+    // Only the normal Q4 payment and invoice: $6,000 matches the increase, but October also re-pays Q3.
+    const q4Only = await check(demo, ESPRESSO, {
+      evidence: [ref("payment", "pay-espresso-q4"), ref("invoice", "inv-espresso-q4")],
+    });
+    expect(q4Only).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    expect(q4Only.supportNote).toMatch(/same service period/);
+    // Both payments, only the Q4 invoice.
+    const both = await check(demo, ESPRESSO, {
+      evidence: [ref("payment", "pay-espresso-q4"), ref("payment", "pay-espresso-q3r"), ref("invoice", "inv-espresso-q4")],
+    });
+    expect(both).toMatchObject({ label: "Needs Review" });
+    expect(both.supportStatus).not.toBe("supported");
   });
 
   it("every unsupported finding carries an application-written reason", async () => {
@@ -690,5 +722,7 @@ describe("UI-05/DATA-02 validator changes", () => {
       evidence: [ref("payment", "p-1"), ref("payment", "p-2"), ref("invoice", "inv-s1"), ref("invoice", "inv-s2")],
     });
     expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    // Neither $3,000 invoice alone covers the $6,000 increase, so the headline names both (Codex P1).
+    expect(f.summary).toBe("Invoices L-1 and L-2 together cover the $6,000 increase.");
   });
 });

@@ -219,6 +219,17 @@ describe("EVAL-01 scoring is independent of model self-assessment", () => {
     expect(s.forbiddenClaimsMade).toEqual(["confirmed duplicate"]);
   });
 
+  it("checks the summary headline for forbidden claims and stated causes (Codex P2)", () => {
+    const s = scoreCase(
+      dev("duplicate-payments"),
+      run([finding({ summary: "This is a confirmed duplicate.", explanation: "Two payments point to one invoice.", nextStep: "Check with the vendor." })]),
+    );
+    expect(s.forbiddenClaimsMade).toEqual(["confirmed duplicate"]);
+    expect(
+      statedCauses([finding({ summary: "The increase was caused by a renewal.", explanation: "No records were found.", nextStep: "" })]),
+    ).toEqual(["The increase was caused by a renewal."]);
+  });
+
   it("flags run-state mismatches, failed runs and missing findings", () => {
     const s = scoreCase(dev("renewal"), run([], "failed"));
     expect(s.failures).toEqual(

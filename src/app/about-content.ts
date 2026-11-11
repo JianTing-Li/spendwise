@@ -1,4 +1,4 @@
-// Verbatim excerpts from the README on main. A parity test catches drift.
+// About dialog copy, written from the README on main. The dialog renders these fields directly.
 export const aboutContent = {
   tagline: "An AI investigator that helps finance analysts tell a duplicate vendor payment from an expected contract change. It can't claim an explanation the records don't support.",
   problem: "When reviewing monthly vendor payments, finance analysts cross-check payment runs against invoices and vendor notes by hand to decide whether an unusual outflow is a possible duplicate or an expected change.",

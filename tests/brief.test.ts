@@ -4,9 +4,13 @@ import { aboutContent } from "../src/app/about-content";
 import { percent } from "../src/app/format";
 
 describe("About content stays anchored to the README", () => {
-  it("keeps the displayed About excerpts anchored to the authoritative checked-in README", () => {
-    const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-    for (const text of [aboutContent.tagline, aboutContent.problem, aboutContent.limitation]) expect(readme).toContain(text);
+  it("renders the About content from one source, so README edits never break this test", () => {
+    // #59: the About dialog renders `aboutContent` rather than copying its text,
+    // and nothing here depends on the live README's wording.
+    const dialog = readFileSync(new URL("../src/app/learning-center.tsx", import.meta.url), "utf8");
+    expect(dialog).toContain("{aboutContent.tagline}");
+    expect(dialog).toContain("{aboutContent.limitation}");
+    for (const text of [aboutContent.tagline, aboutContent.problem, aboutContent.limitation]) expect(text.length).toBeGreaterThan(20);
     expect(aboutContent.source).toContain("/blob/main/README.md");
     expect(readFileSync(new URL("../docs/prd.md", import.meta.url), "utf8")).toContain("The scale of the pain is not yet validated");
   });

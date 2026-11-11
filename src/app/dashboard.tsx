@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
-import { dollars } from "./format";
+import { change, dollars, percent } from "./format";
 import { LearningCenter } from "./learning-center";
 import { vendorRows } from "./status";
 import { VendorDetail, VendorList, type Tab } from "./vendors";
@@ -63,6 +63,7 @@ function CompanyDashboard({
   const selectedId = picked && picked.generation === data?.generation && rows.some(r => r.id === picked.id) ? picked.id : inTab[0]?.id ?? rows[0]?.id;
   const selected = rows.find(r => r.id === selectedId);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
+  const prior = data?.summaries.reduce((n, s) => n + s.priorCents, 0) ?? 0;
   const running = rows.flatMap(r => r.runs).filter(run => run && ["pending", "running"].includes(run.state)).length;
   const company = companies.find(c => c.id === companyId)!;
   const findings = data?.runs.filter(r => r.generation === data.generation).reduce((n, r) => n + r.findings.length, 0) ?? 0;
@@ -141,7 +142,13 @@ function CompanyDashboard({
 
       <section className="title">
         <h1>October payment review</h1>
-        <p>{data ? <>September vs October 2026 · {rows.length} vendors · October cash paid <strong className="num">{dollars(total)}</strong></> : "Loading…"}</p>
+        <p>September vs October 2026 · {data ? `${rows.length} vendors` : "Loading…"}</p>
+      </section>
+      <section className="totals" aria-label="Company cash paid">
+        <div><span>October cash paid</span><strong key={total} className="num bump">{data ? dollars(total) : "—"}</strong></div>
+        <div><span>September</span><strong className="num">{data ? dollars(prior) : "—"}</strong></div>
+        <div><span>Change</span><strong key={total - prior} className={`num bump${total - prior > 0 ? " up" : ""}`}>{data ? `${change(total - prior)}${prior > 0 ? ` (${percent(((total - prior) / prior) * 100, prior)})` : ""}` : "—"}</strong></div>
+        <div><span>Flags reviewed</span><strong key={reviewed} className="num bump">{data ? `${reviewed} of ${flagged}` : "—"}</strong></div>
       </section>
 
       {signedOut && (

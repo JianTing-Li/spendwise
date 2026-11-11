@@ -277,10 +277,13 @@ function predatesScope(invoiceId: string, scoped: Records) {
 
 /**
  * Category "documented_increase": cited current-month cash tied to cited
- * invoices that it pays exactly, together covering the increase. Cited
- * current payments without an invoice (for example an unchanged monthly fee
- * cited as context) are not counted toward the increase; the invoiced ones
- * must cover it on their own, so un-invoiced cash can never explain it.
+ * invoices that it pays exactly, together covering the increase. A cited
+ * payment with an invoice must come with that invoice. Cited current payments
+ * without any invoice (for example an unchanged monthly fee cited as context)
+ * are not counted toward the increase; the invoiced ones must cover it on
+ * their own. Red flags are checked across all of the vendor's October cash,
+ * cited or not, so leaving a problem payment out of the citations can never
+ * make the rest look like a clean explanation.
  */
 function documentedIncrease(
   exception: Exception,
@@ -289,18 +292,20 @@ function documentedIncrease(
 ): Check {
   const counts = paid(scoped);
   const invoiceIds = new Set(cited.invoices.map((i) => i.id));
-  const current = cited.payments.filter(
-    (p) => counts(p) && inCurrent(p) && p.invoiceId && invoiceIds.has(p.invoiceId),
-  );
-  if (!cited.payments.some((p) => counts(p) && inCurrent(p)))
+  const citedCurrent = cited.payments.filter((p) => counts(p) && inCurrent(p));
+  if (!citedCurrent.length)
     return fail("missing", "No completed October payment is cited.");
+  if (citedCurrent.some((p) => p.invoiceId && !invoiceIds.has(p.invoiceId)))
+    return fail("missing", "A cited October payment's invoice is not cited.");
+  const current = citedCurrent.filter((p) => p.invoiceId);
   if (!current.length)
     return fail("missing", "No cited invoice matches the October payments.");
-  if (current.some((p) => !invoiceBalanced(p.invoiceId!, scoped)))
+  const october = scoped.payments.filter((p) => counts(p) && inCurrent(p) && p.invoiceId);
+  if (october.some((p) => !invoiceBalanced(p.invoiceId!, scoped)))
     return fail("contradicted", "An invoice is not paid exactly once and in full.");
-  if (current.some((p) => predatesScope(p.invoiceId!, scoped)))
+  if (october.some((p) => predatesScope(p.invoiceId!, scoped)))
     return fail("missing", "An invoice covers work before September, so an earlier payment of it can't be ruled out.");
-  if (current.some((p) => sameWorkBilledTwice(p.invoiceId!, scoped)))
+  if (october.some((p) => sameWorkBilledTwice(p.invoiceId!, scoped)))
     return fail("contradicted", "Two invoices bill the same amount for the same service period.");
   if (notesContradict(exception, scoped, cited))
     return fail("contradicted", "A linked note mentions a different amount or a dispute.");
@@ -409,8 +414,15 @@ function verifiedExplanation(
       lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoice)} in full${span ? ` (${span.text})` : ""}.`);
     }
     lines.push(`Together these cover the ${usd(exception.summary.differenceCents)} increase over September.`);
-    const main = [...invoices].sort((a, b) => b.amountCents - a.amountCents)[0];
-    summary = `The ${usd(exception.summary.differenceCents)} increase is paid against invoice ${main.number}: ${quoted(main.lineItems).slice(1, -1)}.`;
+    // Name one invoice only when its payment alone covers the increase;
+    // otherwise describe the invoices together, never assigning it all to one.
+    const diff = exception.summary.differenceCents;
+    const paidFor = (i: Records["invoices"][number]) =>
+      sum(current.filter((p) => p.invoiceId === i.id).map((p) => p.amountCents));
+    const covering = invoices.filter((i) => paidFor(i) >= diff);
+    summary = covering.length === 1
+      ? `Invoice ${covering[0].number} (${usd(covering[0].amountCents)}: ${quoted(covering[0].lineItems).slice(1, -1)}) covers the ${usd(diff)} increase.`
+      : `Invoices ${invoices.map((i) => i.number).join(" and ")} together cover the ${usd(diff)} increase.`;
   } else {
     const [a, b] = exception.paymentIds.map(
       (id) => cited.payments.find((p) => p.id === id)!,

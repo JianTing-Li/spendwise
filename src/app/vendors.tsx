@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DemoState } from "../contracts";
 import { change, dollars, percent, shortDate } from "./format";
 import { outcomeLabel, type VendorRow } from "./status";
@@ -24,11 +24,30 @@ export function VendorList({ rows, tab, onTab, selected, onSelect, reviewed, fla
     all: rows.length,
   };
   const visible = rows.filter(r => tab === "all" || (tab === "checked" ? r.checked : r.flags.length > 0 && !r.checked));
+  // Rows that just left this tab (for example after Mark reviewed) stay briefly
+  // so they can fade and collapse instead of vanishing.
+  const ids = visible.map(r => r.id).join("|");
+  const [previous, setPrevious] = useState({ tab, ids, rows: visible });
+  const [leaving, setLeaving] = useState<{ index: number; row: VendorRow }[]>([]);
+  if (previous.ids !== ids || previous.tab !== tab) {
+    const gone = previous.tab === tab
+      ? previous.rows.flatMap((row, index) => (visible.some(r => r.id === row.id) ? [] : [{ index, row }]))
+      : [];
+    setPrevious({ tab, ids, rows: visible });
+    setLeaving(gone);
+  }
+  useEffect(() => {
+    if (!leaving.length) return;
+    const timer = setTimeout(() => setLeaving([]), 320);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+  const shown: { row: VendorRow; leaving: boolean }[] = visible.map(row => ({ row, leaving: false }));
+  for (const { index, row } of leaving) shown.splice(Math.min(index, shown.length), 0, { row, leaving: true });
   const tabs: [Tab, string][] = [["check", "To check"], ["checked", "Checked"], ["all", "All vendors"]];
   return <section id="vendor-list" className="panel vendor-list" tabIndex={-1} aria-labelledby="vendors-title">
     <div className="list-head">
       <h2 id="vendors-title">Vendors</h2>
-      <span className="fine">{flagged ? `${reviewed} of ${flagged} flags reviewed` : "No flags yet"}</span>
+      <span className="fine">{flagged ? <><span key={reviewed} className="bump">{reviewed}</span> of {flagged} flags reviewed</> : "No flags yet"}</span>
       <button className="icon" popoverTarget={help} aria-label="How to read this">?</button>
       <div id={help} popover="auto" className="info-popover">
         <h3>How to read this</h3>
@@ -42,12 +61,12 @@ export function VendorList({ rows, tab, onTab, selected, onSelect, reviewed, fla
     </div>
     <div className="tabs" role="tablist" aria-label="Filter vendors">
       {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "tab active" : "tab"} onClick={() => onTab(id)}>
-        {label} <span className="count">{counts[id]}</span>
+        {label} <span key={counts[id]} className="count bump">{counts[id]}</span>
       </button>)}
     </div>
     <ul className="vendor-rows" role="list">
-      {visible.map(row => <li key={row.id}>
-        <button className={`vendor-row${row.id === selected ? " selected" : ""}`} aria-current={row.id === selected ? "true" : undefined} onClick={() => onSelect(row.id)}>
+      {shown.map(({ row, leaving: isLeaving }) => <li key={row.id} className={isLeaving ? "leaving" : undefined} aria-hidden={isLeaving || undefined}>
+        <button className={`vendor-row${row.id === selected ? " selected" : ""}`} aria-current={row.id === selected ? "true" : undefined} tabIndex={isLeaving ? -1 : undefined} onClick={() => onSelect(row.id)}>
           <span className="vendor-name">
             <strong>{row.name}</strong>
             <small>{row.category}</small>
@@ -56,7 +75,7 @@ export function VendorList({ rows, tab, onTab, selected, onSelect, reviewed, fla
             <strong className="num">{dollars(row.summary.currentCents)}</strong>
             <small className={row.summary.differenceCents > 0 ? "up" : row.summary.differenceCents < 0 ? "down" : ""}>{change(row.summary.differenceCents)}</small>
           </span>
-          {row.outcome && <span className={`badge ${row.checked ? "checked" : row.outcome}`}>{row.checked ? "Reviewed" : outcomeLabel[row.outcome]}</span>}
+          {row.outcome && <span key={row.checked ? "checked" : row.outcome} className={`badge bump ${row.checked ? "checked" : row.outcome}`}>{row.checked ? "Reviewed" : outcomeLabel[row.outcome]}</span>}
         </button>
       </li>)}
     </ul>

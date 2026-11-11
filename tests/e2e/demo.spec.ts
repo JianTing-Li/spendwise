@@ -25,9 +25,16 @@ test("INV-09/10: load, inspect, review, persist and reset", async ({
   await page.getByRole("button", { name: "Load October payments" }).click();
   await expect(page.getByText("0 of 6 flags reviewed")).toBeVisible();
   await expect(page.getByRole("button", { name: "October payments loaded" })).toBeDisabled();
-  // The largest flagged change is selected first; its card shows why and a placeholder answer.
+  // Company totals sit at the top.
+  const totals = page.getByRole("region", { name: "Company cash paid" });
+  await expect(totals).toContainText("October cash paid$64,960");
+  await expect(totals).toContainText("September");
+  // The largest flagged change is selected first; its card shows why and what the records show.
   const card = page.getByRole("article").first();
   await expect(card).toContainText("Why flagged: Paid $12,000 more than in September");
+  const facts = card.getByLabel("From the records");
+  await expect(facts).toContainText("New in October: $12,000 · Annual enterprise POS platform subscription (invoice NS-2026)");
+  await expect(facts).toContainText("Same as September: $1,000 · Monthly cafe POS terminal usage (invoice NS-1001)");
   await expect(card.locator(".badge")).toHaveText("Placeholder");
   await expect(card).toContainText("Not verified: Placeholder only: no AI investigation ran.");
   await card.locator(".chip").first().click();
