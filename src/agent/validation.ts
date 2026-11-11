@@ -383,16 +383,18 @@ function verifiedExplanation(
       (p) => counts(p) && inCurrent(p) && p.invoiceId && invoiceIds.has(p.invoiceId),
     );
     const invoices = [...new Set(current.map(invoiceOf))];
-    for (const p of current)
-      lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoiceOf(p))} in full.`);
-    for (const invoice of invoices) {
+    const isLate = (i: Records["invoices"][number]) => {
+      const span = period(i.servicePeriod);
+      return Boolean(span && span.end < periods.currentStart);
+    };
+    for (const p of current) {
+      const invoice = invoiceOf(p);
       const span = period(invoice.servicePeriod);
-      if (span && span.end < periods.currentStart)
-        lines.push(`Invoice ${invoice.number} covers earlier work (${span.text}), paid in October.`);
-      else if (span) lines.push(`Invoice ${invoice.number} covers ${span.text}.`);
+      const when = span ? (isLate(invoice) ? ` (earlier work: ${span.text})` : ` (${span.text})`) : "";
+      lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoice)} in full${when}.`);
     }
     lines.push(`Together these cover the ${usd(exception.summary.differenceCents)} increase over September.`);
-    const late = invoices.find((i) => { const span = period(i.servicePeriod); return span && span.end < periods.currentStart; });
+    const late = invoices.find(isLate);
     const main = [...invoices].sort((a, b) => b.amountCents - a.amountCents)[0];
     summary = late
       ? `October includes a late payment of invoice ${late.number} for earlier work, which covers the ${usd(exception.summary.differenceCents)} increase.`
@@ -404,10 +406,9 @@ function verifiedExplanation(
     const [ia, ib] = [invoiceOf(a), invoiceOf(b)];
     lines.push(`${usd(a.amountCents)} paid ${day(a.date)} pays ${describeInvoice(ia)}.`);
     lines.push(`${usd(b.amountCents)} paid ${day(b.date)} pays ${describeInvoice(ib)}.`);
-    lines.push("Different invoice numbers and different work; each is paid once in full.");
+    lines.push("Different invoice numbers and different work, each paid once in full.");
     summary = `Two separate bills: the payments match different invoices (${ia.number} and ${ib.number}) for different work.`;
   }
-  lines.push("No linked note states another amount or a dispute.");
   return {
     summary: summary.slice(0, 300),
     explanation: lines.map((l) => `- ${l}`).join("\n").slice(0, 4000),

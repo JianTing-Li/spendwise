@@ -21,6 +21,10 @@ GitHub Issues hold every task's specification, owner (the assignee), milestone a
 | DOCS-01 | [Port task assignment notes onto main](https://github.com/JianTing-Li/spendwise/issues/16) |
 | OPS-02 | [Restore and harden the issue workflow](https://github.com/JianTing-Li/spendwise/issues/18) |
 | UI-03 | [Vendor insights dashboard and guided evidence review](https://github.com/JianTing-Li/spendwise/issues/55) |
+| UI-04 | [Follow-ups from the PR #56 review](https://github.com/JianTing-Li/spendwise/issues/59) |
+| UI-05 | [Readable dashboard for non-technical viewers](https://github.com/JianTing-Li/spendwise/issues/60) |
+| DATA-02 | [More vendors and cases that show the agent's value](https://github.com/JianTing-Li/spendwise/issues/61) |
+| DATA-03 | [Structured quantities and prices for volume vs price causes](https://github.com/JianTing-Li/spendwise/issues/62) |
 | DOCS-03 | [Rewrite README for a 30-second recruiter read](https://github.com/JianTing-Li/spendwise/issues/57) |
 
 Views: [open issues by milestone](https://github.com/JianTing-Li/spendwise/milestones) · [all open issues](https://github.com/JianTing-Li/spendwise/issues)
