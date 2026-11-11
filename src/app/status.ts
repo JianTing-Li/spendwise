@@ -17,7 +17,7 @@ export function runOutcome(run: Run | undefined): Outcome {
 
 export const outcomeLabel: Record<Outcome, string> = {
   explained: "Explained",
-  review: "Needs review",
+  review: "Follow up",
   running: "Investigating",
   failed: "Didn't finish",
   waiting: "Not started",

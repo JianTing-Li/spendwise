@@ -7,7 +7,7 @@ import { INVESTIGATION_LIMITS } from "../contracts";
 const steps = [
   { title: "Pick a vendor", target: "vendor-list", text: "Flagged vendors are at the top. Each shows October cash paid and the change from September." },
   { title: "Read why and the answer", target: "vendor-detail", text: "Each flag says why it was flagged, then the answer in one line with a few supporting points. Tap an evidence chip to see the record." },
-  { title: "Decide and mark reviewed", target: "vendor-detail", text: "“Explained” means the app checked the records. “Needs review” means a person should look. Marking reviewed never approves or pays anything." },
+  { title: "Decide and mark reviewed", target: "vendor-detail", text: "“Explained” means the app checked the answer against the records. “Follow up” means something is unclear or looks wrong. Either way, mark it reviewed once you have looked; that never approves or pays anything." },
 ];
 
 export function LearningCenter() {
@@ -45,7 +45,7 @@ export function LearningCenter() {
       <h3>Questions</h3>
       <details><summary>Is this real data?</summary><p>No. Every company, vendor and amount is made up.</p></details>
       <details><summary>What gets flagged?</summary><p>Payments up more than $5,000 and 20% from September, or two payments of the same amount within 7 days.</p></details>
-      <details><summary>What do the labels mean?</summary><ul><li><strong>Explained:</strong> the app checked the cited records and they cover the change.</li><li><strong>Needs review:</strong> something is unclear or looks wrong. A person decides.</li><li><strong>Insufficient evidence:</strong> records are missing or conflict.</li></ul></details>
+      <details><summary>What do the labels mean?</summary><ul><li><strong>Explained:</strong> the app checked the cited records and they cover the change.</li><li><strong>Follow up:</strong> something is unclear, missing or looks wrong, such as a possible double payment. A person decides what to do.</li><li><strong>Mark reviewed:</strong> you looked at it. Every flag gets reviewed, whatever its label.</li></ul></details>
       <details><summary>What does the AI do?</summary><p>It reads payments, invoices and notes with read-only lookups, up to {INVESTIGATION_LIMITS.toolExecutions} per flag in {INVESTIGATION_LIMITS.runMs / 1000} seconds. It can&apos;t pay, refund or change anything. Code does all the math and checks its answer.</p></details>
       <details><summary>Why can&apos;t I click some buttons?</summary><p>Loading payments, resetting and reviewing need an authorized sign-in. Everyone can browse.</p></details>
     </dialog>

@@ -29,9 +29,19 @@ function ordered(run: Run) {
   return run.findings.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map(x => x.f);
 }
 
+/**
+ * True when the records check found something to say: it rejected or could
+ * not support the draft, or the references weren't checked. A plain open
+ * question from the investigator needs no extra line; the label says it.
+ */
+function rejected(f: Finding, run: Run) {
+  return run.state !== "completed" || f.supportStatus === "contradicted" || f.supportStatus === "missing" || f.referenceStatus !== "valid";
+}
+
 /** Reason for findings saved before reasons were recorded, from their saved statuses. */
 function savedReason(f: Finding, run: Run) {
   if (run.mode === "stub") return "Placeholder only: no AI investigation ran.";
+  if (run.state !== "completed") return "The run stopped before it finished, so this wasn't fully checked.";
   if (f.referenceStatus === "invalid") return "Cites records that couldn't be found.";
   if (f.supportStatus === "contradicted") return "The records contradict this explanation, or it states something only a person can decide.";
   if (f.supportStatus === "missing") return "Records needed to support it are missing.";
@@ -89,7 +99,14 @@ function recordFacts(exception: Exception, dataset: Dataset): string[] {
   });
   const reversals = payments.filter(p => p.entryType === "reversal" && p.date >= "2026-09-01" && p.date < "2026-11-01");
   if (reversals.length) lines.push(`${reversals.length} reversal${reversals.length === 1 ? "" : "s"} recorded in these months.`);
-  return lines.sort((a, b) => Number(b.startsWith("New")) - Number(a.startsWith("New"))).slice(0, 4);
+  // Identical payments collapse into one line that says how many, so a repeat stands out.
+  const grouped = [...new Set(lines)].map(line => {
+    const n = lines.filter(l => l === line).length;
+    if (n < 2) return line;
+    const many = line.replace(/: \$/, `: ${n} payments of $`);
+    return line.includes("(no invoice)") ? many : `${many}, same invoice each time`;
+  });
+  return grouped.sort((a, b) => Number(b.startsWith("New")) - Number(a.startsWith("New"))).slice(0, 4);
 }
 
 export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canReview, act }: {
@@ -162,7 +179,8 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     const label = verified ? "Explained" : f.label === "Explained" ? "Needs Review" : f.label;
     const body = lines(f.explanation);
     const headline = f.summary ?? body[0];
-    const bullets = f.summary ? body : body.slice(1);
+    // A verified answer's bullets are app-written and repeat "From the records", so they're left out.
+    const bullets = verified ? [] : f.summary ? body : body.slice(1);
     const cited = f.evidence.filter(ref => chipLabel(ref));
     const missing = f.evidence.length - cited.length;
     // Open state and element IDs are per finding, so two findings citing one record stay independent.
@@ -171,9 +189,9 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
       {index > 0 && <p className="eyebrow">Also noted · {label}</p>}
       <p className="answer-headline">{headline}</p>
       {bullets.length > 0 && <ul className="answer-points">{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
-      <p className={verified ? "check verified" : "check"}>
-        {verified ? "Checked against the records" : `Not verified: ${f.supportNote ?? savedReason(f, current)}`}
-      </p>
+      {verified
+        ? <p className="check verified">Checked against the records</p>
+        : rejected(f, current) && <p className="check">Records check: {f.supportNote ?? savedReason(f, current)}</p>}
       <p className="next-step"><strong>Next step:</strong> {f.nextStep}</p>
       {f.evidence.length > 0 && <div className="evidence" aria-label="Evidence">
         {cited.map(ref => { const k = slot(ref); return <button key={k} type="button" className={`chip${open === k ? " open" : ""}`} aria-expanded={open === k} aria-controls={`${prefix}-${k}`} onClick={() => setOpen(open === k ? null : k)}>

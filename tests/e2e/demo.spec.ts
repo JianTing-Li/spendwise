@@ -36,7 +36,8 @@ test("INV-09/10: load, inspect, review, persist and reset", async ({
   await expect(facts).toContainText("New in October: $12,000 · Annual enterprise POS platform subscription (invoice NS-2026)");
   await expect(facts).toContainText("Same as September: $1,000 · Monthly cafe POS terminal usage (invoice NS-1001)");
   await expect(card.locator(".badge")).toHaveText("Placeholder");
-  await expect(card).toContainText("Not verified: Placeholder only: no AI investigation ran.");
+  // Placeholder answers carry no extra records-check line; the label already says it.
+  await expect(card.locator(".check")).toHaveCount(0);
   await card.locator(".chip").first().click();
   await expect(card.locator(".record")).toBeVisible();
   await card.getByRole("button", { name: "Mark reviewed", exact: true }).click();

@@ -26,6 +26,9 @@ test("one vendor list: flagged first, tabs filter without mutation, detail shows
   await expect(detail.getByRole("article")).toHaveCount(2);
   await expect(detail.getByRole("article").nth(1)).toContainText("Two payments of $3,000, 2 days apart.");
   await expect(detail.getByRole("article").nth(1)).toContainText("Both payments point to the same invoice, HA-101.");
+  // Repeated identical payments collapse into one line that says how many.
+  await expect(detail.getByRole("article").first().getByLabel("From the records")).toContainText("New in October: 2 payments of $3,000");
+  await expect(detail.getByRole("article").first().getByLabel("From the records")).toContainText("same invoice each time");
   await list.getByRole("tab", { name: /All vendors 12/ }).click();
   await expect(list.locator(".vendor-row")).toHaveCount(12);
   const rent = list.locator(".vendor-row").filter({ hasText: "Main Street Properties" });

@@ -61,10 +61,12 @@ test("keyboard/mobile evidence, verified vs draft labels, safe notes and run-spe
   await opened(page);
   const card = page.getByRole("article", { name: "Northstar POS Cloud payment increase" });
   await expect(card.getByText("Checked against the records", { exact: true })).toHaveCount(1);
-  await expect(card.getByText("Not verified: No cited invoice matches the October payments.", { exact: true })).toHaveCount(1);
+  await expect(card.getByText("Records check: No cited invoice matches the October payments.", { exact: true })).toHaveCount(1);
   await expect(card.getByText("Also noted · Needs Review")).toBeVisible();
+  // A verified answer shows no bullets (they would repeat "From the records").
+  await expect(card.locator(".answer").first().locator(".answer-points")).toHaveCount(0);
   // A mixed run is not "Explained" as a whole.
-  await expect(card.locator(".flag-top .badge")).toHaveText("Needs review");
+  await expect(card.locator(".flag-top .badge")).toHaveText("Follow up");
   await expect(card.getByText(/increases over \$6,000 and 25%/)).toBeVisible();
   await expect(card.getByText(/\$1,000 in September → \$13,000 in October/)).toBeVisible();
   await expect(card.getByText(/1 cited record isn't available/)).toBeVisible();
@@ -84,7 +86,7 @@ test("keyboard/mobile evidence, verified vs draft labels, safe notes and run-spe
   await page.reload();
   await expect(card.getByText(/✓ Reviewed/)).toBeVisible();
   await expect(card.getByRole("button", { name: "Mark reviewed" })).toHaveCount(0);
-  await expect(card.getByText("Not verified: No cited invoice matches the October payments.", { exact: true })).toHaveCount(1);
+  await expect(card.getByText("Records check: No cited invoice matches the October payments.", { exact: true })).toHaveCount(1);
   expect(reviews).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/ui05-evidence-mobile.png", fullPage: true });
@@ -296,7 +298,8 @@ test("stub, incomplete, invalid-reference and unresolved findings never show as 
     Object.assign(finding, { referenceStatus: variant.referenceStatus, label: variant.label });
     await opened(page);
     const card = page.getByRole("article");
-    await expect(card.getByText(/^Not verified:/)).toBeVisible();
+    // Only a rejected or unchecked draft gets a records-check line; a plain open question does not.
+    await expect(card.locator(".check")).toHaveCount(variant.state === "incomplete" || variant.referenceStatus === "invalid" ? 1 : 0);
     await expect(card.getByText("Checked against the records", { exact: true })).toHaveCount(0);
     await expect(card.locator(".flag-top .badge")).not.toHaveText("Explained");
     await expect(page.locator(".badge").filter({ hasText: /^Explained$/ })).toHaveCount(0);

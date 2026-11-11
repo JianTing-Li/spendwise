@@ -24,7 +24,7 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 
 1. **Application code** calculates net cash paid (integer USD cents, entry-date cash basis, explicit reversals) and flags payment increases (`≥ $5,000` and `≥ 20%`) and possible duplicate payments (same vendor and amount within 7 days).
 2. **Claude (`claude-opus-5-5`)** investigates each exception through 4 scoped, read-only tools (`get_payment_summary`, `list_payments`, `get_invoices`, `get_vendor_notes`) under hard per-run limits: `≤ 8` tool calls, `≤ 10` model calls, `60s`.
-3. **Application validation** checks every cited ID, screens for overclaims and unsupported dollar figures, and marks a finding **Explained** only when the cited invoices and notes cover the cash change. Anything else shows a one-line reason it wasn't verified.
+3. **Application validation** checks every cited ID, screens for overclaims and unsupported dollar figures, and marks a finding **Explained** only when the cited invoices and notes cover the cash change. Anything else shows **Follow up**, with a one-line reason when the records check rejected the draft.
 4. **A finance analyst** inspects the linked source records and clicks **Mark reviewed**. That's an acknowledgment, never a payment approval.
 
 ## Design choices
@@ -43,9 +43,9 @@ The default company, *Roast & Co. Coffee* (October 2026 close):
 | Vendor | Sep → Oct cash | What triggered it | Expected result |
 | --- | --- | --- | --- |
 | **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Explained.** Normal $1,000 monthly fee plus a $12,000 annual subscription (`Invoice NS-2026`) covering Oct 2026–Sep 2027. |
-| **Valley Dairy Co.** | $2,400 → $8,600 | $6,200 increase | **Needs review.** The usual milk bill plus the August invoice (`VD-0831`), sent late and paid in October. The records explain the jump, but August payments are outside them, so the app won't verify the bill was paid only once. |
-| **Summit Espresso Service** | $6,000 → $12,000 | $6,000 increase | **Needs review.** A "re-issued" Q3 invoice (`SE-1008`) bills the same quarter already paid in September (`SE-0905`). The duplicate rule misses it (12 days apart); the agent connects the records. |
-| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs review.** Both payments reference the same $3,000 invoice (`HA-101`): $3,000 in question, not confirmed. |
+| **Valley Dairy Co.** | $2,400 → $8,600 | $6,200 increase | **Follow up** (`Needs Review`). The usual milk bill plus the August invoice (`VD-0831`), sent late and paid in October. The records explain the jump, but August payments are outside them, so the app won't verify the bill was paid only once. |
+| **Summit Espresso Service** | $6,000 → $12,000 | $6,000 increase | **Follow up** (`Needs Review`). A "re-issued" Q3 invoice (`SE-1008`) bills the same quarter already paid in September (`SE-0905`). The duplicate rule misses it (12 days apart); the agent connects the records. |
+| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Follow up** (`Needs Review`). Both payments reference the same $3,000 invoice (`HA-101`): $3,000 in question, not confirmed. |
 | **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Lookalike.** The payments cover two different invoices (`FS-201` artwork, `FS-202` menu boards). |
 
 Local `stub` mode returns unverified placeholder drafts without calling the model.
