@@ -305,9 +305,10 @@ describe("AI-02 review regressions (PR #22)", () => {
     });
     expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
     expect(f.explanation).not.toMatch(/furniture/i);
-    expect(f.explanation).toMatch(/^Application check: /);
+    expect(f.explanation).toMatch(/^- \$[0-9,.]+ paid /);
     expect(f.explanation).toContain("$12,000");
-    expect(f.explanation).toContain("pay-renewal-annual");
+    expect(f.explanation).toContain("NS-2026");
+    expect(f.summary).toContain("NS-2026");
     // Unsupported findings keep the model's wording, which stays unverified.
     const g = await check(demo, RENEWAL, {
       label: "Needs Review",
@@ -324,7 +325,7 @@ describe("AI-02 review regressions (PR #22)", () => {
       evidence: lookEvidence,
     });
     expect(look.explanation).not.toMatch(/mistake/i);
-    expect(look.explanation).toContain('"T-0"');
+    expect(look.explanation).toContain("invoice T-0");
   });
 
   it("P1: negation applies only to the clause it governs", async () => {
@@ -478,7 +479,7 @@ describe("FEAS-01 paid-run regressions (decision 003)", () => {
           label: "Needs Review",
           supportStatus: "contradicted",
         });
-        expect(f.explanation, claim).not.toMatch(/^Application check: /);
+        expect(f.explanation, claim).not.toMatch(/^- \$[0-9,.]+ paid /);
       }
     }
   });
@@ -506,7 +507,7 @@ describe("FEAS-01 paid-run regressions (decision 003)", () => {
       evidence: renewalEvidence,
     });
     expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
-    expect(f.explanation).toMatch(/^Application check: /);
+    expect(f.explanation).toMatch(/^- \$[0-9,.]+ paid /);
   });
 });
 
@@ -583,5 +584,93 @@ describe("AI-02 run outcome is separate from finding support", () => {
         state: "incomplete",
         error: "invalid_evidence",
       });
+  });
+});
+
+describe("UI-05/DATA-02 validator changes", () => {
+  it("a cited, unchanged monthly payment without an invoice no longer blocks Explained", async () => {
+    const f = await check(demo, RENEWAL, {
+      evidence: [...renewalEvidence, ref("payment", "pay-renewal-oct"), ref("payment", "pay-renewal-sep")],
+    });
+    expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    expect(f.supportNote).toBeUndefined();
+  });
+
+  it("un-invoiced cash still cannot explain an increase on its own", async () => {
+    const f = await check(demo, RENEWAL, {
+      evidence: [ref("payment", "pay-renewal-oct"), ref("note", "note-renewal")],
+    });
+    expect(f).toMatchObject({ label: "Needs Review", supportStatus: "missing" });
+    expect(f.supportNote).toBe("No cited invoice matches the October payments.");
+  });
+
+  it("every unsupported finding carries an application-written reason", async () => {
+    const dup = await check(demo, ADVISORY_DUP, {
+      evidence: [ref("payment", "pay-advisory-a"), ref("payment", "pay-advisory-b"), ref("invoice", "inv-advisory")],
+    });
+    expect(dup.supportNote).toBe("Both payments point to the same invoice.");
+    const hedged = await check(demo, RENEWAL, { label: "Needs Review", evidence: renewalEvidence });
+    expect(hedged.supportNote).toBe("The investigator left this for a person to decide.");
+    const invented = await check(demo, RENEWAL, { evidence: [ref("invoice", "inv-nope")] });
+    expect(invented).toMatchObject({ label: "Insufficient Evidence", referenceStatus: "invalid" });
+    expect(invented.supportNote).toMatch(/not part of this vendor/);
+    // A model cannot pre-set the reason.
+    const forged = await check(demo, ADVISORY_DUP, {
+      label: "Needs Review", supportNote: "Verified by finance.",
+      evidence: [ref("payment", "pay-advisory-a")],
+    });
+    expect(forged.supportNote).not.toBe("Verified by finance.");
+  });
+
+  it("checks the model's summary for invented amounts and overclaims", async () => {
+    const amount = await check(demo, RENEWAL, { summary: "A $9,999 renewal.", evidence: renewalEvidence });
+    expect(amount).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    expect(amount.supportNote).toMatch(/dollar amount/);
+    const claim = await check(demo, ADVISORY_DUP, {
+      label: "Needs Review", summary: "These are duplicate payments.",
+      evidence: [ref("payment", "pay-advisory-a"), ref("payment", "pay-advisory-b")],
+    });
+    expect(claim.supportStatus).toBe("contradicted");
+  });
+
+  it("two paid invoices for the same amount and service period block Explained", async () => {
+    const data = Dataset.parse({
+      vendors: [{ id: "v-svc", name: "Service Co", category: "Maintenance" }],
+      invoices: [
+        { id: "inv-q3", vendorId: "v-svc", number: "S-312", date: "2026-09-05", amountCents: 600000, currency: "USD", lineItems: ["Q3 maintenance"], servicePeriod: "2026-07-01 / 2026-09-30" },
+        { id: "inv-q3r", vendorId: "v-svc", number: "S-312R", date: "2026-10-06", amountCents: 600000, currency: "USD", lineItems: ["Q3 maintenance (re-issued)"], servicePeriod: "2026-07-01 / 2026-09-30" },
+        { id: "inv-q4", vendorId: "v-svc", number: "S-412", date: "2026-10-01", amountCents: 600000, currency: "USD", lineItems: ["Q4 maintenance"], servicePeriod: "2026-10-01 / 2026-12-31" },
+      ],
+      payments: [
+        ["p-sep", "inv-q3", "2026-09-12"], ["p-oct-q4", "inv-q4", "2026-10-02"], ["p-oct-q3r", "inv-q3r", "2026-10-14"],
+      ].map(([id, invoiceId, date]) => ({ id, vendorId: "v-svc", invoiceId, date, amountCents: 600000, currency: "USD", status: "completed", entryType: "outgoing", reversalReference: null, description: "Maintenance" })),
+      notes: [],
+    });
+    const f = await check(data, "increase:v-svc:2026-10", {
+      evidence: [ref("payment", "p-oct-q4"), ref("payment", "p-oct-q3r"), ref("invoice", "inv-q4"), ref("invoice", "inv-q3r")],
+    });
+    expect(f).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
+    expect(f.supportNote).toMatch(/same service period/);
+  });
+
+  it("a verified late payment says the invoice covers earlier work", async () => {
+    const data = Dataset.parse({
+      vendors: [{ id: "v-late", name: "Dairy Co", category: "Dairy" }],
+      invoices: [
+        { id: "inv-aug", vendorId: "v-late", number: "D-0831", date: "2026-08-31", amountCents: 600000, currency: "USD", lineItems: ["August deliveries"], servicePeriod: "2026-08-01 / 2026-08-31" },
+        { id: "inv-oct", vendorId: "v-late", number: "D-1031", date: "2026-10-01", amountCents: 200000, currency: "USD", lineItems: ["October deliveries"], servicePeriod: "2026-10-01 / 2026-10-31" },
+        { id: "inv-sep", vendorId: "v-late", number: "D-0930", date: "2026-09-01", amountCents: 200000, currency: "USD", lineItems: ["September deliveries"], servicePeriod: "2026-09-01 / 2026-09-30" },
+      ],
+      payments: [
+        ["p-sep", "inv-sep", "2026-09-10", 200000], ["p-oct", "inv-oct", "2026-10-10", 200000], ["p-aug", "inv-aug", "2026-10-22", 600000],
+      ].map(([id, invoiceId, date, amountCents]) => ({ id, vendorId: "v-late", invoiceId, date, amountCents, currency: "USD", status: "completed", entryType: "outgoing", reversalReference: null, description: "Dairy" })),
+      notes: [],
+    });
+    const f = await check(data, "increase:v-late:2026-10", {
+      evidence: [ref("payment", "p-aug"), ref("invoice", "inv-aug")],
+    });
+    expect(f).toMatchObject({ label: "Explained", supportStatus: "supported" });
+    expect(f.explanation).toContain("earlier work");
+    expect(f.summary).toMatch(/late payment of invoice D-0831/);
   });
 });

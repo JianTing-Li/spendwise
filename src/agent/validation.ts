@@ -8,6 +8,9 @@ import type { Retrieval } from "../investigation";
 import { periods } from "../domain/finance";
 
 type Support = Finding["supportStatus"];
+/** A support result and, when it is not supported, the plain reason why. */
+type Check = { support: Support; note?: string };
+const fail = (support: Support, note: string): Check => ({ support, note });
 type Records = {
   payments: Payment[];
   invoices: Dataset["invoices"];
@@ -236,28 +239,57 @@ function invoiceBalanced(invoiceId: string, scoped: Records) {
 }
 
 /**
- * Category "documented_increase": cited current-month cash, each payment tied
- * to a cited invoice that it pays exactly, together covering the increase.
+ * Another paid invoice in scope bills the same amount for the same service
+ * period: possibly the same work billed twice under a new number. This only
+ * blocks a verified explanation; it never asserts a duplicate.
+ */
+function sameWorkBilledTwice(invoiceId: string, scoped: Records) {
+  const invoice = scoped.invoices.find((i) => i.id === invoiceId);
+  if (!invoice?.servicePeriod) return false;
+  const counts = paid(scoped);
+  const paidInvoices = new Set(
+    scoped.payments.filter(counts).map((p) => p.invoiceId),
+  );
+  return scoped.invoices.some(
+    (other) =>
+      other.id !== invoice.id &&
+      paidInvoices.has(other.id) &&
+      other.amountCents === invoice.amountCents &&
+      other.servicePeriod === invoice.servicePeriod,
+  );
+}
+
+/**
+ * Category "documented_increase": cited current-month cash tied to cited
+ * invoices that it pays exactly, together covering the increase. Cited
+ * current payments without an invoice (for example an unchanged monthly fee
+ * cited as context) are not counted toward the increase; the invoiced ones
+ * must cover it on their own, so un-invoiced cash can never explain it.
  */
 function documentedIncrease(
   exception: Exception,
   scoped: Records,
   cited: Records,
-): Support {
+): Check {
   const counts = paid(scoped);
-  const current = cited.payments.filter((p) => counts(p) && inCurrent(p));
-  if (!current.length) return "missing";
   const invoiceIds = new Set(cited.invoices.map((i) => i.id));
-  if (current.some((p) => !p.invoiceId || !invoiceIds.has(p.invoiceId)))
-    return "missing";
+  const current = cited.payments.filter(
+    (p) => counts(p) && inCurrent(p) && p.invoiceId && invoiceIds.has(p.invoiceId),
+  );
+  if (!cited.payments.some((p) => counts(p) && inCurrent(p)))
+    return fail("missing", "No completed October payment is cited.");
+  if (!current.length)
+    return fail("missing", "No cited invoice matches the October payments.");
   if (current.some((p) => !invoiceBalanced(p.invoiceId!, scoped)))
-    return "contradicted";
-  if (notesContradict(exception, scoped, cited)) return "contradicted";
-  if (
-    sum(current.map((p) => p.amountCents)) < exception.summary.differenceCents
-  )
-    return "missing";
-  return "supported";
+    return fail("contradicted", "An invoice is not paid exactly once and in full.");
+  if (current.some((p) => sameWorkBilledTwice(p.invoiceId!, scoped)))
+    return fail("contradicted", "Two invoices bill the same amount for the same service period.");
+  if (notesContradict(exception, scoped, cited))
+    return fail("contradicted", "A linked note mentions a different amount or a dispute.");
+  const covered = sum(current.map((p) => p.amountCents));
+  if (covered < exception.summary.differenceCents)
+    return fail("missing", `Invoiced payments cover ${usd(covered)} of the ${usd(exception.summary.differenceCents)} increase.`);
+  return { support: "supported" };
 }
 
 /**
@@ -268,27 +300,35 @@ function distinctInvoices(
   exception: Exception,
   scoped: Records,
   cited: Records,
-): Support {
+): Check {
   const flagged = exception.paymentIds.map((id) =>
     cited.payments.find((p) => p.id === id),
   );
-  if (flagged.some((p) => !p)) return "missing";
+  if (flagged.some((p) => !p))
+    return fail("missing", "Both flagged payments must be cited.");
   const [a, b] = flagged as Payment[];
-  if (!a.invoiceId || !b.invoiceId) return "missing";
-  if (a.invoiceId === b.invoiceId) return "contradicted";
+  if (!a.invoiceId || !b.invoiceId)
+    return fail("missing", "A flagged payment has no linked invoice.");
+  if (a.invoiceId === b.invoiceId)
+    return fail("contradicted", "Both payments point to the same invoice.");
   const ia = cited.invoices.find((i) => i.id === a.invoiceId);
   const ib = cited.invoices.find((i) => i.id === b.invoiceId);
-  if (!ia || !ib) return "missing";
-  if (ia.number === ib.number) return "contradicted";
+  if (!ia || !ib)
+    return fail("missing", "Each payment's invoice must be cited.");
+  if (ia.number === ib.number)
+    return fail("contradicted", "Both invoices share the same number.");
   if (
     ia.lineItems.join("\n").trim().toLowerCase() ===
     ib.lineItems.join("\n").trim().toLowerCase()
   )
-    return "missing";
+    return fail("missing", "Both invoices describe the same work.");
   if (!invoiceBalanced(ia.id, scoped) || !invoiceBalanced(ib.id, scoped))
-    return "contradicted";
-  if (notesContradict(exception, scoped, cited)) return "contradicted";
-  return "supported";
+    return fail("contradicted", "An invoice is not paid exactly once and in full.");
+  if (sameWorkBilledTwice(ia.id, scoped) || sameWorkBilledTwice(ib.id, scoped))
+    return fail("contradicted", "Two invoices bill the same amount for the same service period.");
+  if (notesContradict(exception, scoped, cited))
+    return fail("contradicted", "A linked note mentions a different amount or a dispute.");
+  return { support: "supported" };
 }
 
 /** $12,000 or $12,000.50, from integer cents. */
@@ -304,15 +344,28 @@ function quoted(lineItems: string[]) {
   return JSON.stringify(text.length > 160 ? `${text.slice(0, 157)}...` : text);
 }
 
+/** "Mar 1, 2026" style date from an ISO date, in UTC. */
+function day(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
+}
+
+/** "Aug 1 – Aug 31, 2026" from "2026-08-01 / 2026-08-31"; null when unparseable. */
+function period(servicePeriod: string | null) {
+  const m = servicePeriod?.match(/^(\d{4}-\d{2}-\d{2})\s*\/\s*(\d{4}-\d{2}-\d{2})$/);
+  return m ? { start: m[1], end: m[2], text: `${day(m[1])} – ${day(m[2])}` } : null;
+}
+
 function describeInvoice(invoice: Records["invoices"][number]) {
-  return `invoice ${JSON.stringify(invoice.number)} for ${usd(invoice.amountCents)}, whose line items read ${quoted(invoice.lineItems)}`;
+  return `invoice ${invoice.number} for ${usd(invoice.amountCents)} (${quoted(invoice.lineItems)})`;
 }
 
 /**
- * The explanation of a verified finding, written by the application from the
- * records it checked. The model's own wording is free text that cannot be
- * verified (review P1: valid renewal citations could carry an unrelated
- * cause), so it never stands as a verified explanation.
+ * The summary and explanation of a verified finding, written by the
+ * application from the records it checked. The model's own wording is free
+ * text that cannot be verified (review P1: valid renewal citations could carry
+ * an unrelated cause), so it never stands as a verified explanation.
  */
 function verifiedExplanation(
   exception: Exception,
@@ -320,34 +373,53 @@ function verifiedExplanation(
   cited: Records,
 ) {
   const counts = paid(scoped);
+  const invoiceIds = new Set(cited.invoices.map((i) => i.id));
   const invoiceOf = (p: Payment) =>
     cited.invoices.find((i) => i.id === p.invoiceId)!;
-  let text: string;
+  const lines: string[] = [];
+  let summary: string;
   if (exception.rule === "payment_increase") {
-    const current = cited.payments.filter((p) => counts(p) && inCurrent(p));
+    const current = cited.payments.filter(
+      (p) => counts(p) && inCurrent(p) && p.invoiceId && invoiceIds.has(p.invoiceId),
+    );
     const invoices = [...new Set(current.map(invoiceOf))];
-    text =
-      `Application check: completed October 2026 payments of ${usd(sum(current.map((p) => p.amountCents)))} ` +
-      `(${current.map((p) => p.id).join(", ")}) pay ${invoices.map(describeInvoice).join(" and ")} exactly once and in full, ` +
-      `and cover the ${usd(exception.summary.differenceCents)} increase over September 2026. ` +
-      "Linked notes state no other amount and no dispute.";
+    for (const p of current)
+      lines.push(`${usd(p.amountCents)} paid ${day(p.date)} pays ${describeInvoice(invoiceOf(p))} in full.`);
+    for (const invoice of invoices) {
+      const span = period(invoice.servicePeriod);
+      if (span && span.end < periods.currentStart)
+        lines.push(`Invoice ${invoice.number} covers earlier work (${span.text}), paid in October.`);
+      else if (span) lines.push(`Invoice ${invoice.number} covers ${span.text}.`);
+    }
+    lines.push(`Together these cover the ${usd(exception.summary.differenceCents)} increase over September.`);
+    const late = invoices.find((i) => { const span = period(i.servicePeriod); return span && span.end < periods.currentStart; });
+    const main = [...invoices].sort((a, b) => b.amountCents - a.amountCents)[0];
+    summary = late
+      ? `October includes a late payment of invoice ${late.number} for earlier work, which covers the ${usd(exception.summary.differenceCents)} increase.`
+      : `The ${usd(exception.summary.differenceCents)} increase is paid against invoice ${main.number}: ${quoted(main.lineItems).slice(1, -1)}.`;
   } else {
     const [a, b] = exception.paymentIds.map(
       (id) => cited.payments.find((p) => p.id === id)!,
     );
-    text =
-      `Application check: payment ${a.id} (${usd(a.amountCents)}) pays ${describeInvoice(invoiceOf(a))}; ` +
-      `payment ${b.id} (${usd(b.amountCents)}) pays ${describeInvoice(invoiceOf(b))}. ` +
-      "Each invoice is paid exactly once and in full, the invoice numbers and line items differ, and linked notes state no other amount and no dispute.";
+    const [ia, ib] = [invoiceOf(a), invoiceOf(b)];
+    lines.push(`${usd(a.amountCents)} paid ${day(a.date)} pays ${describeInvoice(ia)}.`);
+    lines.push(`${usd(b.amountCents)} paid ${day(b.date)} pays ${describeInvoice(ib)}.`);
+    lines.push("Different invoice numbers and different work; each is paid once in full.");
+    summary = `Two separate bills: the payments match different invoices (${ia.number} and ${ib.number}) for different work.`;
   }
-  return `${text} Whether the business reason is legitimate remains a human judgment.`;
+  lines.push("No linked note states another amount or a dispute.");
+  return {
+    summary: summary.slice(0, 300),
+    explanation: lines.map((l) => `- ${l}`).join("\n").slice(0, 4000),
+  };
 }
 
 /**
  * Application validation of one finding (INV-06). Checks reference existence
  * and scope, then objective support for the claim category the exception rule
  * allows, then overclaims and amounts. Only "supported" findings may stay
- * Explained; the model's own reference/support status is always replaced.
+ * Explained; the model's own reference/support status is always replaced, and
+ * every unsupported finding carries an application-written reason.
  * See docs/decisions/002-evidence-validation.md.
  */
 export async function validateFinding(
@@ -355,7 +427,8 @@ export async function validateFinding(
   exception: Exception,
   retrieval: Retrieval,
 ): Promise<Finding> {
-  const finding = Finding.parse(input);
+  const { supportNote: _ignored, ...finding } = Finding.parse(input);
+  void _ignored;
   const [payments, invoices, notes] = await Promise.all([
     retrieval.list_payments(),
     retrieval.get_invoices(),
@@ -383,9 +456,13 @@ export async function validateFinding(
       referenceStatus: "invalid",
       supportStatus: "missing",
       label: "Insufficient Evidence",
+      supportNote: finding.evidence.length === 0
+        ? "No records were cited."
+        : "Cites records that are not part of this vendor's scoped records.",
     };
   if (citesNothingHonestly)
-    return { ...finding, referenceStatus: "valid", supportStatus: "missing" };
+    return { ...finding, referenceStatus: "valid", supportStatus: "missing",
+      supportNote: "The investigator reports the needed records are missing." };
 
   const ids = (type: "payment" | "invoice" | "note") =>
     new Set(finding.evidence.filter((r) => r.type === type).map((r) => r.id));
@@ -394,32 +471,36 @@ export async function validateFinding(
     invoices: invoices.filter((i) => ids("invoice").has(i.id)),
     notes: notes.filter((n) => ids("note").has(n.id)),
   };
-  const text = `${finding.explanation}\n${finding.nextStep}`;
+  const prose = `${finding.summary ?? ""}\n${finding.explanation}`;
+  const text = `${prose}\n${finding.nextStep}`;
   const known = knownAmounts(exception, scoped, cited);
-  let support: Support = "unverified";
-  if (
-    overclaims(text) ||
-    dollarAmounts(finding.explanation).some((a) => !known.has(a))
-  )
-    support = "contradicted";
+  let check: Check = {
+    support: "unverified",
+    note: "The investigator left this for a person to decide.",
+  };
+  if (overclaims(text))
+    check = fail("contradicted", "States something only a person can decide, such as approval or a confirmed duplicate.");
+  else if (dollarAmounts(prose).some((a) => !known.has(a)))
+    check = fail("contradicted", "Mentions a dollar amount that is not in the records.");
   else if (finding.label === "Explained")
-    support =
+    check =
       exception.rule === "payment_increase"
         ? documentedIncrease(exception, scoped, cited)
         : distinctInvoices(exception, scoped, cited);
   // A verified finding carries only what the application checked; the model's
   // unverifiable prose stays only on findings that are not supported.
-  if (support === "supported")
+  if (check.support === "supported")
     return {
       ...finding,
-      explanation: verifiedExplanation(exception, scoped, cited).slice(0, 4000),
+      ...verifiedExplanation(exception, scoped, cited),
       referenceStatus: "valid",
       supportStatus: "supported",
     };
   return {
     ...finding,
     referenceStatus: "valid",
-    supportStatus: support,
+    supportStatus: check.support,
+    supportNote: check.note,
     // Anything short of objective support goes to a person, never Explained.
     label: finding.label === "Explained" ? "Needs Review" : finding.label,
   };

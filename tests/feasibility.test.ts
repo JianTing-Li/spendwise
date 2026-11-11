@@ -72,7 +72,7 @@ describe("FEAS-01 feasibility report (offline)", () => {
     });
     expect(report).toMatchObject({
       caseId: "renewal",
-      versions: { fixture: "demo-v1", groundTruth: "ground-truth-v2", prompt: "prompt-v1" },
+      versions: { fixture: "demo-v1", groundTruth: "ground-truth-v2", prompt: "prompt-v2" },
       configuration: { requestedModel: "claude-opus-5-5", servedModels: ["claude-opus-5-5"], sdkRetries: 0 },
       run: { state: "completed", error: null, toolExecutions: 3, modelRequests: 2 },
       usage: { inputTokens: 4_000, outputTokens: 1_000, estimatedCostUsd: 0.036 },
@@ -92,13 +92,13 @@ describe("FEAS-01 feasibility report (offline)", () => {
         },
         requiredEvidenceMissing: [],
         forbiddenClaimsMade: [],
-        baseline: { version: "rules-v2", label: "Explained", labelAcceptable: true },
+        baseline: { version: "rules-v3", label: "Explained", labelAcceptable: true },
       },
     });
     expect(report.run.stopReasons).toEqual(["tool_use", "tool_use"]);
     // The model's wording is kept separately from the verified explanation.
     expect(report.modelFindings[0].explanation).toContain("Annual renewal");
-    expect(report.validatedFindings[0].explanation).toMatch(/^Application check: /);
+    expect(report.validatedFindings[0].explanation).toMatch(/^- \$[0-9,.]+ paid /);
   });
 
   it("reports a failed run honestly, with forbidden claims and missing evidence", async () => {

@@ -39,6 +39,8 @@ it("completes durable real runs via DB tools, keeps support unverified, reopens 
   expect(state.runs).toHaveLength(4);
   expect(state.runs.every(r => r.mode === "real" && r.state === "completed" && r.error === null &&
     r.modelRequests === 2 && r.toolExecutions === 3 && r.findings[0].referenceStatus === "valid" && r.findings[0].supportStatus === "unverified")).toBe(true);
+  // Display-only progress records tool names and requested IDs, ending in the submission.
+  expect(state.runs.every(r => r.activity.length === 4 && r.activity[0].tool === "list_payments" && r.activity.at(-1)?.tool === "submit_findings")).toBe(true);
   await store.review(state.runs[0].id);
   await store.db.close();
   const reopened = await setup(folder);

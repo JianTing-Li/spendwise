@@ -246,7 +246,7 @@ describe("EVAL-01 harness conditions and the paired report (offline)", () => {
     expect(report).toMatchObject({
       mode: "model-and-baseline",
       split: "development",
-      versions: { groundTruth: "ground-truth-v2", prompt: "prompt-v1", baseline: "rules-v2" },
+      versions: { groundTruth: "ground-truth-v2", prompt: "prompt-v2", baseline: "rules-v3" },
       configuration: { requestedModel: "claude-opus-5-5", sdkRetries: 0, toolLimitCondition: 1 },
       usage: { modelRequests: 2, toolExecutions: 3, inputTokens: 2_000, outputTokens: 400 },
       summary: {
@@ -330,13 +330,13 @@ describe("EVAL-01 harness conditions and the paired report (offline)", () => {
   });
 });
 
-describe("EVAL-01 baseline (rules-v2) on development cases (offline)", () => {
+describe("EVAL-01 baseline (rules-v3) on development cases (offline)", () => {
   it("scores the baseline with no model call", async () => {
     const report = await evaluateBaseline("development");
     expect(report).toMatchObject({
       mode: "baseline-only",
       modelRequests: 0,
-      versions: { baseline: "rules-v2" },
+      versions: { baseline: "rules-v3" },
       summary: { cases: 9, unsupportedExplained: 0 },
     });
     // The baseline's record checks are the validator's, which were tuned on
@@ -347,7 +347,7 @@ describe("EVAL-01 baseline (rules-v2) on development cases (offline)", () => {
   it("never states a business cause of its own", async () => {
     const report = await evaluateBaseline("development");
     for (const c of report.cases)
-      if (c.label === "Explained") expect(c.explanation).toMatch(/^Application check: /);
+      if (c.label === "Explained") expect(c.explanation).toMatch(/^- \$[0-9,.]+ paid /);
       else expect(c.explanation).not.toMatch(/renewal|retainer|software/i);
   });
 });

@@ -94,6 +94,10 @@ export const Finding = z.object({
   explanation: z.string().min(1).max(4000),
   evidence: z.array(EvidenceRef).max(30),
   nextStep: z.string().min(1).max(1000),
+  /** One plain-language sentence answering "why did this happen?". */
+  summary: z.string().min(1).max(300).optional(),
+  /** Application-written reason a finding is not verified (never model text). */
+  supportNote: z.string().min(1).max(300).optional(),
   referenceStatus: z.enum(["valid", "invalid", "unchecked"]),
   supportStatus: z.enum(["unverified", "supported", "contradicted", "missing"]),
 });
@@ -133,7 +137,15 @@ export const InvestigationResult = z.object({
   modelRequests: z.number().int().min(0).max(INVESTIGATION_LIMITS.modelRequests),
 });
 export type InvestigationResult = z.infer<typeof InvestigationResult>;
+/** A retrieval or submission the investigator attempted, for live progress display. */
+export const Activity = z.object({
+  tool: z.enum(["get_payment_summary", "list_payments", "get_invoices", "get_vendor_notes", "submit_findings", "other"]),
+  ids: z.array(Id).max(50).default([]),
+});
+export type Activity = z.infer<typeof Activity>;
+export const MAX_ACTIVITY = 24;
 export const Run = InvestigationResult.extend({
+  activity: z.array(Activity).max(MAX_ACTIVITY).default([]),
   id: Id,
   exceptionId: Id,
   generation: z.number().int(),
