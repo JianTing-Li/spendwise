@@ -72,7 +72,7 @@ describe("FEAS-01 feasibility report (offline)", () => {
     });
     expect(report).toMatchObject({
       caseId: "renewal",
-      versions: { fixture: "demo-v1", groundTruth: "ground-truth-v2", prompt: "prompt-v2" },
+      versions: { fixture: "demo-v1", groundTruth: "ground-truth-v3", prompt: "prompt-v2" },
       configuration: { requestedModel: "claude-opus-5-5", servedModels: ["claude-opus-5-5"], sdkRetries: 0 },
       run: { state: "completed", error: null, toolExecutions: 3, modelRequests: 2 },
       usage: { inputTokens: 4_000, outputTokens: 1_000, estimatedCostUsd: 0.036 },

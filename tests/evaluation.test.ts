@@ -246,7 +246,7 @@ describe("EVAL-01 harness conditions and the paired report (offline)", () => {
     expect(report).toMatchObject({
       mode: "model-and-baseline",
       split: "development",
-      versions: { groundTruth: "ground-truth-v2", prompt: "prompt-v2", baseline: "rules-v3" },
+      versions: { groundTruth: "ground-truth-v3", prompt: "prompt-v2", baseline: "rules-v3" },
       configuration: { requestedModel: "claude-opus-5-5", sdkRetries: 0, toolLimitCondition: 1 },
       usage: { modelRequests: 2, toolExecutions: 3, inputTokens: 2_000, outputTokens: 400 },
       summary: {

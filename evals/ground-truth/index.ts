@@ -33,7 +33,7 @@ export const GroundTruthCase = z
 export type GroundTruthCase = z.infer<typeof GroundTruthCase>;
 const GroundTruthFile = z
   .object({
-    version: z.literal("ground-truth-v2"),
+    version: z.literal("ground-truth-v3"),
     split: z.enum(["development", "held-out"]),
     cases: z.array(GroundTruthCase),
   })
