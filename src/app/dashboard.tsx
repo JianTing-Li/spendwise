@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDemo } from "./use-demo";
-import { ReviewCard } from "./review-card";
-import { money } from "./format";
-import { VendorInsights } from "./vendor-insights";
+import { dollars } from "./format";
 import { LearningCenter } from "./learning-center";
-import { INVESTIGATION_LIMITS, type CompanyId } from "../contracts";
+import { vendorRows } from "./status";
+import { VendorDetail, VendorList, type Tab } from "./vendors";
+import type { CompanyId } from "../contracts";
 import { companies } from "../companies";
 import type { Permission } from "../server/access-policy";
 
@@ -18,11 +18,14 @@ export default function Dashboard(props: DashboardProps) {
   function selectCompany(id: CompanyId) {
     setSelection({ id, focus: true });
     const url = new URL(window.location.href);
-    if (id === "roast") url.searchParams.delete("company"); else url.searchParams.set("company", id);
+    const slug = companies.find(c => c.id === id)!.slug;
+    if (id === "roast") url.searchParams.delete("company"); else url.searchParams.set("company", slug);
     window.history.replaceState(null, "", url.pathname + url.search);
   }
   return <CompanyDashboard key={companyId} {...props} companyId={companyId} onCompanyChange={selectCompany} focusCompanyOnLoad={selection.focus} />;
 }
+
+const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function CompanyDashboard({
   permissions,
@@ -42,52 +45,46 @@ function CompanyDashboard({
     }
   }, [data, busy, active]);
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const [vendorFilter, setVendorFilter] = useState<{ generation: number; vendorId: string } | null>(null);
-  const selectedVendor = vendorFilter?.generation === data?.generation ? vendorFilter?.vendorId : undefined;
-  function reviewVendor(vendorId: string) {
-    if (data) setVendorFilter({ generation: data.generation, vendorId });
-    const queue = document.getElementById("investigation-queue");
-    queue?.focus({ preventScroll: true });
-    queue?.scrollIntoView({ block: "start", behavior: "instant" });
-  }
+  const [tabChoice, setTabChoice] = useState<Tab | null>(null);
+  const [picked, setPicked] = useState<{ generation: number; id: string } | null>(null);
   const resetButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (confirmingReset) {
-      confirmButtonRef.current?.focus({ preventScroll: true });
-    }
+    if (confirmingReset) confirmButtonRef.current?.focus({ preventScroll: true });
   }, [confirmingReset]);
+
   const can = (permission: Permission) => permissions.includes(permission);
-  const currentRuns = data?.runs.filter((run) => run.generation === data.generation) ?? [];
-  const latestRuns = data?.exceptions.flatMap((exception) =>
-    currentRuns.filter((run) => run.exceptionId === exception.id).slice(-1),
-  ) ?? [];
-  const sortedExceptions = [...(data?.exceptions ?? [])].sort((a, b) => {
-    if (b.summary.differenceCents !== a.summary.differenceCents) {
-      return b.summary.differenceCents - a.summary.differenceCents;
-    }
-    if (a.rule !== b.rule) {
-      return a.rule === "payment_increase" ? -1 : 1;
-    }
-    return a.id.localeCompare(b.id);
-  });
-  const reviewableRuns = latestRuns.filter(run => run.state === "completed");
-  const failedRuns = latestRuns.filter(run => run.state === "failed");
-  const reviewed = reviewableRuns.filter((run) => run.reviewedAt).length;
-  const savedFindings = currentRuns.reduce((n, r) => n + r.findings.length, 0);
-  const exceptionCount = data?.exceptions.length ?? 0;
-  const hasScenarioState = Boolean(data?.injected || active || busy === "inject" || exceptionCount > 0);
+  const rows = data ? vendorRows(data) : [];
+  const flagged = rows.reduce((n, r) => n + r.flags.length, 0);
+  const reviewed = rows.reduce((n, r) => n + r.runs.filter(run => run?.state === "completed" && run.reviewedAt).length, 0);
+  const hasFlags = flagged > 0;
+  const tab: Tab = tabChoice ?? (hasFlags ? "check" : "all");
+  const inTab = rows.filter(r => tab === "all" || (tab === "checked" ? r.checked : r.flags.length > 0 && !r.checked));
+  const selectedId = picked && picked.generation === data?.generation && rows.some(r => r.id === picked.id) ? picked.id : inTab[0]?.id ?? rows[0]?.id;
+  const selected = rows.find(r => r.id === selectedId);
   const total = data?.summaries.reduce((n, s) => n + s.currentCents, 0) ?? 0;
+  const running = rows.flatMap(r => r.runs).filter(run => run && ["pending", "running"].includes(run.state)).length;
   const company = companies.find(c => c.id === companyId)!;
+  const findings = data?.runs.filter(r => r.generation === data.generation).reduce((n, r) => n + r.findings.length, 0) ?? 0;
+
+  function select(id: string) {
+    if (data) setPicked({ generation: data.generation, id });
+    // Side by side on wide screens; on narrow screens bring the detail into view.
+    if (window.matchMedia("(max-width: 899px)").matches)
+      requestAnimationFrame(() => document.getElementById("vendor-detail")?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }));
+  }
+
   return (
     <main>
       <header>
-        <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">S</span>
-          <span>SpendWise</span>
-        </Link>
+        <div className="brand-group">
+          <Link className="brand" href="/">
+            <span className="brand-mark" aria-hidden="true">S</span>
+            <span>SpendWise</span>
+          </Link>
+          <span className="environment" title="All companies, vendors and amounts are made up.">Synthetic demo data</span>
+        </div>
         <div className="header-actions">
-          <span className="environment">Synthetic data</span>
           <LearningCenter />
           {canSignOut && (
             <form action="/api/auth/signout" method="get">
@@ -96,180 +93,75 @@ function CompanyDashboard({
           )}
         </div>
       </header>
-      <section className="intro">
-        <div>
-          <p className="eyebrow">{company.name}</p>
-          <h1>Vendor payment exceptions · October 2026</h1>
+
+      <section className="toolbar">
+        <div className="company">
+          <label htmlFor="company-demo">Company</label>
+          <div className="select-wrap">
+            <select ref={companySelector} id="company-demo" value={companyId} disabled={Boolean(busy) || active || !data} onChange={event => onCompanyChange(event.target.value as CompanyId)}>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <p className="fine">{company.context}</p>
         </div>
         <div className="controls">
           <button
             disabled={!can("inject") || Boolean(busy) || Boolean(error) || !data || data.injected}
-            onClick={() => {
-              setConfirmingReset(false);
-              void act({ action: "inject", scenarioId: "demo-v1" });
-            }}
+            onClick={() => { setConfirmingReset(false); setTabChoice(null); void act({ action: "inject", scenarioId: "demo-v1" }); }}
           >
-            {busy === "inject"
-              ? "Starting investigations…"
-              : data?.injected
-                ? "Payments added"
-                : "Simulate new payments"}
+            {busy === "inject" ? "Loading…" : data?.injected ? "October payments loaded" : "Load October payments"}
           </button>
           {confirmingReset ? (
             <div className="reset-confirm" role="group" aria-label="Confirm reset">
-              <p className="confirm-prompt">
-                {!hasScenarioState
-                  ? "Reset to baseline?"
-                  : savedFindings > 0
-                    ? `Clear ${savedFindings} ${savedFindings === 1 ? "finding" : "findings"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`
-                    : `Clear ${exceptionCount} ${exceptionCount === 1 ? "exception" : "exceptions"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?`}
-              </p>
+              <p className="confirm-prompt">{findings > 0 || reviewed > 0 ? `Clear ${findings} ${findings === 1 ? "finding" : "findings"} and ${reviewed} ${reviewed === 1 ? "review" : "reviews"}?` : "Reset this company?"}</p>
               <div className="confirm-actions">
-                <button
-                  ref={confirmButtonRef}
-                  type="button"
-                  className="danger"
-                  disabled={!can("reset") || busy === "reset"}
-                  onClick={() => {
-                    setConfirmingReset(false);
-                    void act({ action: "reset" });
-                  }}
-                >
-                  Confirm reset
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => {
-                    setConfirmingReset(false);
-                    requestAnimationFrame(() => {
-                      resetButtonRef.current?.focus({ preventScroll: true });
-                    });
-                  }}
-                >
-                  Cancel
-                </button>
+                <button ref={confirmButtonRef} type="button" className="danger" disabled={!can("reset") || busy === "reset"}
+                  onClick={() => { setConfirmingReset(false); setTabChoice(null); void act({ action: "reset" }); }}>Confirm reset</button>
+                <button type="button" className="secondary" onClick={() => { setConfirmingReset(false); requestAnimationFrame(() => resetButtonRef.current?.focus({ preventScroll: true })); }}>Cancel</button>
               </div>
             </div>
           ) : (
-            <button
-              ref={resetButtonRef}
-              className="secondary"
-              disabled={!can("reset") || busy === "reset" || (!data && !busy)}
-              onClick={() => setConfirmingReset(true)}
-            >
+            <button ref={resetButtonRef} className="secondary" disabled={!can("reset") || busy === "reset" || (!data && !busy)} onClick={() => setConfirmingReset(true)}>
               {busy === "reset" ? "Resetting…" : "Reset demo"}
             </button>
           )}
         </div>
       </section>
-      <section className="company-selector" aria-label="Company demo">
-        <div><label htmlFor="company-demo">Explore a company demo</label>
-          <select ref={companySelector} id="company-demo" value={companyId} disabled={Boolean(busy) || active || !data} onChange={event => onCompanyChange(event.target.value as CompanyId)}>
-            {companies.map(c => <option key={c.id} value={c.id}>{c.name} · {c.industry}</option>)}
-          </select>
-          {(busy || active) && <p className="fine">Wait for this operation to finish before switching companies.</p>}
-        </div>
-        <div><p><strong>{company.industry}</strong> · {company.context}</p>
-          <p className="fine">{company.examples}</p>
-          <p className="fine">{companyId === "roast" ? "Fictional company and records." : "Unaffiliated hypothetical scenario. No company data or actual vendor relationships."} All amounts are synthetic USD. Each company keeps its own findings and reviews; Reset affects only the selected demo.</p>
-        </div>
+
+      <section className="title">
+        <h1>October payment review</h1>
+        <p>{data ? <>September vs October 2026 · {rows.length} vendors · October cash paid <strong className="num">{dollars(total)}</strong></> : "Loading…"}</p>
       </section>
+
       {signedOut && (
-        <form className="sign-in-prompt" action="/api/auth/signin" method="get">
-          <p>You are viewing the synthetic demo read-only. You can open citations and source records; Simulate, Reset, Retry and Mark reviewed require GitHub sign-in.</p>
+        <form className="notice" action="/api/auth/signin" method="get">
+          <p>You&apos;re viewing read-only. Sign in to load payments and run investigations.</p>
           <button type="submit" className="secondary">Sign in with GitHub</button>
         </form>
       )}
       {!signedOut && permissions.every(permission => permission === "read") && (
-        <p className="sign-in-prompt">This account is viewing the synthetic demo read-only. You can open citations and source records; Simulate, Reset, Retry and Mark reviewed require an authorized account.</p>
+        <p className="notice">This account is read-only. An authorized account can load payments and run investigations.</p>
       )}
       {error && (
         <div className="error" role="alert">
           {error}
-          <button
-            className="secondary"
-            onClick={() => void load()}
-          >
-            Reload
-          </button>
+          <button className="secondary" onClick={() => void load()}>Reload</button>
         </div>
       )}
-      <div className={`status-strip${active || busy === "inject" || busy === "retry" ? " active" : ""}`} role="status">
-        {busy === "reset" ? (
-          <span>Clearing scenario findings and review acknowledgments…</span>
-        ) : !data && !error ? (
-          <span>Loading synthetic records…</span>
-        ) : active || busy === "inject" || busy === "retry" ? (
-          <span>
-            {error
-              ? "Progress updates are unavailable. Reload to check current run states."
-              : `Investigations in progress. Run states and counters refresh automatically. Each attempt is limited to ${INVESTIGATION_LIMITS.toolExecutions} retrievals, ${INVESTIGATION_LIMITS.modelRequests} model requests and ${INVESTIGATION_LIMITS.runMs / 1000} seconds.`}
-          </span>
-        ) : (
-          <span>
-            Sep 1–30 vs Oct 1–31, 2026 · October cash paid <strong className="num">{data ? money(total) : "—"}</strong> (completed payments net of reversals)
-          </span>
-        )}
-      </div>
-      <div className={busy === "reset" ? "dashboard-body dimmed" : "dashboard-body"}>
-        {data && <VendorInsights data={data} onReview={reviewVendor} />}
-        <section className="metrics" aria-label="Payment overview">
-          <div>
-            <p>Exceptions to review</p>
-            <strong>{data?.exceptions.length ?? "—"}</strong>
-            <small>Flagged by rules for analyst review</small>
-          </div>
-          <div>
-            <p>Human review</p>
-            <strong>
-              {data ? (
-                reviewableRuns.length === 0 && failedRuns.length > 0 ? (
-                  <>
-                    {reviewed} reviewed · {failedRuns.length} failed
-                  </>
-                ) : (
-                  <>
-                    {reviewed} of {reviewableRuns.length} reviewed
-                    {failedRuns.length > 0 && <span> · {failedRuns.length} failed</span>}
-                  </>
-                )
-              ) : (
-                "—"
-              )}
-            </strong>
-            <small>Completed runs only · Acknowledgment, not payment approval or evidence verification</small>
-          </div>
-        </section>
-      <section className="queue-section" id="investigation-queue" tabIndex={-1} aria-labelledby="queue-title">
-        <div className="section-title">
-          <h2 id="queue-title">Investigation queue</h2>
-          <span>{data ? `${data.exceptions.length} ${data.exceptions.length === 1 ? "exception" : "exceptions"} · ${reviewed} reviewed` : "Loading…"}</span>
+      {(running > 0 || busy === "inject" || busy === "retry") && !error && (
+        <div className="banner" role="status">
+          <span className="spinner" aria-hidden="true" />
+          {busy === "inject" && running === 0 ? "Loading October payments and flagging anything unusual…" : `Investigating ${running} ${running === 1 ? "flag" : "flags"}. Follow along in each vendor below.`}
         </div>
-        {selectedVendor && <div className="filter-notice"><p>Showing {data?.dataset.vendors.find(v => v.id === selectedVendor)?.name} · {sortedExceptions.filter(e => e.vendorId === selectedVendor).length} exceptions</p><button className="secondary" onClick={() => setVendorFilter(null)}>Show all exceptions</button></div>}
-        {data?.exceptions.length === 0 && (
-          <div className="empty">
-            <h3>Baseline ready</h3>
-            <p>Adds three October scenarios: one large increase and two pairs of same-amount payments.</p>
-          </div>
-        )}
-        <div className="queue">
-          {data && sortedExceptions.filter(e => !selectedVendor || e.vendorId === selectedVendor).map((exception) => (
-            <ReviewCard
-              key={`${data.generation}:${exception.id}`}
-              exception={exception}
-              relatedExceptions={sortedExceptions.filter(e => e.vendorId === exception.vendorId && e.id !== exception.id)}
-              dataset={data.dataset}
-              attempts={data.runs.filter(run => run.exceptionId === exception.id && run.generation === data.generation)}
-              busy={Boolean(busy) || Boolean(error)}
-              canRetry={can("retry")}
-              canReview={can("review")}
-              act={act}
-            />
-          ))}
-        </div>
-      </section>
+      )}
+      {busy === "reset" && <div className="banner" role="status"><span className="spinner" aria-hidden="true" />Resetting this company…</div>}
 
+      <div className={busy === "reset" ? "workspace dimmed" : "workspace"}>
+        {data && <>
+          <VendorList rows={rows} tab={tab} onTab={setTabChoice} selected={selectedId} onSelect={select} reviewed={reviewed} flagged={flagged} />
+          <VendorDetail row={selected} data={data} busy={Boolean(busy) || Boolean(error)} canRetry={can("retry")} canReview={can("review")} act={act} />
+        </>}
+        {!data && !error && <p className="empty">Loading records…</p>}
       </div>
     </main>
   );

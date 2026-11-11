@@ -20,14 +20,15 @@ export const stubInvestigator: Investigator = {
         {
           exceptionId: input.exception.id,
           label: "Needs Review",
+          summary: "Placeholder: no AI investigation ran in this mode.",
           explanation:
-            "Stub response: the application detected this exception. No AI investigation or business-cause verification has been performed.",
+            "- The application detected this flag.\n- No AI investigation or cause check was performed.",
           evidence: input.exception.paymentIds.map((id) => ({
             type: "payment" as const,
             id,
           })),
           nextStep:
-            "Inspect the payments, linked invoices, and notes. Determine whether further investigation is needed.",
+            "Open the evidence below and decide whether to follow up.",
           referenceStatus: "unchecked",
           supportStatus: "unverified",
         },

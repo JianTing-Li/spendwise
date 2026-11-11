@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "spendwise-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3200"],
+      "port": 3200,
+      "env": { "PGLITE_DATA_DIR": ".data/ui05", "INVESTIGATOR_MODE": "stub", "DATABASE_MODE": "local" }
+    }
+  ]
+}
