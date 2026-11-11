@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ESLint } from "eslint";
 import { detect, validateDataset } from "../src/domain/finance";
-import { injectedDataset } from "../src/fixtures/scenarios";
+import { baseline, injectedDataset } from "../src/fixtures/scenarios";
 import { developmentDataset, heldOutDataset } from "../src/fixtures/evaluation";
 import { fixtureRetrieval } from "../src/server/retrieval/fixture";
 import type { Dataset, Payment } from "../src/contracts";
@@ -106,7 +106,7 @@ describe("DATA-01 synthetic scenarios and evaluator-only ground truth", () => {
     expect(vendors).not.toContain("vendor-electrical");
   });
 
-  it("keeps the demo injection unchanged", () => {
+  it("keeps the original demo exceptions and adds the late-bill and re-issued cases", () => {
     expect(
       detect(injectedDataset())
         .map((e) => e.id)
@@ -114,9 +114,17 @@ describe("DATA-01 synthetic scenarios and evaluator-only ground truth", () => {
     ).toEqual([
       "duplicate:pay-advisory-a:pay-advisory-b",
       "duplicate:pay-design-a:pay-design-b",
+      "increase:vendor-dairy:2026-10",
       "increase:vendor-duplicate:2026-10",
+      "increase:vendor-espresso:2026-10",
       "increase:vendor-renewal:2026-10",
     ]);
+  });
+
+  it("everyday vendors never trigger a flag at baseline or after injection", () => {
+    expect(detect(baseline)).toEqual([]);
+    const flagged = new Set(detect(injectedDataset()).map((e) => e.vendorId));
+    expect(injectedDataset().vendors.filter((v) => !flagged.has(v.id))).toHaveLength(7);
   });
 });
 

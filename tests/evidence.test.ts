@@ -167,7 +167,7 @@ describe("AI-02 objective claim support", () => {
     ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
     // Same renewal records, but the linked note now states a different amount.
     const altered = injectedDataset();
-    altered.notes[0].text = "Synthetic note: renewal agreed at $9,500.";
+    altered.notes.find((n) => n.id === "note-renewal")!.text = "Synthetic note: renewal agreed at $9,500.";
     expect(
       await check(altered, RENEWAL, { evidence: renewalEvidence }),
     ).toMatchObject({ label: "Needs Review", supportStatus: "contradicted" });
@@ -564,7 +564,7 @@ describe("AI-02 run outcome is separate from finding support", () => {
         ref("payment", detect(demo).find((e) => e.id === id)!.paymentIds[0]),
       ]),
     ]);
-    expect(runs).toHaveLength(4);
+    expect(runs).toHaveLength(6);
     for (const run of runs) {
       expect(run).toMatchObject({
         mode: "real",

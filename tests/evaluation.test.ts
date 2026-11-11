@@ -337,11 +337,11 @@ describe("EVAL-01 baseline (rules-v3) on development cases (offline)", () => {
       mode: "baseline-only",
       modelRequests: 0,
       versions: { baseline: "rules-v3" },
-      summary: { cases: 9, unsupportedExplained: 0 },
+      summary: { cases: 11, unsupportedExplained: 0 },
     });
     // The baseline's record checks are the validator's, which were tuned on
     // these development cases, so this is not evidence of generalization.
-    expect(report.summary.labelAcceptable).toBe(9);
+    expect(report.summary.labelAcceptable).toBe(11);
   });
 
   it("never states a business cause of its own", async () => {
