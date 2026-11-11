@@ -20,6 +20,15 @@ const errorText: Record<NonNullable<Run["error"]>, string> = {
 
 type Ref = Finding["evidence"][number];
 
+/**
+ * Lead with what holds up: verified findings, then the investigator's own
+ * open questions, and last any draft the records check rejected.
+ */
+function ordered(run: Run) {
+  const rank = (f: Finding) => (isVerified(run, f) ? 0 : f.supportStatus === "unverified" ? 1 : 2);
+  return run.findings.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map(x => x.f);
+}
+
 /** Reason for findings saved before reasons were recorded, from their saved statuses. */
 function savedReason(f: Finding, run: Run) {
   if (run.mode === "stub") return "Placeholder only: no AI investigation ran.";
@@ -198,7 +207,7 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
         : <p className="fine">All 3 attempts are used. Check the records below or reset the demo.</p>}
     </div>}
 
-    {run && run.findings.map((f, i) => finding(f, i, run))}
+    {run && ordered(run).map((f, i) => finding(f, i, run))}
 
     {run?.state === "completed" && <div className="review-row">
       {run.reviewedAt
