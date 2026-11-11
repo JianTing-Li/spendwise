@@ -67,6 +67,11 @@ function CompanyDashboard({
   const company = companies.find(c => c.id === companyId)!;
   const findings = data?.runs.filter(r => r.generation === data.generation).reduce((n, r) => n + r.findings.length, 0) ?? 0;
 
+  // Acting on a vendor pins it, so reviewing never swaps the detail to another vendor.
+  function actOnSelected(action: object, path?: string) {
+    if (data && selected) setPicked({ generation: data.generation, id: selected.id });
+    return act(action, path);
+  }
   function select(id: string) {
     if (data) setPicked({ generation: data.generation, id });
     // Side by side on wide screens; on narrow screens bring the detail into view.
@@ -159,7 +164,7 @@ function CompanyDashboard({
       <div className={busy === "reset" ? "workspace dimmed" : "workspace"}>
         {data && <>
           <VendorList rows={rows} tab={tab} onTab={setTabChoice} selected={selectedId} onSelect={select} reviewed={reviewed} flagged={flagged} />
-          <VendorDetail row={selected} data={data} busy={Boolean(busy) || Boolean(error)} canRetry={can("retry")} canReview={can("review")} act={act} />
+          <VendorDetail row={selected} data={data} busy={Boolean(busy) || Boolean(error)} canRetry={can("retry")} canReview={can("review")} act={actOnSelected} />
         </>}
         {!data && !error && <p className="empty">Loading records…</p>}
       </div>

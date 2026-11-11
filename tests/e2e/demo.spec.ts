@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-test("INV-09/10: inject, inspect, review, persist and reset", async ({
+test("INV-09/10: load, inspect, review, persist and reset", async ({
   page,
   request,
 }) => {
@@ -19,21 +19,25 @@ test("INV-09/10: inject, inspect, review, persist and reset", async ({
   await expect(page.getByRole("button", { name: "Reset demo" })).toBeFocused();
   await page.getByRole("button", { name: "Reset demo" }).click();
   await page.getByRole("button", { name: "Confirm reset" }).click();
-  await expect(page.getByText("Baseline ready")).toBeVisible();
-  await page.getByRole("button", { name: "Simulate new payments" }).click();
-  await expect(page.getByText("Stub · no AI call")).toHaveCount(4);
-  await expect(
-    page.getByRole("button", { name: "Payments added" }),
-  ).toBeDisabled();
-  await page.getByText("Inspect source records").first().click();
-  await expect(page.locator("details[open] .record").first()).toBeVisible();
-  await page
-    .getByRole("button", { name: "Mark reviewed", exact: true })
-    .first()
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Reviewed", exact: true }),
-  ).toHaveCount(1);
+  await expect(page.getByText("No flags yet")).toBeVisible();
+  // Everyday vendors are listed before any flag exists.
+  await expect(page.getByRole("tab", { name: /All vendors 12/ })).toBeVisible();
+  await page.getByRole("button", { name: "Load October payments" }).click();
+  await expect(page.getByText("0 of 6 flags reviewed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "October payments loaded" })).toBeDisabled();
+  // The largest flagged change is selected first; its card shows why and a placeholder answer.
+  const card = page.getByRole("article").first();
+  await expect(card).toContainText("Why flagged: Paid $12,000 more than in September");
+  await expect(card.locator(".badge")).toHaveText("Placeholder");
+  await expect(card).toContainText("Not verified: Placeholder only: no AI investigation ran.");
+  await card.locator(".chip").first().click();
+  await expect(card.locator(".record")).toBeVisible();
+  await card.getByRole("button", { name: "Mark reviewed", exact: true }).click();
+  await expect(card.getByText(/✓ Reviewed/)).toBeVisible();
+  await expect(page.getByText("1 of 6 flags reviewed")).toBeVisible();
+  // Fully reviewed vendors move to Checked; the selection stays put (no jump).
+  await expect(page.getByRole("tab", { name: /Checked 1/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Northstar POS Cloud", level: 2 })).toBeVisible();
   await page.screenshot({ path: "test-results/desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "test-results/mobile.png", fullPage: true });
@@ -43,14 +47,12 @@ test("INV-09/10: inject, inspect, review, persist and reset", async ({
     ),
   ).toBe(true);
   await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Reviewed", exact: true }),
-  ).toHaveCount(1);
+  await expect(page.getByText("1 of 6 flags reviewed")).toBeVisible();
   const denied = await request.post("/api/demo", { data: { action: "reset" } });
   expect(denied.status()).toBe(403);
   await page.getByRole("button", { name: "Reset demo" }).click();
-  await expect(page.getByText("Clear 4 findings and 1 review?")).toBeVisible();
+  await expect(page.getByText("Clear 6 findings and 1 review?")).toBeVisible();
   await page.getByRole("button", { name: "Confirm reset" }).click();
-  await expect(page.getByText("Baseline ready")).toBeVisible();
-  await expect(page.getByText("Stub · no AI call")).toHaveCount(0);
+  await expect(page.getByText("No flags yet")).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(0);
 });

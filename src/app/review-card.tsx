@@ -127,14 +127,14 @@ export function ReviewCard({ exception, dataset, attempts, busy, canRetry, canRe
     </section>;
   }
 
-  return <article id={`flag-${exception.id}`} className={`flag${run?.reviewedAt ? " reviewed" : ""}`} aria-label={exception.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}>
+  return <article id={`flag-${exception.id}`} className={`flag${run?.reviewedAt ? " reviewed" : ""}`} aria-label={`${dataset.vendors.find(v => v.id === exception.vendorId)?.name ?? "Vendor"} ${exception.rule === "payment_increase" ? "payment increase" : "possible duplicate"}`}>
     <div className="flag-top">
       <span className="rule">{exception.rule === "payment_increase" ? "Payment increase" : "Possible duplicate"}</span>
       <span className={`badge ${outcome}`}>{outcomeLabel[outcome]}</span>
     </div>
     <p className="why"><strong>Why flagged:</strong> {reason.headline}</p>
     <p className="fine">{reason.detail}</p>
-    <p className="sr-only" ref={status} tabIndex={-1} role="status">{run ? `${outcomeLabel[outcome]}${run.reviewedAt ? ", reviewed" : ""}` : "Not started"}</p>
+    <p className="sr-only" ref={status} tabIndex={-1} role="status" aria-label="Investigation status">{run ? `${outcomeLabel[outcome]}${run.reviewedAt ? ", reviewed" : ""}` : "Not started"}</p>
 
     {run && (run.state === "pending" || run.state === "running") && <Progress run={run} dataset={dataset} />}
 
