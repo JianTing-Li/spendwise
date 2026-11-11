@@ -28,7 +28,7 @@ it("authorizes before executing, wires durable real fake runs, returns read/revi
   expect(results.every(r=>r.status===200)).toBe(true);
   expect((await Promise.all(results.map(r=>r.json()))).map(r=>r.changed).sort()).toEqual([false,true]);
   const response = await GET(req()); expect(response.status).toBe(200);
-  const state = await response.json(); expect(state.runs).toHaveLength(4);
+  const state = await response.json(); expect(state.runs).toHaveLength(6);
   expect(state.runs.every((r: {state:string})=>r.state==="completed")).toBe(true);
   expect((await POST(req({action:"review",runId:state.runs[0].id}))).status).toBe(200);
   expect((await retry(req({predecessorId:state.runs[0].id}))).status).toBe(409);

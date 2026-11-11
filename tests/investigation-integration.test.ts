@@ -35,10 +35,14 @@ it("completes durable real runs via DB tools, keeps support unverified, reopens 
   const client = syntheticModel(); const create = vi.spyOn(client, "create");
   await Promise.all([runPending(store, { client }), runPending(store, { client })]);
   const state = await store.state();
-  expect(create).toHaveBeenCalledTimes(8);
-  expect(state.runs).toHaveLength(4);
+  expect(create).toHaveBeenCalledTimes(12);
+  expect(state.runs).toHaveLength(6);
   expect(state.runs.every(r => r.mode === "real" && r.state === "completed" && r.error === null &&
     r.modelRequests === 2 && r.toolExecutions === 3 && r.findings[0].referenceStatus === "valid" && r.findings[0].supportStatus === "unverified")).toBe(true);
+  // Display-only progress records tool names and requested IDs, ending in the submission.
+  // Claim records when each run started, for an accurate progress timer.
+  expect(state.runs.every(r => r.startedAt !== null && Date.parse(r.startedAt) <= Date.now())).toBe(true);
+  expect(state.runs.every(r => r.activity.length === 4 && r.activity[0].tool === "list_payments" && r.activity.at(-1)?.tool === "submit_findings")).toBe(true);
   await store.review(state.runs[0].id);
   await store.db.close();
   const reopened = await setup(folder);
@@ -54,7 +58,7 @@ it("starts four model waits concurrently, persists attempts before waiting, and 
     calls++;
     return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
   } } });
-  await waitFor(async () => calls === 4);
+  await waitFor(async () => calls === 6);
   const active = await store.state();
   expect(active.runs.every(r => r.state === "running" && r.modelRequests === 1)).toBe(true);
   controller.abort(); await task;
@@ -69,7 +73,7 @@ it("reset aborts model waits, invalidates generation, and ignores late results",
     // Deliberately ignores abort: the runner and DB guards must still stop it.
     return new Promise(resolve => release.push(() => resolve(message([call("submit_findings", {findings:[draft()]} )]))));
   } } });
-  await waitFor(async () => signals.length === 4);
+  await waitFor(async () => signals.length === 6);
   await store.reset(); await store.inject();
   await task;
   expect(signals.every(s => s.aborted)).toBe(true);
@@ -89,14 +93,14 @@ it("isolates model and persistence failures; retries are predecessor-idempotent"
     return finish(...args);
   });
   await runPending(store, { client });
-  expect((await store.state()).runs.filter(r => r.state === "completed")).toHaveLength(3);
+  expect((await store.state()).runs.filter(r => r.state === "completed")).toHaveLength(5);
   const failed = (await store.state()).runs.find(r => r.state === "failed")!;
   expect(failed).toBeDefined();
   expect(JSON.stringify(log.mock.calls)).not.toContain("private");
   const retries = await Promise.all([store.retry(failed.id), store.retry(failed.id)]);
   expect(retries.map(r => r.changed).sort()).toEqual([false, true]);
   await runPending(store, { client: syntheticModel() });
-  expect((await store.state()).runs.filter(r => r.state === "completed")).toHaveLength(4);
+  expect((await store.state()).runs.filter(r => r.state === "completed")).toHaveLength(6);
 });
 it("bounds validation lookups together with model dispatches; counts invalid requests too", async () => {
   vi.stubEnv("INVESTIGATOR_MODE", "real");
@@ -137,7 +141,7 @@ it.each([0, 6, 8])("preserves findings when retrieval is unavailable after %i mo
     r.toolExecutions === Math.min(8, attempts + 1) && r.modelRequests === (attempts ? 2 : 1))).toBe(true);
   expect(runs.every(r => r.findings.length === 2 && r.findings.every(f =>
     f.label !== "Explained" && f.referenceStatus === "unchecked" && f.supportStatus === "unverified"))).toBe(true);
-  expect(read).toHaveBeenCalledTimes(4 * Math.min(8, attempts + 1));
+  expect(read).toHaveBeenCalledTimes(6 * Math.min(8, attempts + 1));
 });
 it("survives transient shared poll failures without aborting model waits and stops polling at completion", async () => {
   vi.stubEnv("INVESTIGATOR_MODE", "real");
@@ -154,9 +158,9 @@ it("survives transient shared poll failures without aborting model waits and sto
     return message([call("submit_findings",{findings:[draft()]})]);
   }}});
   await waitFor(async () => polls.mock.calls.length >= 3);
-  expect(signals).toHaveLength(4);
+  expect(signals).toHaveLength(6);
   expect(signals.every(signal => !signal.aborted)).toBe(true);
-  expect(polls.mock.calls.every(([ids]) => ids.length === 4)).toBe(true);
+  expect(polls.mock.calls.every(([ids]) => ids.length === 6)).toBe(true);
   expect(log.mock.calls.flat()).toContainEqual({name:"DatabaseTimeout",message:"Database operation timed out",code:"57014"});
   release(); await task;
   expect((await store.state()).runs.every(r => r.state === "completed" && r.error === null)).toBe(true);
@@ -183,7 +187,7 @@ it("caps model requests at ten, with retries disabled", async () => {
     return message([call("submit_findings", {findings: []})]);
   });
   await runPending(store, { client: { create } });
-  expect(create).toHaveBeenCalledTimes(40);
+  expect(create).toHaveBeenCalledTimes(60);
   expect((await store.state()).runs.every(r => r.state === "incomplete" && r.error === "model_limit" && r.modelRequests === 10)).toBe(true);
 });
 it("refuses a model call after the validation reserve, and retries expiry without a GET write", async () => {
@@ -200,7 +204,7 @@ it("refuses a model call after the validation reserve, and retries expiry withou
   expect(await store.db.transaction(tx => tx.query("SELECT status,payload FROM investigation_runs ORDER BY id"))).toEqual(rawBefore);
   expect(expired.runs.every(r => r.state === "incomplete" && r.error === "deadline")).toBe(true);
   await store.retry(expired.runs[0].id);
-  expect((await store.state()).runs).toHaveLength(5);
+  expect((await store.state()).runs).toHaveLength(7);
 });
 it("prevents completed results with empty findings, inconsistent errors, or wrong mode", async () => {
   const store = await setup(); await store.inject(); const run = (await store.state()).runs[0];
@@ -247,7 +251,7 @@ it("stops a hung model when the durable deadline is forced past, without accepti
   vi.stubEnv("INVESTIGATOR_MODE","real"); const store = await setup(); await store.inject();
   let waiting=0;
   const task = runPending(store,{client:{create:async()=>{waiting++;return new Promise(()=>{});}}});
-  await waitFor(async()=>waiting===4);
+  await waitFor(async()=>waiting===6);
   await store.db.transaction(tx=>tx.exec("UPDATE investigation_runs SET deadline_at=clock_timestamp()-interval '1 second'"));
   await task;
   expect((await store.state()).runs.every(r=>r.state==="incomplete" && r.error==="deadline" && r.modelRequests===1)).toBe(true);

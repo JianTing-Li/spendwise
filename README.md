@@ -11,7 +11,7 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 **Example:** Two $3,000 payments reference the same invoice → SpendWise flags a possible duplicate → Claude pulls the related payments, invoices, and vendor notes → the analyst reviews the cited records and decides whether to follow up.
 
 - **Code does the math, not the AI.** Every dollar figure and flag is calculated by application code; the model never computes totals.
-- **No unsupported answers.** A finding is marked "Explained" only when the cited records actually cover the cash change. Across 13 test cases, it produced 0 unsupported "Explained" findings.
+- **No unsupported answers.** A finding is marked "Explained" only when the cited records actually cover the cash change. In every evaluation run so far (15 test cases), it produced 0 unsupported "Explained" findings.
 - **The analyst stays in control.** The AI only reads records. It never approves, pays, refunds, or edits anything.
 
 **Who built what**
@@ -24,7 +24,7 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 
 1. **Application code** calculates net cash paid (integer USD cents, entry-date cash basis, explicit reversals) and flags payment increases (`≥ $5,000` and `≥ 20%`) and possible duplicate payments (same vendor and amount within 7 days).
 2. **Claude (`claude-opus-5-5`)** investigates each exception through 4 scoped, read-only tools (`get_payment_summary`, `list_payments`, `get_invoices`, `get_vendor_notes`) under hard per-run limits: `≤ 8` tool calls, `≤ 10` model calls, `60s`.
-3. **Application validation** checks every cited ID, screens for overclaims and unsupported dollar figures, and marks a finding **Explained** only when the cited invoices and notes cover the cash change.
+3. **Application validation** checks every cited ID, screens for overclaims and unsupported dollar figures, and marks a finding **Explained** only when the cited invoices and notes cover the cash change. In the app these show as **Records explain it**; anything else shows **Needs a look**, with a one-line reason when the records check rejected the draft.
 4. **A finance analyst** inspects the linked source records and clicks **Mark reviewed**. That's an acknowledgment, never a payment approval.
 
 ## Design choices
@@ -36,37 +36,41 @@ When reviewing monthly vendor payments, finance analysts cross-check payment run
 
 ## Demo scenarios
 
-The live demo has three fictional companies: a coffee shop, a software business unit and a warehousing business unit. Each has its own data and the same three patterns: an annual renewal, a repeated invoice, and lookalike separate projects. The dashboard also charts monthly vendor cash, lets you filter the review queue by vendor, and offers a short guided tour.
+The live demo has three fictional companies: *Roast & Co. Coffee*, *Larkspur Software* and *Ironbridge Logistics*. Each has 11 to 12 everyday vendors (rent, payroll, utilities, suppliers) and the same five patterns hidden among them. Pick a vendor from one list to see why it was flagged, the answer in one line, and the records behind it. Investigations show their steps live while they run.
 
 The default company, *Roast & Co. Coffee* (October 2026 close):
 
-| Vendor | Sep → Oct cash | What triggered it | Evidence and expected pattern |
+| Vendor | Sep → Oct cash | What triggered it | Expected result |
 | --- | --- | --- | --- |
-| **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Explained.** Normal $1,000 terminal usage plus a $12,000 annual platform subscription (`Invoice NS-2026`, `note-renewal`) covering Oct 2026–Sep 2027. |
-| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs review.** Both payments reference the same $3,000 Q3 sales-tax invoice (`HA-101`): $3,000 in question, not confirmed. |
-| **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Lookalike.** The payments cover two different invoices (`FS-201` coffee-bag artwork, `FS-202` menu boards). Explained in the baseline; *Needs review* when Claude hedges cautiously. |
+| **Northstar POS Cloud** | $1,000 → $13,000 | $12,000 increase | **Records explain it** (`Explained`). Normal $1,000 monthly fee plus a $12,000 annual subscription (`Invoice NS-2026`) covering Oct 2026–Sep 2027. |
+| **Valley Dairy Co.** | $2,400 → $8,600 | $6,200 increase | **Needs a look** (`Needs Review`). The usual milk bill plus the August invoice (`VD-0831`), sent late and paid in October. The records explain the jump, but August payments are outside them, so the app won't verify the bill was paid only once. |
+| **Summit Espresso Service** | $6,000 → $12,000 | $6,000 increase | **Needs a look** (`Needs Review`). A "re-issued" Q3 invoice (`SE-1008`) bills the same quarter already paid in September (`SE-0905`). The duplicate rule misses it (12 days apart); the agent connects the records. |
+| **Harbor Tax & Advisory** | $0 → $6,000 | Two $3,000 payments 2 days apart | **Needs a look** (`Needs Review`). Both payments reference the same $3,000 invoice (`HA-101`): $3,000 in question, not confirmed. |
+| **Fieldwork Creative Studio** | $0 → $3,000 | Two $1,500 payments 2 days apart | **Records explain it** (lookalike). The payments cover two different invoices (`FS-201` artwork, `FS-202` menu boards). |
 
 Local `stub` mode returns unverified placeholder drafts without calling the model.
 
 ## Evaluation
 
-The goal is an investigator that never overclaims: across 13 synthetic cases (9 development, 4 held out; see [decision 004](docs/decisions/004-evaluation.md)), Claude produced **zero unsupported "Explained" findings** and cited every required record.
+The goal is an investigator that never overclaims. Across 15 synthetic cases (11 development on the current version, 4 held out on the previous version; see [decision 004](docs/decisions/004-evaluation.md)), Claude produced **zero unsupported "Explained" findings**.
 
-| Metric | Claude (dev, 9) | Baseline (dev) | Claude (held-out, 4) | Baseline (held-out) |
+| Metric | Claude (dev, 11) | Baseline (dev) | Claude (held-out, 4) | Baseline (held-out) |
 | --- | --- | --- | --- | --- |
 | Unsupported "Explained" findings | **0** | 0 | **0** | 0 |
-| Acceptable label after validation | 9 / 9 | 9 / 9 | 3 / 4 | 4 / 4 |
-| Required evidence cited | 18 / 18 | 18 / 18 | 11 / 11 | 11 / 11 |
-| Causes correct (human review) | 8 correct, 1 partly | Not human-scored | 4 / 4 | Not human-scored |
+| Acceptable label after validation | 11 / 11 | 11 / 11 | 3 / 4 | 4 / 4 |
+| Required evidence cited | 23 / 24 | 22 / 24 | 11 / 11 | 11 / 11 |
+| Causes correct (human review) | Pending review | Not human-scored | 4 / 4 | Not human-scored |
 
-Three consecutive live cycles on the deployed site (inject → detect → investigate → validate → review → reset) all completed within limits. See the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
+On the re-issued invoice case, the baseline only follows October payments, so it never cites the September payment for the same quarter. Claude cited both and explained the possible double payment. Development results are from one run on 2026-11-11 (prompt v2), re-validated offline after a code-review fix to the validator; held-out results are from 2026-11-10 (prompt v1) and were not re-run.
+
+Three consecutive live cycles on the deployed site (inject → detect → investigate → validate → review → reset) all completed within limits on 2026-11-10. See the [DEMO-01 worklog](worklog/jian/DEMO-01.md).
 
 ## Limitations
 
-- **The rule-based baseline matched or beat Claude's automatic label scores.** The one held-out miss was the validator rejecting a correct but cautiously worded answer on the lookalike case.
+- **The rule-based baseline matched or beat Claude's automatic label scores.** Labels are the easy part; the baseline never explains a cause. The one held-out miss was the validator rejecting a correct but cautiously worded answer on the lookalike case.
 - **Live results vary with model phrasing:** three consecutive live runs produced 2, 1, and 2 verified explanations.
 - **Analyst review time, time savings, and the relative usefulness of model-written next steps remain unmeasured.**
-- **13 synthetic cases is a small sample**, and each case ran once.
+- **15 synthetic cases is a small sample**, and each case ran once. The held-out cases predate the current prompt.
 - **New-payee detection is not implemented**; the MVP detects payment increases and possible duplicates only.
 
 ## Stack & local setup

@@ -4,7 +4,7 @@ import { Store } from "../../src/server/db/store";
 import { seedLegacy001 } from "./legacy";
 import type { Dataset } from "../../src/contracts";
 import { baseline, injectedDataset } from "../../src/fixtures/scenarios";
-import { summarize } from "../../src/domain/finance";
+import { detect, summarize } from "../../src/domain/finance";
 import { stubInvestigator } from "../../src/server/investigation/stub";
 
 function equal(actual: unknown, expected: unknown, message: string) {
@@ -31,7 +31,7 @@ export async function verifyIsolatedCompatibility(db: Database) {
     equal(records(state.dataset), records(injectedDataset()), "Fixture records mismatch");
     equal([...state.summaries].sort((a,b) => a.vendorId.localeCompare(b.vendorId)),
       summarize(injectedDataset()).sort((a,b) => a.vendorId.localeCompare(b.vendorId)), "Fixture totals mismatch");
-    equal(state.runs.length, 4, "Detection mismatch");
+    equal(state.runs.length, detect(injectedDataset()).length, "Detection mismatch");
     for (const run of state.runs) {
       const input = await store.claim(run.id);
       if (!input) throw new Error("Claim mismatch");

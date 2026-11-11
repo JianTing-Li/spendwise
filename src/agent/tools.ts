@@ -27,6 +27,7 @@ export const ModelFinding = z.object({
   explanation: Finding.shape.explanation,
   evidence: z.array(EvidenceRef).max(30),
   nextStep: Finding.shape.nextStep,
+  summary: z.string().min(1).max(300).optional(),
 });
 export const Submission = z.object({
   findings: z.array(ModelFinding).min(1).max(5),

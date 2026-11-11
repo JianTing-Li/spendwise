@@ -3,9 +3,11 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   await page.goto('/');
   await page.getByRole('button', { name: 'Reset demo' }).click();
   await page.getByRole('button', { name: 'Confirm reset' }).click();
-  await expect(page.getByText('Baseline ready')).toBeVisible();
-  await page.getByRole('button', { name: 'Simulate new payments' }).click();
-  await expect(page.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' })).toHaveCount(4);
+  await expect(page.getByText('No flags yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Load October payments' }).click();
+  const card = page.locator('article.flag').first();
+  await expect(card.getByRole('button', { name: 'Try again (1 of 3 used)' })).toBeVisible();
+  await expect(page.locator('.vendor-row .badge.failed')).toHaveCount(5);
   const initial = await (await request.get('/api/demo')).json();
   const firstException = [...initial.exceptions].sort(
     (a: { summary: { differenceCents: number } }, b: { summary: { differenceCents: number } }) =>
@@ -14,15 +16,14 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   const predecessorId = initial.runs.find(
     (r: { exceptionId: string }) => r.exceptionId === firstException.id,
   ).id;
-  const card = page.locator('article.finding').first();
-  await card.getByRole('button', { name: 'Retry investigation (1/3 attempts used)' }).click();
-  await expect(card.getByRole('button', { name: 'Retry investigation (2/3 attempts used)' })).toBeVisible();
-  await card.getByRole('button', { name: 'Retry investigation (2/3 attempts used)' }).click();
-  await expect(card.getByText(/All 3 attempts ended without a completed result\. Review the source records below/)).toBeVisible();
+  await card.getByRole('button', { name: 'Try again (1 of 3 used)' }).click();
+  await expect(card.getByRole('button', { name: 'Try again (2 of 3 used)' })).toBeVisible();
+  await card.getByRole('button', { name: 'Try again (2 of 3 used)' }).click();
+  await expect(card.getByText(/All 3 attempts are used/)).toBeVisible();
   await page.reload();
-  await expect(card.getByText(/All 3 attempts ended without a completed result\. Review the source records below/)).toBeVisible();
-  await card.getByText('Attempt history').click();
-  await expect(card.getByRole('heading', { name: 'Attempt 2', exact: true })).toBeVisible();
+  await expect(card.getByText(/All 3 attempts are used/)).toBeVisible();
+  await card.getByText('Details').click();
+  await expect(card.getByText(/Earlier attempts: #1 failed/)).toBeVisible();
   const after = await (await request.get('/api/demo')).json();
   expect(after.runs.filter((r: {
     exceptionId: string;
@@ -32,9 +33,9 @@ test('retry persists history, stops at three, rejects stale predecessor after re
   }) => r.modelRequests === 0)).toBe(true);
   await page.screenshot({ path: 'test-results/retry-history.png', fullPage: true });
   await page.getByRole('button', { name: 'Reset demo' }).click();
-  await expect(page.getByText('Clear 4 exceptions and 0 reviews?')).toBeVisible();
+  await expect(page.getByText('Reset this company?')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm reset' }).click();
-  await expect(page.getByText('Baseline ready')).toBeVisible();
+  await expect(page.getByText('No flags yet')).toBeVisible();
   const stale = await request.post('/api/demo/retry', { headers: { Origin: 'http://127.0.0.1:3100', 'X-Spendwise-Demo': '1' }, data: { predecessorId } });
   expect(stale.status()).toBe(409);
 });

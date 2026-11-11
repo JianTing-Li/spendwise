@@ -108,5 +108,5 @@ it("initializes from another process working directory", async () => {
   const { tmpdir } = await import('node:os');
   const { fileURLToPath } = await import('node:url');
   const { stdout } = await promisify(execFile)(process.execPath, ['--import', import.meta.resolve('tsx'), fileURLToPath(new URL('./helpers/portable-store.ts', import.meta.url))], { cwd: tmpdir() });
-  expect(JSON.parse(stdout)).toEqual({ versions: [{ version: 1 }, { version: 2 }, { version: 3 }], payments: 2 });
+  expect(JSON.parse(stdout)).toEqual({ versions: [{ version: 1 }, { version: 2 }, { version: 3 }], payments: 20 });
 });

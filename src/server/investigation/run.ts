@@ -87,7 +87,7 @@ export async function runPending(store: Store, options: { signal?: AbortSignal; 
           }
           for (let i = 0; i < result.findings.length; i++) {
             result.findings[i] = await validateFinding(result.findings[i], claimed.exception, context.validation);
-            if (run.mode === "stub") result.findings[i].supportStatus = "unverified";
+            if (run.mode === "stub") result.findings[i] = { ...result.findings[i], supportStatus: "unverified", supportNote: "Placeholder only: no AI investigation ran." };
             context.check();
           }
           if (result.findings.some(f => f.referenceStatus !== "valid"))

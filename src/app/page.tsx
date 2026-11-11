@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Dashboard from './dashboard';
-import { CompanyId } from '../contracts';
+import { companyFromParam } from '../companies';
 import { identify, authorize, canonicalRedirect, PUBLIC_SUBJECT } from '../server/access';
 export const dynamic = 'force-dynamic';
 export default async function Page({ searchParams }: { searchParams: Promise<{ company?: string | string[] }> }) {
-  const selected = CompanyId.safeParse((await searchParams).company);
+  const selected = companyFromParam((await searchParams).company);
   const incoming = await headers();
   const host = incoming.get('host') ?? 'invalid';
   // Deployment-specific URLs would break sign-in (APP-06); send visitors to the production domain.
@@ -23,7 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
             <span>SpendWise</span>
           </Link>
           <div className="header-actions">
-            <span className="environment">Synthetic data</span>
+            <span className="environment">Synthetic demo data</span>
           </div>
         </header>
         <section className="access-required">
@@ -37,7 +37,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
     );
   return (
     <Dashboard
-      initialCompany={selected.success ? selected.data : "roast"}
+      initialCompany={selected ?? "roast"}
       permissions={access.principal.grant.permissions}
       signedOut={access.principal.subject === PUBLIC_SUBJECT}
       canSignOut={access.principal.subject.startsWith("github:")}

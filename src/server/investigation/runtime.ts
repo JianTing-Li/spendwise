@@ -1,4 +1,4 @@
-import { INVESTIGATION_LIMITS, type InvestigationInput, type InvestigationResult } from "../../contracts";
+import { Activity, INVESTIGATION_LIMITS, type InvestigationInput, type InvestigationResult } from "../../contracts";
 import type { Investigator, Retrieval } from "../../investigation";
 import type { ModelClient } from "../../agent/loop";
 import { RunError } from "../../investigation/budget";
@@ -16,9 +16,9 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
     if (signal.aborted) throw new RunError("deadline");
     if (Date.now() >= Date.parse(input.deadlineAt) - 1000) throw new RunError("deadline");
   };
-  const charge = async (counter: keyof typeof counters, amount = 1) => {
+  const charge = async (counter: keyof typeof counters, amount = 1, activity: Activity[] = []) => {
     check();
-    counters[counter] = Math.max(counters[counter], await store.charge(id, input.generation, counter, amount));
+    counters[counter] = Math.max(counters[counter], await store.charge(id, input.generation, counter, amount, activity));
     check();
   };
   // Validation reuses complete scoped responses, never a model-filtered subset.
@@ -52,6 +52,11 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
     for (const name of ["list_payments", "get_invoices", "get_vendor_notes"] as const)
       await cached(name);
   }
+  // Display-only progress. A failure here never fails or extends the run.
+  const recordActivity = async (entries: Activity[]) => {
+    try { await store.recordActivity(id, input.generation, entries); }
+    catch { /* progress is cosmetic; counters and persistence carry the guarantees */ }
+  };
   let investigator: Investigator = stubInvestigator;
   if (mode === "real") {
     const { createRealInvestigator, DEFAULT_MODEL } = await import("../../agent/loop");
@@ -76,11 +81,25 @@ export async function runtimeFor(store: Store, id: string, input: InvestigationI
           // may leave a conservative reservation; it can never undercount work.
           const attempts = response.content.filter(b => b.type === "tool_use" && b.name !== "submit_findings").length;
           const amount = Math.min(attempts, INVESTIGATION_LIMITS.toolExecutions - counters.toolExecutions);
-          if (amount > 0) await charge("toolExecutions", amount);
+          const activity = response.content.filter(b => b.type === "tool_use").map(b => activityEntry(b.name, b.input));
+          // One write per response: progress is stored with the lookup charge.
+          // Only a submission-only response needs its own small display write.
+          if (amount > 0) await charge("toolExecutions", amount, activity);
+          else await recordActivity(activity);
           return response;
         } },
       });
     }
   }
   return { investigator, validation, counters, check, prepareValidation };
+}
+
+const TOOL_NAMES = new Set(["get_payment_summary", "list_payments", "get_invoices", "get_vendor_notes", "submit_findings"]);
+/** Tool name and requested record IDs only; never model text or record content. */
+export function activityEntry(name: unknown, input: unknown): Activity {
+  const tool = typeof name === "string" && TOOL_NAMES.has(name) ? name : "other";
+  const values = input && typeof input === "object" ? Object.values(input as Record<string, unknown>) : [];
+  const ids = tool === "submit_findings" || tool === "other" ? [] :
+    values.flatMap(v => Array.isArray(v) ? v : []).filter((v): v is string => typeof v === "string" && v.length > 0 && v.length <= 120).slice(0, 50);
+  return Activity.parse({ tool, ids });
 }

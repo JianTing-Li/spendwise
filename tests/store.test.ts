@@ -28,8 +28,8 @@ describe("INV-09/10 local persistence", () => {
       expect(results.map((r) => r.changed).sort()).toEqual([false, true]);
       await Promise.all([runPending(store), runPending(store)]);
       const state = await store.state();
-      expect(state.dataset.payments).toHaveLength(7);
-      expect(state.runs).toHaveLength(4);
+      expect(state.dataset.payments).toHaveLength(27);
+      expect(state.runs).toHaveLength(6);
       expect(
         state.runs.every(
           (r) =>
@@ -45,7 +45,7 @@ describe("INV-09/10 local persistence", () => {
       expect((await store.review(state.runs[0].id)).changed).toBe(true);
       expect((await store.review(state.runs[0].id)).changed).toBe(false);
       await store.reset();
-      expect((await store.state()).dataset.payments).toHaveLength(2);
+      expect((await store.state()).dataset.payments).toHaveLength(20);
       expect((await store.state()).runs).toEqual([]);
     }
   });

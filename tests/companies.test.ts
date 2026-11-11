@@ -21,7 +21,7 @@ it("keeps Roast fixtures exact and gives new companies distinct contextual evide
   const seen = new Set<string>();
   for (const [company, totals] of [["hubspot", [200000, 2600000, 2400000]], ["gxo", [400000, 2200000, 1800000]]] as const) {
     const data = validateDataset(companyDataset(company, true));
-    expect(detect(data)).toHaveLength(4);
+    expect(detect(data)).toHaveLength(6);
     const renewal = summarize(data).find(s => s.vendorId.endsWith(":vendor-renewal"))!;
     expect([renewal.priorCents, renewal.currentCents, renewal.differenceCents]).toEqual(totals);
     for (const record of [...data.vendors, ...data.payments, ...data.invoices, ...data.notes]) {
@@ -41,7 +41,7 @@ it("browses never-injected company baselines without writing any records", async
     expect(state.dataset).toEqual(companyDataset(company)); expect(state.runs).toEqual([]); expect(state.injected).toBe(false);
   }
   expect(await root.db.transaction(tx => tx.query("SELECT * FROM demo_state ORDER BY id"))).toEqual(before);
-  expect((await root.db.transaction(tx => tx.query("SELECT id FROM vendors"))).rows).toHaveLength(3);
+  expect((await root.db.transaction(tx => tx.query("SELECT id FROM vendors"))).rows).toHaveLength(12);
 });
 
 it.each(["hubspot", "gxo"] as const)("runs %s through real orchestration with scoped DB evidence and an offline model", async company => {
@@ -50,7 +50,7 @@ it.each(["hubspot", "gxo"] as const)("runs %s through real orchestration with sc
   await store.inject();
   await runPending(store, { client: syntheticModel() });
   const state = await store.state();
-  expect(state.runs).toHaveLength(4);
+  expect(state.runs).toHaveLength(6);
   for (const run of state.runs) {
     expect(run).toMatchObject({ mode: "real", state: "completed", error: null, toolExecutions: 3, modelRequests: 2 });
     expect(run.findings.every(f => f.referenceStatus === "valid" && f.supportStatus === "unverified" && f.evidence.every(e => e.id.startsWith(`${company}:`)))).toBe(true);
@@ -63,7 +63,7 @@ it("independently persists inject, completion, acknowledgment and reset for all 
   const stores = [root, root.forCompany("hubspot"), root.forCompany("gxo")];
   await Promise.all(stores.map(async s => { const results = await Promise.all([s.inject(), s.inject()]); expect(results.map(r => r.changed).sort()).toEqual([false, true]); await runPending(s); }));
   for (const s of stores) {
-    const state = await s.state(); expect(state.runs).toHaveLength(4);
+    const state = await s.state(); expect(state.runs).toHaveLength(6);
     expect(state.runs.every(r => r.state === "completed" && r.modelRequests === 0 && r.findings.every(f => f.supportStatus === "unverified"))).toBe(true);
     await s.review(state.runs[0].id);
   }

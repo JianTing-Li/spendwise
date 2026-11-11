@@ -9,8 +9,13 @@ import { Pool } from "pg";
 import { Store } from "../src/server/db/store";
 import { DatabaseQueryError, DatabaseTimeout, DatabaseUnavailable, PgDatabase, pgPoolOptions } from "../src/server/db/pg";
 import { stubInvestigator } from "../src/server/investigation/stub";
-import { summarize } from "../src/domain/finance";
-import { injectedDataset } from "../src/fixtures/scenarios";
+import { detect, summarize } from "../src/domain/finance";
+import { baseline, injectedDataset } from "../src/fixtures/scenarios";
+
+// Counts come from the fixtures, so adding demo records never breaks these checks.
+const INJECTED_PAYMENTS = injectedDataset().payments.length;
+const BASELINE_PAYMENTS = baseline.payments.length;
+const EXCEPTIONS = detect(injectedDataset()).length;
 import type { DemoState, InvestigationInput } from "../src/contracts";
 import type { Database } from "../src/server/db/database";
 import { databaseRetrieval } from "../src/server/retrieval/database";
@@ -144,10 +149,10 @@ test("real pg: independent processes cannot inject twice (three cycles)", option
     }[];
     assert.deepEqual(results.map(r => r.changed).sort(), [false, true]);
     const state = await store.state();
-    assert.equal(state.dataset.payments.length, 7);
-    assert.equal(state.exceptions.length, 4);
-    assert.equal(state.runs.length, 4);
-    assert.equal(new Set(state.runs.map(r => r.id)).size, 4);
+    assert.equal(state.dataset.payments.length, INJECTED_PAYMENTS);
+    assert.equal(state.exceptions.length, EXCEPTIONS);
+    assert.equal(state.runs.length, EXCEPTIONS);
+    assert.equal(new Set(state.runs.map(r => r.id)).size, EXCEPTIONS);
     assert.deepEqual([...state.summaries].sort((a, b) => a.vendorId.localeCompare(b.vendorId)), summarize(injectedDataset()).sort((a, b) => a.vendorId.localeCompare(b.vendorId)));
   }
 });
@@ -202,7 +207,7 @@ test("real pg: reset invalidates another process's claimed in-flight result", op
   assert.ok(input);
   await b.call({ action: "reset" });
   const reset = await store.state();
-  assert.equal(reset.dataset.payments.length, 2);
+  assert.equal(reset.dataset.payments.length, BASELINE_PAYMENTS);
   assert.equal(reset.runs.length, 0);
   await b.call({ action: "inject" });
   const result = await stubInvestigator.investigate(input, new AbortController().signal);
@@ -261,7 +266,7 @@ test("real pg: terminating an idle backend permits the next request and a fresh 
     pid: number;
   }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
   assert.notEqual(replacement, pid);
-  assert.equal((await new Store(old.db).state()).dataset.payments.length, 7);
+  assert.equal((await new Store(old.db).state()).dataset.payments.length, INJECTED_PAYMENTS);
   await old.db.close();
   const recovered = fresh();
   const newPid = await recovered.db.transaction(async (tx) => (await tx.query<{
@@ -269,8 +274,8 @@ test("real pg: terminating an idle backend permits the next request and a fresh 
   }>("SELECT pg_backend_pid() AS pid")).rows[0].pid);
   assert.notEqual(newPid, pid);
   const state = await new Store(recovered.db).state();
-  assert.equal(state.dataset.payments.length, 7);
-  assert.equal(state.runs.length, 4);
+  assert.equal(state.dataset.payments.length, INJECTED_PAYMENTS);
+  assert.equal(state.runs.length, EXCEPTIONS);
   await assert.rejects(old.db.transaction(async () => { }), DatabaseUnavailable);
 });
 test("real pg: lock and statement timeouts are distinct from outages and preserve usable clients", options, async () => {
@@ -345,7 +350,7 @@ test("real pg: retries across processes are predecessor-idempotent and reset gua
   await store.inject();
   const result = await stubInvestigator.investigate(input, new AbortController().signal);
   assert.equal(await a.call({ action: "finish", id: retry.id, generation: retry.generation, result }), false);
-  assert.equal((await store.state()).runs.length, 4);
+  assert.equal((await store.state()).runs.length, EXCEPTIONS);
 });
 test("real pg: broad read-only role is rejected for retrieval and cannot write", options, async () => {
   const { assertReadOnly, assertApplication } = await import('../src/server/db/permissions');
@@ -354,7 +359,7 @@ test("real pg: broad read-only role is rejected for retrieval and cannot write",
   // Existing PostgreSQL built-in role; no role creation, grants or credentials.
   await primary.db.transaction(async (tx) => {
     await tx.exec('SET LOCAL ROLE pg_read_all_data');
-    assert.equal((await tx.query('SELECT id FROM payments')).rows.length, 2);
+    assert.equal((await tx.query('SELECT id FROM payments')).rows.length, BASELINE_PAYMENTS);
   });
   await assert.rejects(primary.db.transaction(async tx => {
     await tx.exec('SET LOCAL ROLE pg_read_all_data');

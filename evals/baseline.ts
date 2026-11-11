@@ -7,7 +7,7 @@ import { fixtureRetrieval } from "../src/server/retrieval/fixture";
 import type { Retrieval } from "../src/investigation";
 import type { Dataset, Exception, Finding, Payment } from "../src/contracts";
 
-export const BASELINE_VERSION = "rules-v2";
+export const BASELINE_VERSION = "rules-v3";
 
 type Ref = Finding["evidence"][number];
 const inCurrent = (p: Payment) =>

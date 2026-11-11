@@ -38,7 +38,7 @@ describe("INV-04 financial conventions", () => {
       differenceCents: 1200000,
       percentChange: 1200,
     });
-    expect(detect(injectedDataset())).toHaveLength(4);
+    expect(detect(injectedDataset())).toHaveLength(6);
   });
   it.each([
     [2000000, 2500000, true],

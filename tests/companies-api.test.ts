@@ -18,7 +18,7 @@ afterEach(async () => { await db.close(); vi.unstubAllEnvs(); });
 it("keeps legacy requests working and independently serves/mutates the selected company", async () => {
   expect((await POST(req("?company=hubspot", { action: "inject", scenarioId: "demo-v1" }))).status).toBe(200);
   const hub = await (await GET(req("?company=hubspot"))).json();
-  expect(hub.runs).toHaveLength(4); expect(hub.runs.every((r: { modelRequests: number }) => r.modelRequests === 0)).toBe(true);
+  expect(hub.runs).toHaveLength(6); expect(hub.runs.every((r: { modelRequests: number }) => r.modelRequests === 0)).toBe(true);
   expect(hub.dataset.vendors.every((v: { id: string }) => v.id.startsWith("hubspot:"))).toBe(true);
   expect((await (await GET(req())).json()).injected).toBe(false);
   expect((await (await GET(req("?company=gxo"))).json()).injected).toBe(false);
