@@ -26,6 +26,7 @@ GitHub Issues hold every task's specification, owner (the assignee), milestone a
 | DATA-02 | [More vendors and cases that show the agent's value](https://github.com/JianTing-Li/spendwise/issues/61) |
 | DATA-03 | [Structured quantities and prices for volume vs price causes](https://github.com/JianTing-Li/spendwise/issues/62) |
 | DOCS-03 | [Rewrite README for a 30-second recruiter read](https://github.com/JianTing-Li/spendwise/issues/57) |
+| DOCS-04 | [Replace README GIF with the full demo video](https://github.com/JianTing-Li/spendwise/issues/64) |
 
 Views: [open issues by milestone](https://github.com/JianTing-Li/spendwise/milestones) · [all open issues](https://github.com/JianTing-Li/spendwise/issues)
 
